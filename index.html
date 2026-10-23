@@ -414,7 +414,8 @@ const F_KEYS=[
   K('delete','ring',{circle:[712,450,17],big:true}),
   K('memory','ring',{circle:[764,450,12]}),
 ];
-const TX=(x,y,text,size,anchor,bold)=>({x,y,text,size:size||9,anchor:anchor||'mm',bold:!!bold});
+const TX=(x,y,text,size,anchor,bold)=>({x,y,text,size:size||9,anchor:anchor||'mm',bold:bold==='cond'?'cond':!!bold});
+const TF_PX=8.6;
 const F_TEXTS=[
   TX(43,134,'5V ⎓ 2.1A',7.5),TX(95,101,'USB',9),TX(95,112,'STOP',9),TX(LC+4,251,'SD',10,'lm'),TX(LC,290,'HOT  CUE',10),
   ...[316,388,461,533].map((y,i)=>TX(LC-42,y,'ABCD'[i],9)),...[316,388,461,533].map((y,i)=>TX(LC+42,y,'EFGH'[i],9)),
@@ -423,7 +424,7 @@ const F_TEXTS=[
   TX(149,288,'TIME',8),TX(149,297,'MODE',8),TX(210,288,'AUTO',8),TX(210,297,'CUE',8),TX(179,361,'QUANTIZE',8),
   TX(296,40,'SEARCH',9,'lm'),TX(496,40,'LINK INFO',9,'lm'),TX(601,40,'UTILITY',9,'lm'),
   TX(724,85,'BACK',8.5),TX(766,75,'TAG TRACK',8.5),TX(766,85,'/ REMOVE',8.5),
-  TX(707,295,'TRACK FILTER',6.4,'lm'),TX(723,304,'EDIT',6.4,'lm'),TX(770,295,'SHORT',6.4),TX(770,304,'CUT',6.4),
+  TX(703.4,290.4,'TRACK FILTER',TF_PX,'lm','cond'),TX(720.2,297.6,'EDIT',TF_PX,'lm','cond'),TX(769.7,290.4,'SHORT',TF_PX,'mm','cond'),TX(769.7,297.6,'CUT',TF_PX,'mm','cond'),
   TX(745,343,'MP3/AAC/WAV',8.5),TX(745,355,'AIFF/FLAC/ALAC',8.5),
   TX(RC,86,'STANDBY',7),TX(RC,114,'DISC EJECT',9),TX(RC,286,'VINYL',9.5),TX(RC,296,'SPEED ADJUST',9.5),
   TX(RC,311,'TOUCH / BRAKE',8),TX(RC,399,'RELEASE / START',8),
@@ -447,7 +448,7 @@ const F_LINES=[
   [[RC-46,567],[RC-46,560],[RC-38,560]],[[164,497],[180,497]],
   [[LC-42,622],[LC-42,629],[LC-14,629]],[[LC+14,629],[LC+42,629],[LC+42,622]],
   [[179,73],[179,94]],[[179,117],[179,136]],[[179,159],[179,179]],[[179,202],[179,221]],
-  [[283,40],[292,40]],[[483,40],[492,40]],[[588,40],[597,40]],[[713,304],[720,304]],
+  [[283,40],[292,40]],[[483,40],[492,40]],[[588,40],[597,40]],[[710.6,297.6],[717.6,297.6]],
   [[LC-42,334],[LC-42,370]],[[LC-42,406],[LC-42,443]],[[LC-42,479],[LC-42,515]],[[LC-42,551],[LC-42,566]],
   [[LC+42,334],[LC+42,370]],[[LC+42,406],[LC+42,443]],[[LC+42,479],[LC+42,515]],[[LC+42,551],[LC+42,566]],
   /* step icons of the VINYL SPEED ADJUST knobs */
@@ -467,7 +468,7 @@ const CAP_IMG=new Image();CAP_IMG.onload=()=>{for(const F of (typeof FACES!=='un
    Canvas drawing of the face. Painter and the first key styles come from the "Pioneer CDJ & XDJ Emulator" (app/art.py, GPL-2.0-or-later); the body, jog, selector and keys were redrawn after the real CDJ-2000NXS2. */
 const PRINT=[225,228,232],PRINT_DIM=[150,154,160],GUN_TOP=[50,51,54],GUN_BOT=[30,31,33],GLOSS=[9,9,10];
 const FACE_FONT='Arimo,Arial,"Helvetica Neue",Helvetica,"Liberation Sans",sans-serif';
-const TRACKING=.05;
+const TRACKING=.05,COND_SX=.9;
 const css=(c,a)=>c.length===4||a!=null?'rgba('+c[0]+','+c[1]+','+c[2]+','+(a!=null?a:c[3]/255)+')':'rgb('+c[0]+','+c[1]+','+c[2]+')';
 const mix=(a,b,t)=>a.map((x,i)=>Math.round(x+(b[i]-x)*t));
 const dimC=(c,t)=>mix([12,12,13],c,t==null?.28:t);
@@ -534,10 +535,13 @@ class Painter{
   glow(draw,color,blur,strength,over){this.glowRaw(draw,color,blur,strength==null?1:strength,over?'source-atop':'destination-over');}
   text(x,y,text,px,fill,anchor,bold){
     if(!text)return;anchor=anchor||'mm';const g=this.g;const lines=String(text).split('\n'),lead=px*1.12;
-    g.font=(bold?'700 ':'400 ')+px+'px '+FACE_FONT;g.fillStyle=css(fill);g.textBaseline='middle';g.textAlign='left';
+    g.font=bold==='cond'?'400 '+px+'px "Fira Sans Condensed",'+FACE_FONT:(bold?'700 ':'400 ')+px+'px '+FACE_FONT;g.fillStyle=css(fill);g.textBaseline='middle';g.textAlign='left';
     const top=y-({t:0,a:0,m:lead*(lines.length-1)/2,s:lead*(lines.length-1),b:lead*(lines.length-1),d:lead*(lines.length-1)}[anchor[1]]);
+    /* condensed print (TRACK FILTER / SHORT CUT): a narrow face, a little squeezed like the real one */
+    const sx=bold==='cond'?COND_SX:1;if(sx!==1){g.save();g.translate(x,0);g.scale(sx,1);g.translate(-x,0);}
     lines.forEach((ln,i)=>{const w=textW(g,ln,px);let x0=x-({l:0,m:w/2,r:w}[anchor[0]]);const cy=top+i*lead;
       for(const ch of ln){g.fillText(ch,x0,cy);x0+=g.measureText(ch).width+TRACKING*px;}});
+    if(sx!==1)g.restore();
   }
 }
 function textW(g,t,px){let w=0;for(const ch of t)w+=g.measureText(ch).width;return w+TRACKING*px*Math.max(0,t.length-1);}
@@ -554,7 +558,7 @@ function drawBody(P,deckLabel){
   for(const pts of F_LINES)P.line(pts,PRINT,1.1);
   for(const t of F_TEXTS)P.text(t.x,t.y,t.text,t.size,PRINT,t.anchor,t.bold);
   for(const [st,kx,ky,kr] of F_KNOBS)knobScale(P,st,kx,ky,kr);
-  P.rrect([LC-36,575,LC-32,579],0,PRINT);P.rrect([701,293.3,704,296.3],0,PRINT);
+  P.rrect([LC-36,575,LC-32,579],0,PRINT);P.rrect([700.4,289.2,702.6,291.4],0,PRINT);
   if(deckLabel)P.text(462,1120,deckLabel,15,[120,122,128],'mm',true);
   g.restore();
 }
@@ -677,7 +681,8 @@ function sliderFrame(P){
   /* 50 graduations as on the real deck, a longer one every 5; the – and + sit on the first and last one */
   const n=50,step=(F_SLIDER[2]-F_SLIDER[1])/n;for(let i=0;i<=n;i++){const y=F_SLIDER[1]+i*step,big=i%5===0;
     const e=big?4.5:7;P.line([[x0+e,y],[RC-6,y]],big?[214,214,220]:[150,150,156],big?1.1:.7);P.line([[RC+6,y],[x1-e,y]],big?[214,214,220]:[150,150,156],big?1.1:.7);}
-  P.rrect([RC-3,y0+16,RC+3,y1-30],3,[0,0,0]);
+  /* the slot is centred on 0, as on the real deck (797 to 1102) */
+  P.rrect([RC-3,797,RC+3,1102],3,[0,0,0]);
   for(let i=2;i<=n-2;i++){const y=F_SLIDER[1]+i*step;if(Math.abs(y-SL_ZERO)<7)continue;P.circle(820,y,.9,PRINT_DIM);}
 }
 function pill(P,x,y,t){P.g.font='700 6.6px '+FACE_FONT;const tw=textW(P.g,t,6.6);P.rrect([x-tw/2-3.5,y-5,x+tw/2+3.5,y+5],2.5,[196,198,202]);P.text(x,y+.3,t,6.6,[20,20,22],'mm',true);}
@@ -905,6 +910,7 @@ function TW(g,t,size,font,wt){g.font=(wt||400)+' '+size+'px '+(font||LF);return 
 function TC(g,t,x,y,size,col,max,font,wt){g.font=(wt||400)+' '+size+'px '+(font||LF);g.fillStyle=col||'#fff';g.textAlign='left';let s=String(t==null?'':t);
   if(g.measureText(s).width>max){let lo=0,hi=s.length;while(lo<hi){const m=(lo+hi+1)>>1;if(g.measureText(s.slice(0,m)).width<=max)lo=m;else hi=m-1;}s=s.slice(0,lo);}g.fillText(s,x,y);}
 function RR(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function rbox(g,x,y,w,h,r,fill,stroke,lw){const o=stroke?(lw||1)/2:0;g.beginPath();g.roundRect(x+o,y+o,w-2*o,h-2*o,r);if(fill){g.fillStyle=fill;g.fill();}if(stroke){g.strokeStyle=stroke;g.lineWidth=lw||1;g.stroke();}}
 function box(g,x,y,w,h,fill,stroke,lw){if(fill){g.fillStyle=fill;g.fillRect(x,y,w,h);}if(stroke){g.strokeStyle=stroke;g.lineWidth=lw||1;const o=(lw||1)/2;g.strokeRect(x+o,y+o,w-2*o,h-2*o);}}
 function withAlpha(css,a){const m=/^#([0-9a-f]{6})$/i.exec(css);if(m){const n=parseInt(m[1],16);return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')';}const r=/rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(css);return r?'rgba('+r[1]+','+r[2]+','+r[3]+','+a+')':css;}
 /* 【 and 】 drawn as shapes so they look the same everywhere */
@@ -1531,25 +1537,33 @@ function drawPlayUpper(d,g){
   if(cur){noteIcon(g,37,16,22,'#fff');g.font='400 25px '+LF;const t=(tr.artist?tr.artist+' - ':'')+tr.title;TC(g,t,60,36,25,'#fff',tr.key?622:712);
     if(tr.key){keyGlyph(g,693,17,17,'#fff',NAVY);T(g,keyTxt(tr.key),718,36,25,'#fff');}}
   /* top row */
-  modeBox(g,18,53,68,53,'LOOP','MODE',d.loopMode?'#ff8c00':null);hit(d,18,53,68,53,()=>{d.loopMode=!d.loopMode;d.jumpMode=false;});
+  modeBox(g,18,53,68,53,'LOOP','MODE',d.loopMode?'#c0600f':null);hit(d,18,53,68,53,()=>{d.loopMode=!d.loopMode;d.jumpMode=false;});
   arrowBox(g,131,53,69,53,-1,fmtJump(d));hit(d,131,53,69,53,()=>beatJump(d,-1));
   arrowBox(g,635,53,69,53,1,fmtJump(d));hit(d,635,53,69,53,()=>beatJump(d,1));
-  modeBox(g,714,53,68,53,'BEAT','JUMP',d.jumpMode?'#d8d8d8':null);hit(d,714,53,68,53,()=>{d.jumpMode=!d.jumpMode;d.loopMode=false;});
+  modeBox(g,714,53,68,53,'BEAT','JUMP',d.jumpMode?'#e8e8e8':null);hit(d,714,53,68,53,()=>{d.jumpMode=!d.jumpMode;d.loopMode=false;});
   phaseMeter(d,g,pos);
   const mode=d.loopMode||d.jumpMode;
   if(ld)drawDetail(d,g,mode?117:125,mode?197:267,d.touchPrev!=null?d.touchPrev:pos,mode);
   else if(cur)T(g,'Loading...',400,205,22,'#8fa6c8',LF,400,'center');
   if(d.loopMode){
-    const L=[.25,.5,1,2,4,8,16,32],w=(764-7*6)/8,cl=d.loop&&ld?d.loopLenBeats():null;
-    L.forEach((n,i)=>{const x=18+i*(w+6),y=205,on=cl!=null&&Math.abs(cl-n)<.01;
-      box(g,x,y,w,60,on?'#ff9a1a':'#26292e',on?'#ffc070':'#41464f',1);T(g,fmtBeat(n),x+w/2,y+38,21,on?'#000':'#fff',LN,400,'center');
-      hit(d,x,y,w,60,()=>{if(on)d.exitLoop();else d.beatLoop(n);},{hold:()=>{d.slipBegin();d.beatLoop(n);d.slipLoopHeld=true;},up:()=>{if(d.slipLoopHeld){d.slipLoopHeld=false;d.exitLoop();}}});});
+    /* as on the real firmware: 8 keys of 91 x 73 px, 5 px apart, dark with an orange edge; the active one filled orange */
+    const L=[.25,.5,1,2,4,8,16,32],w=91,h=73,cl=d.loop&&ld?d.loopLenBeats():null;
+    L.forEach((n,i)=>{const x=18+i*96,y=204,on=cl!=null&&Math.abs(cl-n)<.01;
+      rbox(g,x,y,w,h,3,on?'#ff7100':'#1f2227',on?'#ff7100':'#b4580e',1.6);T(g,fmtBeat(n),x+w/2,y+44,21,on?'#000':'#f2f2f2',LN,400,'center');
+      hit(d,x,y,w,h,()=>{if(on)d.exitLoop();else d.beatLoop(n);},{hold:()=>{d.slipBegin();d.beatLoop(n);d.slipLoopHeld=true;},up:()=>{if(d.slipLoopHeld){d.slipLoopHeld=false;d.exitLoop();}}});});
   }else if(d.jumpMode){
-    const V=[2,4,8,16],gw=(764-3*16)/4,bw=(gw-4)/2;
-    V.forEach((n,i)=>{const gx=18+i*(gw+16);for(const dir of [-1,1]){const x=dir<0?gx:gx+bw+4,y=205;
-      box(g,x,y,bw,60,'#26292e','#41464f',1);box(g,x+bw/2-12,y+5,24,10,'#4a4f58');
-      const ix=x+bw/2,iy=y+10;if(dir<0){triL(g,ix-1,iy,3.2,'#fff');triL(g,ix+5,iy,3.2,'#fff');}else{triR(g,ix+1,iy,3.2,'#fff');triR(g,ix-5,iy,3.2,'#fff');}
-      T(g,String(n),ix,y+44,20,'#fff',LN,400,'center');hit(d,x,y,bw,60,()=>beatJump(d,dir,n));}});
+    /* as on the real firmware: 4 pairs (back / forward) the same height as the loop keys; a white bar along the top
+       with a small tab carrying the direction (◀◀ on the outer right of the back key, ▶▶ on the outer left of the forward key) */
+    const V=[2,4,8,16],gap=7,G=16,gw=(764-3*G)/4,bw=(gw-gap)/2,h=73,y=204;
+    V.forEach((n,i)=>{const gx=18+i*(gw+G);for(const dir of [-1,1]){const x=dir<0?gx:gx+bw+gap;
+      rbox(g,x,y,bw,h,3,'#1f2227',null);
+      g.fillStyle='#e6e6e6';g.fillRect(x+3,y+3,bw-6,2.5);
+      const tw=30,th=12.5,sl=5,t0=y+3;g.beginPath();let cx;
+      if(dir<0){const r=x+bw-3;g.moveTo(r-tw,t0);g.lineTo(r,t0);g.lineTo(r,t0+th);g.lineTo(r-tw+sl,t0+th);cx=r-tw/2+2;}
+      else{const l=x+3;g.moveTo(l,t0);g.lineTo(l+tw,t0);g.lineTo(l+tw-sl,t0+th);g.lineTo(l,t0+th);cx=l+tw/2-2;}
+      g.closePath();g.fill();const cy=t0+th/2;
+      if(dir<0){triL(g,cx-.5,cy,3.3,'#1d1f23');triL(g,cx+4.5,cy,3.3,'#1d1f23');}else{triR(g,cx+.5,cy,3.3,'#1d1f23');triR(g,cx-4.5,cy,3.3,'#1d1f23');}
+      T(g,String(n),x+bw/2,y+47,21,'#f2f2f2',LN,400,'center');hit(d,x,y,bw,h,()=>beatJump(d,dir,n));}});
   }
   if(!mode&&ld){chip2(g,680,272,48,15,'ZOOM',d.grid?'#555':'#fff');T(g,'– GRID',733,284.5,12,d.grid?'#fff':'#3d3d3d',LA,700,'left');if(d.grid)chip2(g,742,272,38,15,'',  '#fff');}
   if(ld&&!mode){let fx=24;const flag=(t,bg,fg)=>{const w=TW(g,t,11,LA,700)+10;box(g,fx,273,w,14,bg);T(g,t,fx+w/2,284,11,fg,LA,700,'center');fx+=w+5;};
@@ -1561,7 +1575,8 @@ function drawPlayUpper(d,g){
 }
 function fmtJump(d){const n=d.jumpBeats||1;return n>=1?(n+' Beat'):(fmtBeat(n)+' Beat');}
 function chip2(g,x,y,w,h,t,col){g.strokeStyle=col;g.lineWidth=1.3;g.strokeRect(x+.65,y+.65,w-1.3,h-1.3);if(t)T(g,t,x+w/2,y+h-3,12,col,LA,700,'center');}
-function modeBox(g,x,y,w,h,l1,l2,on){box(g,x,y,w,h,on||'#212429','#39414a',1);const c=on?'#000':'#f0f0f0';T(g,l1,x+w/2,y+23,13.5,c,LF,400,'center');T(g,l2,x+w/2,y+40,13.5,c,LF,400,'center');}
+/* LOOP MODE / BEAT JUMP: when active the key keeps its dark face and takes a coloured edge (orange / white), as on the real firmware */
+function modeBox(g,x,y,w,h,l1,l2,on){if(on)rbox(g,x,y,w,h,2,'#1f2227',on,1.6);else box(g,x,y,w,h,'#212429','#39414a',1);const c='#f0f0f0';T(g,l1,x+w/2,y+23,13.5,c,LF,400,'center');T(g,l2,x+w/2,y+40,13.5,c,LF,400,'center');}
 function arrowBox(g,x,y,w,h,dir,label){
   g.fillStyle='#080c08';g.beginPath();
   if(dir<0){g.moveTo(x,y+h/2);g.lineTo(x+26,y);g.lineTo(x+w,y);g.lineTo(x+w,y+h);g.lineTo(x+26,y+h);}
@@ -2288,7 +2303,7 @@ function renderFace(F){
   g.setTransform((lx1-lx0)*s/800,0,0,(ly1-ly0)*s/480,lx0*s,ly0*s);g.textBaseline='alphabetic';drawLcd(d,g);
   if(d.jumpLetter&&now()-d.jumpLetter.t<.7&&d.jumpLetter.c){g.fillStyle='rgba(0,0,0,.75)';g.fillRect(340,120,120,110);T(g,d.jumpLetter.c,400,205,80,'#fff',LF,400,'center');}
   g.restore();g.setTransform(1,0,0,1,0,0);
-  if(DECKS.length>1&&ACTIVE===d){g.setTransform(s,0,0,s,0,0);silPath(g,.8);g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.3;g.lineJoin='round';g.stroke();g.setTransform(1,0,0,1,0,0);}
+  if(DECKS.length>1&&ACTIVE===d){g.setTransform(s,0,0,s,0,0);silPath(g,.8);g.strokeStyle='rgba(255,40,40,.8)';g.lineWidth=1.3;g.lineJoin='round';g.stroke();g.setTransform(1,0,0,1,0,0);}
 }
 /* ---------- input ---------- */
 const inCircle=(p,cx,cy,r)=>(p.x-cx)**2+(p.y-cy)**2<=r*r;
@@ -2588,6 +2603,8 @@ function page(){
     else{const rd=en.createReader();let b;do{b=await new Promise((res,rej)=>rd.readEntries(res,rej));for(const c of b)await walk(c,out);}while(b.length);}
   }
   faceResize(D1.face);
+  /* the printed texts use the embedded fonts: redraw the faces once they are ready */
+  if(document.fonts)Promise.all([document.fonts.load('400 10px "Fira Sans Condensed"'),document.fonts.load('400 10px Arimo'),document.fonts.load('700 10px Arimo')]).then(()=>{for(const F of FACES){F.ready=false;faceResize(F);}}).catch(()=>{});
   useEntries(demoEntries(),true).then(()=>requestAnimationFrame(tick));
 }
 /* the enlarged screen: same pages, same touch handling */
