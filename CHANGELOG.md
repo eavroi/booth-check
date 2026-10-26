@@ -1,5 +1,10 @@
 # Booth Check — versions
 
+## V2.6.1 — 26 octobre 2026
+- Barre du haut ramenée à une seule ligne : le rail devient un panneau qui s'ouvre depuis l'onglet « Matériel » (avec le résumé du setup, ex. « 2 CDJ · DJM »).
+- Aucun texte de la barre sur deux lignes : à mesure que la fenêtre rétrécit, le nom de la clé, puis « Booth Check » et le résumé disparaissent. Sur téléphone, « Clé USB » au lieu de « Contrôle clé USB ».
+- Bouton « clavier » à la place du « ? » pour les raccourcis.
+
 ## V2.6 — 26 octobre 2026
 - Barre du haut refaite : onglet « Matériel » et rail du booth de gauche à droite (tranche 1, 2, table, 3, 4). Chaque emplacement ouvre un menu : modèle, couleur, retirer. Remplace les boutons 1·2·3·4 et « Mixer ».
 - Les platines se placent sur la tranche choisie ; PLAYER = numéro de tranche.

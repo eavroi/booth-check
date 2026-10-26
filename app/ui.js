@@ -6,7 +6,7 @@ const I18N={
   load:['Charger clé USB','Load USB'],
   size:['Taille','Size'],smaller:['Réduire','Smaller'],bigger:['Agrandir','Bigger'],fit:['Taille ajustée à la fenêtre','Fit to the window'],
   noKey:['Aucune clé USB chargée. Le contrôle se lance sur ta clé, pas sur l’exemple intégré.','No USB loaded. The check runs on your USB, not on the built-in demo.'],
-  menu:['Menu','Menu'],rail:['Le booth, de gauche à droite : tranches 1 et 2, la table, tranches 3 et 4','The booth, left to right: channels 1 and 2, the mixer, channels 3 and 4'],
+  menu:['Menu','Menu'],gearPanel:['Le booth : platines, table, couleurs','The booth: players, mixer, colours'],tabRepShort:['Clé USB','USB'],
   zoom:['Agrandir l’écran de la platine','Enlarge the deck screen'],
   solo:['Booth seul, plein écran','Booth only, full screen'],
   keys:['Raccourcis clavier','Keyboard shortcuts'],
@@ -47,7 +47,7 @@ function setLang(l){
   for(const el of document.querySelectorAll('[data-i18n]')){const v=I18N[el.dataset.i18n];if(v)el.textContent=v[LANG==='en'?1:0];}
   for(const el of document.querySelectorAll('[data-i18n-aria]')){const v=I18N[el.dataset.i18nAria];if(v){el.setAttribute('aria-label',v[LANG==='en'?1:0]);if(el.tagName==='BUTTON')el.title=v[LANG==='en'?1:0];}}
   $('lFR').setAttribute('aria-pressed',LANG==='fr');$('lEN').setAttribute('aria-pressed',LANG==='en');
-  renderInfo();buildKeys();if(typeof renderRail==='function')renderRail();if(!$('mapPanel').hidden)buildMap();if(typeof rerenderReport==='function')rerenderReport();
+  renderInfo();buildKeys();if(typeof renderGear==='function')renderGear();if(!$('mapPanel').hidden)buildMap();if(typeof rerenderReport==='function')rerenderReport();
 }
 /* ---------- the key shown in the top bar ---------- */
 let INFO=null;

@@ -20,7 +20,7 @@ function setBooth(b,save){
   document.body.dataset.n=NDECK;document.body.classList.toggle('two',NDECK>1);
   if(MS.on!==BOOTH.m){MS.on=BOOTH.m;$('wrapM').hidden=!MS.on;mixApply();if(!MS.on)closePhones();}
   if(save!==false)try{localStorage.setItem('bc.booth',JSON.stringify(BOOTH));}catch(e){}
-  layoutBooth();renderRail();
+  layoutBooth();renderGear();
 }
 /* first visit: one player alone; the V2.5 settings (number of decks, mixer) are carried over */
 function loadBooth(){
@@ -40,54 +40,54 @@ function layoutBooth(){
   for(const F of FACES){F.ready=false;}MXF.ready=false;
   requestAnimationFrame(()=>{for(const F of FACES)if(!F.cv.closest('[hidden]'))faceResize(F);if(MS.on)mixResize();});
 }
-/* ---------- the booth rail: one slot per channel and the mixer, each opens a small menu (model, colour, remove) ---------- */
+/* ---------- the "Gear" panel, opened from its tab: the booth left to right, one slot per channel and the mixer;
+   the picked slot shows its model, colour and a remove link ---------- */
 /* the machines the site may offer; only the ones with ok:1 are drawn today, the others are announced as coming */
 const GEAR={
-  player:[{name:'CDJ-2000NXS2',ok:1,colors:['black','white']},{name:'CDJ-3000'},{name:'CDJ-3000X'}],
-  mixer:[{name:'DJM-900NXS2',ok:1,colors:['black','white']},{name:'DJM-A9'},{name:'DJM-V10'}]};
+  player:[{name:'CDJ-2000NXS2',short:'CDJ',ok:1,colors:['black','white']},{name:'CDJ-3000'},{name:'CDJ-3000X'}],
+  mixer:[{name:'DJM-900NXS2',short:'DJM',ok:1,colors:['black','white']},{name:'DJM-A9'},{name:'DJM-V10'}]};
 const COLORS={black:{ok:1,l:['Noir','Black']},white:{ok:0,l:['Blanc (-W)','White (-W)']}};
 const SLOTS=['1','2','M','3','4'];
-const brk=n=>esc(n).replace(/^(CDJ-\d+|DJM-\d+)/,'$1<wbr>');
-function renderRail(){
-  const r=$('rail');if(!r)return;const open=$('slotMenu').hidden?null:$('slotMenu').dataset.slot;
-  r.innerHTML=SLOTS.map(k=>{const mx=k==='M',on=mx?BOOTH.m:BOOTH.p.includes(+k);
-    const sub=mx?say('Table','Mixer'):say('Tranche ','Channel ')+k;
-    const body=on?'<b>'+brk(mx?GEAR.mixer[0].name:GEAR.player[0].name)+'</b><small>'+(mx?sub:'PLAYER '+k)+' · '+esc(tl(COLORS.black.l))+'</small>'
-      :'<b>+ '+esc(mx?say('Table','Mixer'):say('Platine','Player'))+'</b><small>'+esc(mx?say('aucune','none'):sub)+'</small>';
-    return '<button type="button" class="slot'+(mx?' mx':'')+(on?'':' empty')+'" data-slot="'+k+'" aria-haspopup="dialog" aria-expanded="'+(open===k)+'">'+body+'</button>';}).join('');
+let GSEL='2';
+const slotOn=k=>k==='M'?BOOTH.m:BOOTH.p.includes(+k);
+/* the tab says what is set up: "1 CDJ", "2 CDJ · DJM" */
+function gearSum(){const n=BOOTH.p.length;return n+' '+GEAR.player[0].short+(BOOTH.m?' · '+GEAR.mixer[0].short:'');}
+function renderGear(){
+  $('gearSum').textContent=gearSum();
+  const m=$('gearPanel');if(m.hidden)return;
+  if(!SLOTS.includes(GSEL))GSEL=String(BOOTH.p[0]);
+  const k=GSEL,mx=k==='M',on=slotOn(k),list=mx?GEAR.mixer:GEAR.player;
+  let h='<div class="lab">'+esc(say('Le booth, de gauche à droite','The booth, left to right'))+'</div><div class="slots">'+SLOTS.map(x=>{const o=slotOn(x),xm=x==='M';
+    return '<button type="button" class="slot'+(o?'':' empty')+'" data-slot="'+x+'" aria-pressed="'+(x===k)+'">'+(o?esc((xm?GEAR.mixer:GEAR.player)[0].short):'+')+'<small>'+esc(xm?say('table','mixer'):'CH '+x)+'</small></button>';}).join('')+'</div>';
+  h+='<h3>'+esc((mx?say('Table de mixage','Mixer'):say('Tranche ','Channel ')+k+' · PLAYER '+k)+(on?'':say(' : vide',': empty')))+'</h3>';
+  h+=list.map((g,i)=>'<button type="button" class="opt'+(g.ok?'':' soon')+'" data-act="model" data-i="'+i+'" aria-pressed="'+(on&&i===0)+'"><span>'+esc(g.name)+'</span>'+(g.ok?'':'<span class="tag">'+esc(say('bientôt','soon'))+'</span>')+'</button>').join('');
+  if(on){h+='<div class="lab">'+esc(say('Couleur','Colour'))+'</div><div class="cols">'+list[0].colors.map(c=>'<button type="button" class="opt'+(COLORS[c].ok?'':' soon')+'" data-act="color" data-c="'+c+'" aria-pressed="'+(c==='black')+'"><span><span class="sw '+c+'"></span>'+esc(tl(COLORS[c].l))+'</span>'+(COLORS[c].ok?'':'<span class="tag">'+esc(say('bientôt','soon'))+'</span>')+'</button>').join('')+'</div>';
+    if(mx||BOOTH.p.length>1)h+='<button type="button" class="rm" data-act="rm">'+esc(mx?say('Retirer la table','Remove the mixer'):say('Retirer cette platine','Remove this player'))+'</button>';}
+  m.innerHTML=h;
 }
-function slotMenu(k,btn){
-  const m=$('slotMenu');if(!m.hidden&&m.dataset.slot===k){closeSlot();return;}
-  const mx=k==='M',on=mx?BOOTH.m:BOOTH.p.includes(+k),list=mx?GEAR.mixer:GEAR.player;
-  const h=mx?say('Table de mixage','Mixer'):say('Tranche ','Channel ')+k+' · PLAYER '+k;
-  let html='<h3>'+esc(h+(on?'':say(' : vide',': empty')))+'</h3><div class="lab">'+esc(mx?say('Modèle','Model'):say('Platine','Player'))+'</div>';
-  html+=list.map((g,i)=>'<button type="button" class="opt'+(g.ok?'':' soon')+'" data-act="model" data-i="'+i+'" aria-pressed="'+(on&&i===0)+'"><span>'+esc(g.name)+'</span>'+(g.ok?'':'<span class="tag">'+esc(say('bientôt','soon'))+'</span>')+'</button>').join('');
-  if(on){html+='<div class="lab">'+esc(say('Couleur','Colour'))+'</div><div class="cols">'+list[0].colors.map(c=>'<button type="button" class="opt'+(COLORS[c].ok?'':' soon')+'" data-act="color" data-c="'+c+'" aria-pressed="'+(c==='black')+'"><span><span class="sw '+c+'"></span>'+esc(tl(COLORS[c].l))+'</span>'+(COLORS[c].ok?'':'<span class="tag">'+esc(say('bientôt','soon'))+'</span>')+'</button>').join('')+'</div>';
-    if(mx||BOOTH.p.length>1)html+='<button type="button" class="rm" data-act="rm">'+esc(mx?say('Retirer la table','Remove the mixer'):say('Retirer cette platine','Remove this player'))+'</button>';}
-  m.innerHTML=html;m.dataset.slot=k;m.hidden=false;
-  const r=btn.getBoundingClientRect(),w=m.offsetWidth;m.style.left=Math.round(Math.max(8,Math.min(window.innerWidth-w-8,r.left+r.width/2-w/2)))+'px';m.style.top=Math.round(r.bottom+6)+'px';
-  renderRail();
-}
-function closeSlot(){const m=$('slotMenu');if(m.hidden)return;m.hidden=true;renderRail();}
-function slotAct(k,b){
-  const mx=k==='M',list=mx?GEAR.mixer:GEAR.player,on=mx?BOOTH.m:BOOTH.p.includes(+k);
+function placeGear(){const m=$('gearPanel'),r=$('tabDeck').getBoundingClientRect(),w=m.offsetWidth;
+  m.style.left=Math.round(Math.max(8,Math.min(window.innerWidth-w-8,r.left)))+'px';m.style.top=Math.round(r.bottom+6)+'px';}
+function gearOpen(on){const m=$('gearPanel');if(on===undefined)on=m.hidden;m.hidden=!on;$('tabDeck').setAttribute('aria-expanded',on);
+  if(on){GSEL=String(ACTIVE?ACTIVE.ch:BOOTH.p[0]);menu(false);renderGear();placeGear();}}
+function gearAct(b){
+  if(b.dataset.slot){GSEL=b.dataset.slot;renderGear();return;}
+  const k=GSEL,mx=k==='M',list=mx?GEAR.mixer:GEAR.player,on=slotOn(k);
   if(b.dataset.act==='model'){const g=list[+b.dataset.i];
     if(!g.ok){toast(say(g.name+' : pas encore dans Booth Check, prévu plus tard',g.name+': not in Booth Check yet, planned for later'),2600);return;}
-    if(on){closeSlot();return;}
+    if(on)return;
     if(mx)setBooth({p:BOOTH.p,m:true});
-    else{if(PHONE.matches&&BOOTH.p.length>=2){toast(say('Sur téléphone : 2 platines au plus','On a phone: 2 players at most'),2600);return;}setBooth({p:BOOTH.p.concat(+k),m:BOOTH.m});}
-    closeSlot();}
-  else if(b.dataset.act==='color'){const c=b.dataset.c;if(!COLORS[c].ok)toast(say('Version blanche (série limitée de 2017) : prévue, pas encore dessinée','White version (2017 limited edition): planned, not drawn yet'),3000);}
-  else if(b.dataset.act==='rm'){if(mx)setBooth({p:BOOTH.p,m:false});else setBooth({p:BOOTH.p.filter(x=>x!==+k),m:BOOTH.m});closeSlot();}
+    else{if(PHONE.matches&&BOOTH.p.length>=2){toast(say('Sur téléphone : 2 platines au plus','On a phone: 2 players at most'),2600);return;}setBooth({p:BOOTH.p.concat(+k),m:BOOTH.m});}}
+  else if(b.dataset.act==='color'){if(!COLORS[b.dataset.c].ok)toast(say('Version blanche (série limitée de 2017) : prévue, pas encore dessinée','White version (2017 limited edition): planned, not drawn yet'),3000);}
+  else if(b.dataset.act==='rm'){if(mx)setBooth({p:BOOTH.p,m:false});else setBooth({p:BOOTH.p.filter(x=>x!==+k),m:BOOTH.m});}
 }
-function wireRail(){
-  $('rail').addEventListener('click',e=>{const b=e.target.closest('.slot');if(b)slotMenu(b.dataset.slot,b);});
-  $('slotMenu').addEventListener('click',e=>{const b=e.target.closest('button');if(b)slotAct($('slotMenu').dataset.slot,b);});
-  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#slotMenu')&&!e.target.closest('.slot'))closeSlot();if(!e.target.closest('#tools')&&!e.target.closest('#bMenu'))menu(false);});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSlot();menu(false);}});
-  window.addEventListener('resize',closeSlot);
+function wireGear(){
+  $('tabDeck').onclick=()=>{const was=!$('deck').hidden;tab('deck');gearOpen(was?undefined:true);};
+  $('gearPanel').addEventListener('click',e=>{const b=e.target.closest('button');if(b)gearAct(b);});
+  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#gearPanel')&&!e.target.closest('#tabDeck'))gearOpen(false);if(!e.target.closest('#tools')&&!e.target.closest('#bMenu'))menu(false);});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){gearOpen(false);menu(false);}});
+  window.addEventListener('resize',()=>{if(!$('gearPanel').hidden)placeGear();});
   /* phone: the tools live in a menu */
-  $('bMenu').onclick=()=>menu($('bMenu').getAttribute('aria-expanded')!=='true');
+  $('bMenu').onclick=()=>{gearOpen(false);menu($('bMenu').getAttribute('aria-expanded')!=='true');};
   /* the decks are fitted under the real height of the header */
   const hd=document.querySelector('header.bar');new ResizeObserver(()=>document.body.style.setProperty('--top',hd.offsetHeight+'px')).observe(hd);
 }
@@ -104,8 +104,8 @@ async function useEntries(list,isDemo){
 }
 function page(){
   wireChrome();wireReport();
-  addFace(2);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();wireRail();
-  $('tabDeck').onclick=()=>tab('deck');$('tabRep').onclick=()=>tab('report');
+  addFace(2);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();wireGear();
+  $('tabRep').onclick=()=>{gearOpen(false);tab('report');};
   PHONE.addEventListener&&PHONE.addEventListener('change',()=>{if(NDECK>2)setBooth(BOOTH);});
   $('bLoad').onclick=()=>$('pick').click();
   $('bZoom').onclick=()=>{tab('deck');zoom(!ZOOM.on);};
