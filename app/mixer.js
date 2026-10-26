@@ -46,7 +46,8 @@ function mixBuild(){
     C.sel=c.createGain();C.trim=c.createGain();C.in.connect(C.sel);C.sel.connect(C.trim);
     C.cIn=c.createGain();C.cOut=c.createGain();C.dry=c.createGain();C.trim.connect(C.cIn);C.cIn.connect(C.dry);C.dry.connect(C.cOut);C.fx=null;
     /* EQ / ISO: three bands split with Linkwitz-Riley crossovers (300 Hz, 4 kHz) so the bands add up flat */
-    const bq=(t,f)=>{const b=c.createBiquadFilter();b.type=t;b.frequency.value=f;b.Q.value=Math.SQRT1_2;return b;};
+    /* Web Audio reads Q in dB for lowpass / highpass (-3.01 dB = Butterworth 0.707) but as a plain number for allpass */
+    const bq=(t,f)=>{const b=c.createBiquadFilter();b.type=t;b.frequency.value=f;b.Q.value=t==='allpass'?Math.SQRT1_2:-3.0103;return b;};
     const chain=(a)=>{for(let k=0;k<a.length-1;k++)a[k].connect(a[k+1]);return a;};
     const lo=chain([bq('lowpass',300),bq('lowpass',300)]),ap=bq('allpass',4000),hi1=chain([bq('highpass',300),bq('highpass',300)]);
     const mid=chain([bq('lowpass',4000),bq('lowpass',4000)]),hi=chain([bq('highpass',4000),bq('highpass',4000)]);

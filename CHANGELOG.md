@@ -1,5 +1,19 @@
 # Booth Check — versions
 
+## V2.7 — 26 octobre 2026
+- Contrôleurs MIDI (Chrome, Edge) : icône « contrôleur » dans la barre du haut, avec un point vert quand un contrôleur est branché. Son panneau : choix du contrôleur et du modèle, platine pilotée par chaque côté, derniers messages reçus, mode apprentissage, export / import des correspondances, sensibilité du jog, test des voyants.
+- Modèle Hercules DJ Control Steel, d'après sa table MIDI officielle (mode d'emploi), essayé sur le vrai contrôleur (voyants encore à vérifier) :
+  - pads 1-6 : LOOP IN, LOOP OUT, 4/8 BEAT, RELOOP, BEAT JUMP ◀ ▶ (pendant une boucle : LOOP 1/2X et 2X) ;
+  - avec SHIFT : HOT CUE A-D (E-H après BANK), BANK, CALL/DELETE ;
+  - Stop = touche fonction : seul MASTER TEMPO ; maintenu avec Play REVERSE, Cue SLIP, ◀◀ ▶▶ TRACK SEARCH, Sync MASTER, Pitch bend − / + TEMPO RANGE / TEMPO RESET, ▲ ▼ ◀ ▶ BROWSE / TAG LIST / INFO / MENU, Load TAG TRACK, Scratch TRACK FILTER, Kill les 6 SOUND COLOR FX ;
+  - jog : tourner = main posée en VINYL, pitch bend en mode CDJ, recherche à l'arrêt ; ▲ ▼ maintenu + jog = défilement rapide ;
+  - table : TRIM, EQ, Kill (bande au minimum tant qu'on appuie), faders, crossfader (A / THRU / B inchangés), MASTER, BALANCE, casque ; Controls 1 / 2 = COLOR de la tranche choisie par Apply Ctrl et PARAMETER ;
+  - voyants comme sur la CDJ (PLAY, CUE, boucles, hot cues, SYNC, MASTER TEMPO, VINYL, fin de morceau sur LOAD, guide de reprise du fader TEMPO sur Pitch bend) ;
+  - potards repris en douceur : un potard ne prend la main qu'une fois arrivé à la position affichée.
+- Plan du contrôleur : le Steel dessiné d'après son mode d'emploi, avec l'affectation de chaque commande, dans une fenêtre déplaçable ; la commande touchée s'allume.
+- Table : l'EQ au centre ne colore plus le son (réglage des filtres corrigé, +7 dB en trop à 300 Hz et 4 kHz) ; test audio automatique.
+- Tests : scénarios du Steel simulé et test audio de l'EQ.
+
 ## V2.6.1 — 26 octobre 2026
 - Barre du haut ramenée à une seule ligne : le rail devient un panneau qui s'ouvre depuis l'onglet « Matériel » (avec le résumé du setup, ex. « 2 CDJ · DJM »).
 - Aucun texte de la barre sur deux lignes : à mesure que la fenêtre rétrécit, le nom de la clé, puis « Booth Check » et le résumé disparaissent. Sur téléphone, « Clé USB » au lieu de « Contrôle clé USB ».

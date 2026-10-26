@@ -140,7 +140,7 @@ function leverPos(k,p){const [x0,y0,x1,y1]=k.box,f=(p.y-y0)/(y1-y0);return f<.36
 function sliderTo(d,y){let v=clamp((y-SL_ZERO)/SL_TRAVEL,-1,1);if(Math.abs(v)<.02)v=0;d.tempoV=v;d.tReset=false;d.applyTempo();}
 /* ---------- jog: CDJ mode bends; VINYL mode: top touch = scratch / hold; paused = search; loop adjust ---------- */
 function jogDown(d,st,p){
-  const [cx,cy]=F_JOG;st.a=Math.atan2(p.y-cy,p.x-cx);st.t=now();st.acc=0;d.jogHeld=true;d.spin=0;d.spinImp=0;if(d.spinning)endSpin(d);
+  const [cx,cy]=F_JOG;if(p)st.a=Math.atan2(p.y-cy,p.x-cx);st.t=now();st.acc=0;d.jogHeld=true;d.spin=0;d.spinImp=0;if(d.spinning)endSpin(d);
   if(!d.loaded()){st.mode='free';return;}
   ensureCtx();
   st.mode=d.adjust?'adj':(!d.playing?'search':(d.vinyl&&st.tg.top?'touch':'bend'));
@@ -150,7 +150,11 @@ function jogDown(d,st,p){
 }
 function jogMove(d,st,p){
   const [cx,cy]=F_JOG;const a=Math.atan2(p.y-cy,p.x-cx);let da=a-st.a;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;st.a=a;
-  const raw=da*180/Math.PI,deg=raw*jogSens(d);d.rimAngle+=deg;const t=now(),dt=Math.max(.008,t-st.t);st.t=t;const w=deg/dt;st.w=(st.w||0)*.5+w*.5;st.wt=t;
+  jogTurn(d,st,da*180/Math.PI);
+}
+/* the platter turned by raw degrees (the mouse on the face, or a controller's jog wheel) */
+function jogTurn(d,st,raw){
+  const deg=raw*jogSens(d);d.rimAngle+=deg;const t=now(),dt=Math.max(.008,t-st.t);st.t=t;const w=deg/dt;st.w=(st.w||0)*.5+w*.5;st.wt=t;
   switch(st.mode){
     case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=4.8){d.adjustStep((st.acc>0?1:-1)/75);st.acc-=Math.sign(st.acc)*4.8;}break;
     case 'search':if(d._scan){d.seek(d._pos+deg/200*8);}else{d._pos=clamp(d._pos+deg/200*.5,0,d.dur);}d.dirty=true;break;

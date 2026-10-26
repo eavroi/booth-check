@@ -10,6 +10,8 @@ const I18N={
   zoom:['Agrandir l’écran de la platine','Enlarge the deck screen'],
   solo:['Booth seul, plein écran','Booth only, full screen'],
   keys:['Raccourcis clavier','Keyboard shortcuts'],
+  planTitle:['Plan du contrôleur','Controller map'],planNote:['Survole une commande pour le détail. La commande que tu touches s’allume sur le plan. Ce que tu changes avec « Apprendre » s’affiche ici.','Hover a control for details. The control you touch lights up on the map. What you change with “Learn” shows here.'],
+  ctlAria:['Contrôleur MIDI : modèle, correspondances, apprentissage','MIDI controller: template, mapping, learn'],
   face1:['Platine 1 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 1: click the buttons, turn the jog and the selector, touch the screen'],
   face2:['Platine 2 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 2: click the buttons, turn the jog and the selector, touch the screen'],
   face3:['Platine 3 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 3: click the buttons, turn the jog and the selector, touch the screen'],
@@ -47,7 +49,7 @@ function setLang(l){
   for(const el of document.querySelectorAll('[data-i18n]')){const v=I18N[el.dataset.i18n];if(v)el.textContent=v[LANG==='en'?1:0];}
   for(const el of document.querySelectorAll('[data-i18n-aria]')){const v=I18N[el.dataset.i18nAria];if(v){el.setAttribute('aria-label',v[LANG==='en'?1:0]);if(el.tagName==='BUTTON')el.title=v[LANG==='en'?1:0];}}
   $('lFR').setAttribute('aria-pressed',LANG==='fr');$('lEN').setAttribute('aria-pressed',LANG==='en');
-  renderInfo();buildKeys();if(typeof renderGear==='function')renderGear();if(!$('mapPanel').hidden)buildMap();if(typeof rerenderReport==='function')rerenderReport();
+  renderInfo();buildKeys();if(typeof renderGear==='function')renderGear();if(typeof renderMidi==='function')renderMidi();if(typeof buildPlan==='function'&&!$('planPanel').hidden)buildPlan();if(!$('mapPanel').hidden)buildMap();if(typeof rerenderReport==='function')rerenderReport();
 }
 /* ---------- the key shown in the top bar ---------- */
 let INFO=null;

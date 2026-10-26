@@ -20,7 +20,7 @@ function setBooth(b,save){
   document.body.dataset.n=NDECK;document.body.classList.toggle('two',NDECK>1);
   if(MS.on!==BOOTH.m){MS.on=BOOTH.m;$('wrapM').hidden=!MS.on;mixApply();if(!MS.on)closePhones();}
   if(save!==false)try{localStorage.setItem('bc.booth',JSON.stringify(BOOTH));}catch(e){}
-  layoutBooth();renderGear();
+  layoutBooth();renderGear();if(typeof renderMidi==='function')renderMidi();
 }
 /* first visit: one player alone; the V2.5 settings (number of decks, mixer) are carried over */
 function loadBooth(){
@@ -68,7 +68,7 @@ function renderGear(){
 function placeGear(){const m=$('gearPanel'),r=$('tabDeck').getBoundingClientRect(),w=m.offsetWidth;
   m.style.left=Math.round(Math.max(8,Math.min(window.innerWidth-w-8,r.left)))+'px';m.style.top=Math.round(r.bottom+6)+'px';}
 function gearOpen(on){const m=$('gearPanel');if(on===undefined)on=m.hidden;m.hidden=!on;$('tabDeck').setAttribute('aria-expanded',on);
-  if(on){GSEL=String(ACTIVE?ACTIVE.ch:BOOTH.p[0]);menu(false);renderGear();placeGear();}}
+  if(on){if(typeof midiOpen==='function'&&!$('midiPanel').hidden)midiOpen(false);GSEL=String(ACTIVE?ACTIVE.ch:BOOTH.p[0]);menu(false);renderGear();placeGear();}}
 function gearAct(b){
   if(b.dataset.slot){GSEL=b.dataset.slot;renderGear();return;}
   const k=GSEL,mx=k==='M',list=mx?GEAR.mixer:GEAR.player,on=slotOn(k);
@@ -104,7 +104,7 @@ async function useEntries(list,isDemo){
 }
 function page(){
   wireChrome();wireReport();
-  addFace(2);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();wireGear();
+  addFace(2);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();wireGear();wireMidi();wirePlan();
   $('tabRep').onclick=()=>{gearOpen(false);tab('report');};
   PHONE.addEventListener&&PHONE.addEventListener('change',()=>{if(NDECK>2)setBooth(BOOTH);});
   $('bLoad').onclick=()=>$('pick').click();
@@ -205,7 +205,7 @@ function tick(){
   BUS.tick();
   for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}
   try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();mixRender();}}catch(e){console.error(e);}
-  renderStatus();
+  renderStatus();midiTick();
   requestAnimationFrame(tick);
 }
 setInterval(()=>{if(document.hidden)for(const d of DECKS)d.advance();},400);

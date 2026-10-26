@@ -26,8 +26,10 @@ function playBtn(d){
 }
 /* ---------- hot cues: A-D on bank 1, E-H on bank 2; CALL/DELETE ---------- */
 function padN(d,i){return d.bank*4+i+1;}
-function hotDown(d,i){
-  if(!d.loaded())return;const n=padN(d,i),c=d.cur.hot[n];
+function hotDown(d,i){hotDownN(d,padN(d,i));}
+/* hot cue n = 1..8 (A..H), whatever the bank shown */
+function hotDownN(d,n){
+  if(!d.loaded())return;const c=d.cur.hot[n];
   if(d.callHeld){d.callUsed=true;if(c){delete d.cur.hot[n];toast(say('Hot cue '+HL[n-1]+' effacé (ici seulement, la clé n’est pas modifiée)','Hot cue '+HL[n-1]+' deleted (here only, the USB is not changed)'));}d.dirty=true;return;}
   if(!c&&d.callMode&&d.cur.store[n]){d.cur.hot[n]=d.cur.store[n];if(!Object.keys(d.cur.store).some(k=>!d.cur.hot[k]))d.callMode=false;toast(say('Hot cue '+HL[n-1]+' rappelé','Hot cue '+HL[n-1]+' recalled'));d.dirty=true;return;}
   if(c){
@@ -41,7 +43,8 @@ function hotDown(d,i){
   }
   d.dirty=true;
 }
-function hotUp(d,i){const n=padN(d,i),h=d.hotHeld;if(!h||h.n!==n)return;d.hotHeld=null;d.slipCheck();}
+function hotUp(d,i){hotUpN(d,padN(d,i));}
+function hotUpN(d,n){const h=d.hotHeld;if(!h||h.n!==n)return;d.hotHeld=null;d.slipCheck();}
 function callDown(d){d.callHeld=true;d.callUsed=false;}
 function callUp(d){d.callHeld=false;if(d.callUsed||!d.loaded())return;
   const pending=Object.keys(d.cur.store).filter(k=>!d.cur.hot[k]);

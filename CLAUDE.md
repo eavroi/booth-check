@@ -6,7 +6,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 ## Façon de travailler
 - Répondre en français, de façon concise. Victor dicte souvent à la voix : lire le contexte attentivement.
 - Avant chaque version : faire un « point » (liste de ce qui va changer, questions s'il y en a) et attendre son « GO ».
-- À la livraison, toujours dire le numéro de version (V2.6 est la dernière livrée ; la suivante est V2.7).
+- À la livraison, toujours dire le numéro de version (V2.7 est la dernière livrée ; la suivante est V2.8).
 - Ne jamais inventer de fonction ni d'élément d'interface : tout vient de la vraie machine (mode d'emploi, photos, vidéos, captures). En cas de doute, le dire.
 - Vérifier chaque version : `python build.py`, `python tests/scenarios.py` (comportements du mode d'emploi), `python tests/smoke.py` (captures), comparer avec les photos de la vraie machine.
 - Références hors dépôt, dans `BOOTH CHECK/references/` : modes d'emploi FR de la CDJ-2000NXS2 et de la DJM-900NXS2 (PDF + texte extrait), photos de Victor.
@@ -18,7 +18,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Design du site sobre : pas de page d'accueil marketing, la machine est le seul « wow », marque « BC », vocabulaire technique, FR / EN.
 
 ## Structure
-- `app/` : modules de l'application, assemblés dans l'ordre de `build.py` (core, face_layout, cap_img, face_art, djm_art, lcd_kit, library, mixer, deck, browse, lcd, controls, face_view, mixer_view, report, ui, main).
+- `app/` : modules de l'application, assemblés dans l'ordre de `build.py` (core, face_layout, cap_img, face_art, djm_art, lcd_kit, library, mixer, deck, browse, lcd, controls, face_view, mixer_view, midi, midi_plan, report, ui, main).
 - `lib/` : lecture d'export.pdb et des fichiers ANLZ. `data/demo.json` : l'exemple intégré.
 - `index.html` (racine) est GÉNÉRÉ par `build.py` : ne pas l'éditer à la main.
 - `tests/scenarios.py` : scénarios de comportement ; `tests/smoke.py` : test rapide avec captures (Playwright) ; `tests/out/` ne doit pas être commité.
@@ -30,12 +30,13 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Table masquée : les platines sortent en direct.
 - Raccourcis clavier par position physique (KeyboardEvent.code), aucun Shift ; AZERTY BE par défaut.
 - Casque : clic sur la prise PHONES, sortie choisie avec setSinkId (Chrome / Edge).
+- Contrôleurs MIDI (`midi.js`, Web MIDI, Chrome / Edge) : actions `MACT`, modèles `MTPL` (Hercules DJ Control Steel d'après la table MIDI de son mode d'emploi, dans `references/manuels/`), reprise douce des potards, voyants, apprentissage. Plan dessiné du Steel dans `midi_plan.js`. Le navigateur intégré de l'app Claude refuse Web MIDI : tester dans Chrome ou Edge.
 
 ## À faire plus tard
-- V2.7 : LINK entre platines (la clé dans une seule platine, les autres la parcourent par LINK), puis site (hors ligne).
+- LINK entre platines (la clé dans une seule platine, les autres la parcourent par LINK), puis site hors ligne : reportés après la V2.7 (version à fixer avec Victor).
+- Contrôleurs : modèles Pioneer DDJ-FLX4 / DDJ-400 si leurs listes MIDI officielles existent ; BEAT FX sur le Steel (Apply Ctrl en « Select ») en V2.9.
 - V2.8 : moteur audio en AudioWorklet et vrai MASTER TEMPO. V2.9 : BEAT FX.
 - Fréquences de l'EQ de la table : le mode d'emploi donne HI 30 kHz, MID 1 kHz, LOW 20 Hz, inutilisables tels quels ; garder 300 Hz / 4 kHz tant qu'on n'a pas mieux.
 - BEAT FX de la table (14 effets, X-PAD, écran OLED, TAP, QUANTIZE) — affichés mais pas encore simulés.
-- Contrôleur MIDI (DDJ-FLX4) via Web MIDI : carte de correspondance à proposer avant de coder.
 - Tester la sortie casque sur un vrai 2e appareil son.
 - Relancer l'émulateur du firmware CDJ (cdj-nxs2-qemu) sur le PC de Victor pour observer les écrans.

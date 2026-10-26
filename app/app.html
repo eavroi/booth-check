@@ -75,6 +75,24 @@ button{font:inherit;color:inherit;cursor:pointer}
 .sw{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid #5a5f67;vertical-align:-2px;margin-right:6px}
 .sw.black{background:#141416}.sw.white{background:#e9e9e6}
 .gear .rm{align-self:flex-start;background:none;border:0;padding:4px 2px 0;color:#f08a84;text-decoration:underline;text-underline-offset:2px}
+/* ---------- the controller button and panel ---------- */
+.ctl{position:relative}
+.ctl .dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#4a4f57}.ctl.on .dot{background:var(--ok)}
+.midi{width:460px;overflow:auto}
+.midi .note{margin:0;font-size:12.5px;color:var(--dim)}
+.midi .tag.on{color:var(--ok);border-color:#3d5a3d}
+.midi .link{background:none;border:0;padding:0;color:#9fb4d8;text-decoration:underline;text-underline-offset:2px;font-size:12.5px}
+.midi .side{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+.midi .side .seg button{min-height:32px;padding:5px 10px}
+.midi .last{font:12px var(--mono);color:var(--fg);background:var(--bg);border:1px solid var(--edge);border-radius:6px;padding:7px 9px;min-height:32px}
+.midi .last .old{color:var(--dim)}
+.midi .learn{margin:0;font-size:12.5px;color:var(--warn)}
+.midi details summary{cursor:pointer;font-size:13px;color:var(--hi);padding:4px 0}
+.midi .grp{font:11.5px var(--mono);color:var(--dim);margin:10px 0 4px}
+.midi .row{display:flex;align-items:center;gap:6px;padding:3px 0;border-top:1px solid var(--edge);font-size:12.5px}
+.midi .row .fn{flex:1;min-width:0}.midi .row .mk{font:11.5px var(--mono);color:var(--dim);white-space:nowrap}
+.midi .mini{background:var(--panel2);border:1px solid var(--edge2);border-radius:5px;padding:3px 8px;font-size:12px;color:var(--fg);min-width:28px}
+.midi .mini.on{border-color:var(--warn);color:var(--warn)}.midi .mini.x{color:#f08a84}.midi .mini.sp{visibility:hidden;border:0;padding:3px 8px}
 .ic.menu{display:none}
 /* narrower windows: first the USB name, then the site name and the setup summary */
 @media (max-width:1279px){#srcInfo{display:none}}
@@ -156,6 +174,22 @@ footer .pop .ic{text-decoration:none;color:#b4b8bf;width:34px;height:34px}
 .lnk{align-self:flex-start;background:none;border:0;padding:0;font:12.5px var(--ui);color:#b4b8bf;text-decoration:underline;text-underline-offset:2px}
 .lnk:hover{color:#fff}
 .floatwin.map{width:min(1000px,calc(100vw - 16px))}
+/* ---------- the controller map ---------- */
+.floatwin.plan{width:min(1180px,calc(100vw - 16px))}
+.pbody svg{display:block;width:100%;height:auto;font-family:Arimo,Arial,sans-serif}
+.p-body{fill:#2b2e33;stroke:#4a4f57;stroke-width:.5}.p-mix{fill:#3a3e45;stroke:#555b63;stroke-width:.4}
+.p-brand{fill:#8b9099;font-weight:700}
+.p-key{fill:#15171a;stroke:var(--c,#6f757e);stroke-width:.45}.p-knob{fill:#15171a;stroke:var(--c,#6f757e);stroke-width:.5}.p-tick{stroke:#cfd3d9;stroke-width:.5}
+.p-slot{stroke:#0c0d0f;stroke-width:1.6;stroke-linecap:round}.p-sep{stroke:#3a3e45;stroke-width:.3}
+.p-jog{fill:#1b1d21;stroke:var(--c,#6f757e);stroke-width:.6}.p-jogin{fill:#24272c;stroke:#3a3e45;stroke-width:.3}
+.p-led{fill:#1b1d21;stroke:#6f757e;stroke-width:.3}
+.p-t{fill:#e6e8ec;font-weight:700;dominant-baseline:auto}.p-t.p-sub{fill:#9aa0a8;font-weight:400}.p-t.p-lab{fill:#cfd3d9}
+.p-t.c-loop{fill:#f0a14a}.p-t.c-hot{fill:#5fd07a}.p-t.c-fn{fill:#e8c65a}.p-t.c-fx{fill:#c39be8}.p-t.c-off{fill:#6f757e}
+.p-c.c-loop{--c:#e8902a}.p-c.c-hot{--c:#4fbf6a}.p-c.c-fn{--c:#d6b24a}.p-c.c-mix{--c:#5fb3b3}.p-c.c-nav{--c:#6b8fc7}.p-c.c-fx{--c:#b18cd9}.p-c.c-play{--c:#d9dce1}.p-c.c-hw{--c:#6f757e}.p-c.c-off{--c:#454a51}
+.p-c.hit .p-key,.p-c.hit .p-knob,.p-c.hit .p-jog{fill:#3a3320;stroke:#ffd75a;stroke-width:.9}
+.pleg span{display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:12.5px;color:var(--dim)}
+.pleg i{width:11px;height:11px;border-radius:3px;border:2px solid var(--c);display:inline-block}
+.pleg .c-loop{--c:#e8902a}.pleg .c-hot{--c:#4fbf6a}.pleg .c-fn{--c:#d6b24a}.pleg .c-mix{--c:#5fb3b3}.pleg .c-nav{--c:#6b8fc7}.pleg .c-fx{--c:#b18cd9}.pleg .c-play{--c:#d9dce1}
 .map .dlg-h{align-items:flex-start}
 .map .dlg-h>div:first-child{display:flex;flex-direction:column;gap:5px}
 .map .hr{display:flex;align-items:center;gap:10px}
@@ -253,6 +287,7 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
    <button class="ic" id="bZoom" type="button" aria-pressed="false" data-i18n-aria="zoom"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg></button>
    <div class="seg" role="group" data-i18n-aria="size"><button id="bMinus" type="button" data-i18n-aria="smaller">−</button><button id="bPct" type="button" data-i18n-aria="fit">100 %</button><button id="bPlus" type="button" data-i18n-aria="bigger">+</button></div>
    <button class="ic" id="bSolo" type="button" aria-pressed="false" data-i18n-aria="solo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+   <button class="ic ctl" id="bMidi" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="midiPanel" data-i18n-aria="ctlAria"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="7.5" cy="12" r="2.6"/><circle cx="16.5" cy="12" r="2.6"/><path d="M12 9v6"/></svg><span class="dot" aria-hidden="true"></span></button>
    <button class="ic" id="bKeys" type="button" data-i18n-aria="keys"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 13.5h.01M18 13.5h.01M9 14h6"/></svg></button>
    <span class="sep" aria-hidden="true"></span>
    <div class="seg" role="group" aria-label="Langue / Language"><button id="lFR" type="button" lang="fr">FR</button><button id="lEN" type="button" lang="en">EN</button></div>
@@ -260,6 +295,8 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
  </div>
 </header>
 <div class="gear" id="gearPanel" role="dialog" data-i18n-aria="gearPanel" hidden></div>
+<div class="gear midi" id="midiPanel" role="dialog" data-i18n-aria="ctlAria" hidden></div>
+<input id="midiFile" type="file" accept=".json,application/json" hidden>
 <div class="work">
 <div class="page">
 <main>
@@ -328,6 +365,15 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
     <ul class="gest" id="kGest"></ul>
   </div>
 </aside>
+</div>
+<div class="floatwin plan" id="planPanel" role="dialog" aria-labelledby="pTitle" hidden>
+  <div class="fw-h" id="planHead" data-i18n-aria="mapMove"><h2 id="pTitle"><span data-i18n="planTitle"></span> · <span id="planName"></span></h2>
+    <div class="hr"><button class="ic" id="pClose" type="button" data-i18n-aria="close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>
+  <div class="fw-b">
+    <div class="pbody" id="planBody"></div>
+    <div class="mleg pleg" id="planLeg"></div>
+    <p class="note" data-i18n="planNote"></p>
+  </div>
 </div>
 <div class="floatwin map" id="mapPanel" role="dialog" aria-labelledby="mTitle" hidden>
   <div class="fw-h" id="mapHead" data-i18n-aria="mapMove"><h2 id="mTitle"><span data-i18n="mapTitle"></span> · <span id="mapKbd"></span></h2>
