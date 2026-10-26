@@ -28,7 +28,7 @@ const MSG={
 const msg=k=>tl(MSG[k]);
 const MXH=[];
 (function(){
-  const K=(cx,cy,r,get,set,center)=>MXH.push({t:'knob',cx,cy,r,get,set,center});
+  const K=(cx,cy,r,get,set,center,name)=>MXH.push({t:'knob',cx,cy,r,get,set,center,name});
   const S=(cx,cy,w,h,pos,get,set)=>MXH.push({t:'sw',box:[cx-w/2-6,cy-h/2-6,cx+w/2+6,cy+h/2+6],pos,get,set});
   const M=(box,k)=>MXH.push({t:'msg',box,k});
   const MC=(cx,cy,r,k)=>MXH.push({t:'msg',circle:[cx,cy,r],k});
@@ -41,14 +41,14 @@ const MXH=[];
   K(205,1595,42,()=>MS.param,v=>MS.param=v);
   M([130,1748,280,1808],'link');
   S(205,1922,92,46,[-1,1],()=>MS.mono,v=>MS.mono=v);
-  K(206,2080,53,()=>MS.mixing,v=>MS.mixing=v,true);K(204,2268,53,()=>MS.phLevel,v=>MS.phLevel=v);
+  K(206,2080,53,()=>MS.mixing,v=>MS.mixing=v,true,'mixing');K(204,2268,53,()=>MS.phLevel,v=>MS.phLevel=v);
   MXH.push({t:'ph',circle:[205,2470,40]});MXH.push({t:'ph',circle:[206,2594,44]});
   /* channels */
   DM_STRIP.forEach((cx,i)=>{const ch=MS.ch[i];
     MXH.push({t:'sel',cx,cy:318,r:53,i});
-    K(cx,510,46,()=>ch.trim,v=>ch.trim=v,true);
-    for(const [y,k] of [[706,'hi'],[908,'mid'],[1110,'low']])K(cx,y,53,()=>ch[k],v=>ch[k]=v,true);
-    K(cx,1366,55,()=>ch.color,v=>ch.color=v,true);
+    K(cx,510,46,()=>ch.trim,v=>ch.trim=v,true,'trim'+i);
+    for(const [y,k] of [[706,'hi'],[908,'mid'],[1110,'low']])K(cx,y,53,()=>ch[k],v=>ch[k]=v,true,k+i);
+    K(cx,1366,55,()=>ch.color,v=>ch.color=v,true,'color'+i);
     B([cx-72,1509,cx+72,1565],()=>{ch.cue=!ch.cue;});
     M([cx-70,1620,cx+70,1654],'beat');
     MXH.push({t:'vf',cx,i,box:[cx-92,1800,cx+92,2165]});
@@ -56,7 +56,7 @@ const MXH=[];
   });
   MXH.push({t:'hf',box:[790,2490,1152,2660]});
   /* master */
-  K(DM_MX,316,52,()=>MS.master,v=>MS.master=v);K(DM_MX+4,1366,47,()=>MS.balance,v=>MS.balance=v,true);
+  K(DM_MX,316,52,()=>MS.master,v=>MS.master=v,false,'master');K(DM_MX+4,1366,47,()=>MS.balance,v=>MS.balance=v,true,'balance');
   B([DM_MX-72,1509,DM_MX+72,1565],()=>{MS.cueMaster=!MS.cueMaster;});M([DM_MX-70,1620,DM_MX+70,1654],'beat');
   K(DM_MX+2,1812,52,()=>MS.booth,v=>{MS.booth=v;if(!MXF.boothSaid){MXF.boothSaid=true;mixToast(msg('booth'),3000);}});
   S(DM_MX,2022,104,64,[-1,1],()=>MS.eqCurve,v=>MS.eqCurve=v);S(DM_MX,2172,104,64,[-1,0,1],()=>MS.chCurve,v=>MS.chCurve=v);S(DM_MX,2326,104,64,[-1,0,1],()=>MS.xfCurve,v=>MS.xfCurve=v);
@@ -72,6 +72,10 @@ function mixPick(p){
     const [x0,y0,x1,y1]=h.box;if(p.x>=x0&&p.x<=x1&&p.y>=y0&&p.y<=y1)return h;}
   return null;
 }
+/* double click: back to the centre click, only on the knobs that have one (EQ, COLOR, TRIM, BALANCE, MIXING) and on the crossfader;
+   never on a level (MASTER, HEADPHONES LEVEL, BOOTH MONITOR), a wrong double click there would be heard in the room */
+function resetCtl(h){if(h.t==='knob'&&h.center){h.set(.5);mixApply();return true;}if(h.t==='hf'){MS.xfader=0;mixApply();return true;}return false;}
+function mixReset(name,i){const h=MXH.find(x=>x.name===(i==null?name:name+i));return h?resetCtl(h):false;}
 function knobTo(h,v){v=clamp(v,0,1);if(h.center&&Math.abs(v-.5)<.018)v=.5;h.set(v);mixApply();}
 function setInput(i,name){const ch=MS.ch[i];if(ch.input===name)return;ch.input=name;mixApply();
   if(name!=='DIGITAL'&&name!=='LINE')mixToast(say('Entrée '+(name==='RETURN'?'RETURN AUX':name==='A'||name==='B'?'USB '+name:name)+' : rien de branché ici, la tranche est muette','Input '+(name==='RETURN'?'RETURN AUX':name==='A'||name==='B'?'USB '+name:name)+': nothing plugged in here, the channel is silent'),2600);}
@@ -83,6 +87,8 @@ function wireMixer(){
   cv.addEventListener('pointerdown',e=>{
     const p=toD(e),h=mixPick(p);if(!h)return;e.preventDefault();ensureCtx();try{cv.setPointerCapture(e.pointerId);}catch(_){}
     const st={h,last:p,p0:p};ptr.set(e.pointerId,st);
+    const t=performance.now(),L=MXF.lastDown;MXF.lastDown={h,t};
+    if(L&&L.h===h&&t-L.t<350&&resetCtl(h)){st.h={t:'none'};MXF.lastDown=null;return;}
     switch(h.t){
       case 'msg':mixToast(msg(h.k),3200);break;
       case 'btn':h.fn();mixApply();break;

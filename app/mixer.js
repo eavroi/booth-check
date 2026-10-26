@@ -1,8 +1,8 @@
 /* ---------------- the mixer (after the DJM-900NXS2): state, audio routing, SOUND COLOR FX, level meters, headphones ----------------
    Signal path of one channel, as in the manual's block diagram: input selector, TRIM, SOUND COLOR FX, EQ/ISO, then the level meter
    and the CUE send (before the fader), the channel fader and the crossfader assign. Then MASTER LEVEL, BALANCE and the peak limiter. */
-const CH_OF=[2,3,1,4];                       /* deck 1 sits on channel 2, deck 2 on 3, deck 3 on 1, deck 4 on 4 */
-const MS={on:true,param:.5,color:null,master:.8,balance:.5,booth:.5,cueMaster:false,mixing:.5,phLevel:.6,mono:-1,eqCurve:1,chCurve:0,xfCurve:0,xfader:0,
+const CH_OF=[2,3,1,4];                       /* the order players are added in: channel 2 first, then 3, 1, 4 */
+const MS={on:false,param:.5,color:null,master:.5,balance:.5,booth:.5,cueMaster:false,mixing:.5,phLevel:.6,mono:-1,eqCurve:1,chCurve:0,xfCurve:0,xfader:0,
   midi:false,cueLink:false,fxType:'PING PONG',fxCh:'MASTER',bpm:null,beat:['1/2','3/4','1'],touch:null,quantize:false,tap:false,freq:{LOW:true,MID:true,HI:true},fxOn:false,sendOn:false,depth:.5,pad:null,
   mL:-99,mR:-99,
   ch:[0,1,2,3].map(()=>({input:'DIGITAL',trim:.5,hi:.5,mid:.5,low:.5,color:.5,cue:false,fader:1,xf:0,level:-99,clip:0})),
@@ -18,7 +18,8 @@ function xfGains(x,curve){const t=(x+1)/2;
   if(curve<0)return [t<.97?1:(1-t)/.03,t>.03?1:t/.03];
   if(curve>0)return [Math.cos(t*Math.PI/2),Math.sin(t*Math.PI/2)];
   return [Math.min(1,2*(1-t)),Math.min(1,2*t)];}
-const masterGain=v=>Math.pow(v,2.5);
+/* MASTER LEVEL at 12 o'clock gives the level the V2.5 gave at 80 %; turned fully up, 0 dB */
+const masterGain=v=>Math.pow(v,.8);
 /* ---------- the audio graph ---------- */
 function mixBuild(){
   const c=AU.ctx,N={ch:[]};MIX.N=N;
@@ -140,6 +141,20 @@ function colorParams(i){
       if(d<0){fx.ws.curve=wsCurve(1+a*(4+p*30));setP(f.frequency,20);if(fx.cr.port)fx.cr.port.postMessage({bits:16,ds:1});}
       else{fx.ws.curve=wsCurve(1+p*3);setP(f.frequency,20*Math.pow(3000/20,a*a));if(fx.cr.port)fx.cr.port.postMessage({bits:Math.round(16-a*(9+p*4)),ds:1+Math.round(a*(4+p*12))});}break;
   }
+}
+/* BEAT FX screen, AUTO mode: the BPM measured on the channel the FX channel selector picks (70 to 180 BPM, manual p. 13);
+   when nothing can be measured the last value stays and blinks. Here the BPM comes from the players that are heard there. */
+function fxBpmTick(){
+  const c=MS.fxCh,heard=d=>d.loaded()&&d.playing&&MS.ch[d.ch-1].input==='DIGITAL'&&MS.ch[d.ch-1].level>-40;
+  let src=DECKS.filter(heard);
+  if(/^[1-4]$/.test(c))src=src.filter(d=>d.ch===+c);
+  else if(c==='A'||c==='B')src=src.filter(d=>MS.ch[d.ch-1].xf===(c==='A'?-1:1)&&MS.ch[d.ch-1].fader>0);
+  else if(c==='MASTER')src=src.filter(d=>MS.ch[d.ch-1].fader>0);
+  else src=[];
+  src.sort((a,b)=>MS.ch[b.ch-1].level-MS.ch[a.ch-1].level);
+  const bpm=src.length?src[0].bpmNow():0;
+  if(bpm>=70&&bpm<=180){const v=Math.round(bpm);if(v!==MS.bpm||MS.bpmLost){MS.bpm=v;MS.bpmLost=false;}}
+  else if(MS.bpm!=null)MS.bpmLost=true;
 }
 function setColor(t){MS.color=MS.color===t?null:t;ensureCtx();colorBuild();MS.dirty=true;}
 /* ---------- level meters: peak, fast attack, falling 20 dB a second; 0 on the meter = -9 dBFS ---------- */

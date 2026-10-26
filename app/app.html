@@ -53,6 +53,43 @@ button{font:inherit;color:inherit;cursor:pointer}
 .ic{width:38px;height:38px;border-radius:6px;border:1px solid var(--edge2);background:transparent;color:#b4b8bf;display:flex;align-items:center;justify-content:center;padding:0;font:600 14px var(--mono)}
 .ic[aria-pressed=true]{background:#2a2d33;color:var(--hi)}
 .ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ic.menu{display:none}
+/* the booth rail: one slot per channel, the mixer in the middle, as the machines stand */
+.rail{max-width:1440px;margin:0 auto;padding:0 16px 8px;display:flex;gap:6px}
+.slot{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:44px;padding:5px 8px;background:var(--panel);border:1px solid var(--edge);border-radius:6px;color:var(--fg);font-size:13px;line-height:1.25;text-align:center}
+.slot.mx{flex-grow:1.15}
+.slot b{font-weight:700;color:var(--hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.slot small{font:11.5px var(--mono);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.slot.empty{background:transparent;border-style:dashed;border-color:var(--edge2);color:var(--dim)}
+.slot.empty b{color:var(--dim);font-weight:400}
+.slot:hover{border-color:#4a4f57}.slot[aria-expanded=true]{border-color:#9fb4d8}
+.slotmenu{position:fixed;z-index:75;width:280px;background:var(--panel);border:1px solid var(--edge2);border-radius:10px;padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.55);display:flex;flex-direction:column;gap:6px;font-size:13px}
+.slotmenu h3{margin:0 0 4px;font:700 13px var(--ui);color:var(--hi)}
+.slotmenu .lab{font:11.5px var(--mono);color:var(--dim);margin-top:6px}
+.slotmenu .opt{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:var(--panel2);border:1px solid var(--edge2);border-radius:6px;padding:8px 10px;min-height:38px;text-align:left}
+.slotmenu .opt[aria-pressed=true]{border-color:#9fb4d8;color:var(--hi)}
+.slotmenu .opt.soon{background:transparent;color:var(--dim)}
+.slotmenu .tag{font:11px var(--mono);color:var(--dim);border:1px solid var(--edge2);border-radius:4px;padding:0 5px}
+.slotmenu .cols{display:flex;gap:6px}.slotmenu .cols .opt{flex:1}
+.sw{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid #5a5f67;vertical-align:-2px;margin-right:6px}
+.sw.black{background:#141416}.sw.white{background:#e9e9e6}
+.slotmenu .rm{background:none;border:0;padding:8px 2px 0;text-align:left;color:#f08a84;text-decoration:underline;text-underline-offset:2px}
+@media (max-width:900px){
+  .bar-in{flex-wrap:nowrap;gap:6px 8px;padding:4px 12px}.logo span+span{display:none}
+  .tabs button{padding:10px 8px 8px;font-size:13.5px}
+  .ic.menu{display:flex;flex:none}
+  .tools{display:none;position:absolute;right:8px;top:52px;z-index:74;width:min(330px,calc(100vw - 16px));background:var(--panel);border:1px solid var(--edge2);border-radius:10px;padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.55);gap:8px}
+  .tools.open{display:flex}.tools .key{max-width:100%;flex-basis:100%;padding:0}.tools .sep{display:none}
+  .bar{position:relative}
+  .rail{padding:0 12px 6px;gap:4px}.slot{padding:4px 3px;min-height:40px;font-size:11.5px}.slot b{white-space:normal}.slot small{display:none}
+}
+@media (max-width:900px){.status .hints{display:none}}
+/* phone held sideways: the rail joins the tabs on one line, the decks get the height */
+@media (max-width:900px) and (max-height:500px){
+  .bar{display:flex;align-items:center;padding-right:8px}.bar-in{display:contents}.bar-in .grow{display:none}
+  .logo{margin-left:12px}.tabs{flex:none}.rail{order:1;flex:1;margin:0;padding:4px 6px}.ic.menu{order:2}
+  .slot{min-height:36px}footer{display:none}
+}
 /* ---------- main ---------- */
 main{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
 body.two main,body.mix main{max-width:none}
@@ -60,14 +97,13 @@ body.two main,body.mix main{max-width:none}
 /* centred, but scrolls from the left edge when the decks are made larger than the window */
 .decks>.first{margin-left:auto}.decks>.last{margin-right:auto}
 @media (min-width:901px){body.two .decks,body.mix .decks{flex-wrap:nowrap}}
-@media (max-width:900px){#bN3,#bN4{display:none}}
 @media (max-width:900px){.deckwrap{margin-left:auto!important;margin-right:auto!important}}
 :root{--side:0px;--sc:1;--n:1;--units:1;--items:1}
 body[data-n="2"]{--n:2}body[data-n="3"]{--n:3}body[data-n="4"]{--n:4}
 body.keys{--side:320px}
 /* fitted size, then the user's scale (− / +) */
-.deckwrap{display:flex;flex-direction:column;align-items:center;flex:none;--fit:min(calc((100vw - 32px - var(--side) - (var(--items) - 1) * 14px) / var(--units)),calc((100dvh - 120px) * 924 / 1196),924px);--fw:calc(var(--fit) * var(--sc))}
-@media (max-width:900px){body{--side:0px!important}body.two .deckwrap,body.mix .deckwrap{--fit:min(calc((100vw - 32px) / 1.0407),calc((100dvh - 120px) * 924 / 1196))}}
+.deckwrap{display:flex;flex-direction:column;align-items:center;flex:none;--fit:min(calc((100vw - 32px - var(--side) - (var(--items) - 1) * 14px) / var(--units)),calc((100dvh - var(--top,52px) - 68px) * 924 / 1196),924px);--fw:calc(var(--fit) * var(--sc))}
+@media (max-width:900px){body{--side:0px!important}body.two .deckwrap,body.mix .deckwrap{--fit:min(calc((100vw - 32px) / 1.0407),calc((100dvh - var(--top,52px) - 68px) * 924 / 1196))}}
 /* the mixer: 333 mm wide beside the 320 mm players, same depth, fronts aligned */
 #faceM{display:block;max-width:none;user-select:none;-webkit-user-select:none;touch-action:none;width:calc(var(--fw) * 1.0407);aspect-ratio:2208/2619;margin-top:calc(var(--fw) * .0600)}
 #wrapM .status{width:calc(var(--fw) * 1.0407)}
@@ -207,13 +243,12 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
    <button id="tabRep" role="tab" aria-selected="false"><span data-i18n="tabRep"></span><span class="badge" id="repBadge" hidden>0</span></button>
   </nav>
   <div class="grow"></div>
-  <div class="tools">
+  <button class="ic menu" id="bMenu" type="button" aria-expanded="false" aria-controls="tools" data-i18n-aria="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <div class="tools" id="tools">
    <span class="key" id="srcInfo"></span>
    <button class="btn" id="bLoad" type="button" data-i18n="load"></button>
    <input id="pick" type="file" webkitdirectory multiple hidden>
    <span class="sep" aria-hidden="true"></span>
-   <div class="seg" role="group" data-i18n-aria="decks"><button id="bN1" type="button" aria-pressed="true">1</button><button id="bN2" type="button" aria-pressed="false">2</button><button id="bN3" type="button" aria-pressed="false">3</button><button id="bN4" type="button" aria-pressed="false">4</button></div>
-   <button class="btn" id="bMix" type="button" aria-pressed="true" data-i18n-aria="mixer">Mixer</button>
    <button class="ic" id="bZoom" type="button" aria-pressed="false" data-i18n-aria="zoom"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg></button>
    <div class="seg" role="group" data-i18n-aria="size"><button id="bMinus" type="button" data-i18n-aria="smaller">−</button><button id="bPct" type="button" data-i18n-aria="fit">100 %</button><button id="bPlus" type="button" data-i18n-aria="bigger">+</button></div>
    <button class="ic" id="bSolo" type="button" aria-pressed="false" data-i18n-aria="solo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
@@ -222,27 +257,29 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
    <div class="seg" role="group" aria-label="Langue / Language"><button id="lFR" type="button" lang="fr">FR</button><button id="lEN" type="button" lang="en">EN</button></div>
   </div>
  </div>
+ <nav class="rail" id="rail" data-i18n-aria="rail"></nav>
 </header>
+<div class="slotmenu" id="slotMenu" role="dialog" hidden></div>
 <div class="work">
 <div class="page">
 <main>
 <section id="deck">
   <div class="decks">
-  <div class="deckwrap" id="wrap1">
+  <div class="deckwrap" id="wrap1" hidden>
     <canvas class="face" id="face1" data-i18n-aria="face1"></canvas>
-    <div class="status"><b>PLAYER 2</b><span class="st" id="st1"></span><span class="hints" data-i18n="hints"></span></div>
+    <div class="status"><b>PLAYER 1</b><span class="st" id="st1"></span><span class="hints" data-i18n="hints"></span></div>
   </div>
   <div class="deckwrap" id="wrap2" hidden>
     <canvas class="face" id="face2" data-i18n-aria="face2"></canvas>
-    <div class="status"><b>PLAYER 3</b><span class="st" id="st2"></span><span class="hints" data-i18n="hints"></span></div>
-  </div>
-  <div class="deckwrap" id="wrap3" hidden>
-    <canvas class="face" id="face3" data-i18n-aria="face3"></canvas>
-    <div class="status"><b>PLAYER 1</b><span class="st" id="st3"></span><span class="hints" data-i18n="hints"></span></div>
+    <div class="status"><b>PLAYER 2</b><span class="st" id="st2"></span><span class="hints" data-i18n="hints"></span></div>
   </div>
   <div class="deckwrap" id="wrapM" hidden>
     <canvas id="faceM" data-i18n-aria="faceM"></canvas>
     <div class="status"><b>MIXER</b><span class="st" id="stM"></span></div>
+  </div>
+  <div class="deckwrap" id="wrap3" hidden>
+    <canvas class="face" id="face3" data-i18n-aria="face3"></canvas>
+    <div class="status"><b>PLAYER 3</b><span class="st" id="st3"></span><span class="hints" data-i18n="hints"></span></div>
   </div>
   <div class="deckwrap" id="wrap4" hidden>
     <canvas class="face" id="face4" data-i18n-aria="face4"></canvas>

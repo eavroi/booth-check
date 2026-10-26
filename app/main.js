@@ -1,25 +1,37 @@
 /* ---------------- page wiring and main loop ---------------- */
-const D1=new Deck(1);ACTIVE=D1;
-const DK=[D1,null,null,null];
+const D1=new Deck(2);ACTIVE=D1;
+const DK=[null,D1,null,null];                 /* the players, by channel */
 const ZOOM={on:false,cv:null};
-/* 1 to 4 decks in one row, like a booth; a phone keeps at most 2 */
+/* the booth: which channels have a player, and whether the mixer stands in the middle; a phone keeps at most 2 players */
 const PHONE=window.matchMedia('(max-width:900px)');
+const BOOTH={p:[2],m:false};
 let NDECK=1;
-function setDecks(n){
-  n=clamp(n|0,1,PHONE.matches?2:4);NDECK=n;
-  document.body.dataset.n=n;document.body.classList.toggle('two',n>1);
-  for(let i=1;i<=4;i++)$('bN'+i).setAttribute('aria-pressed',i===n);
-  for(let i=2;i<=4;i++){const on=i<=n;$('wrap'+i).hidden=!on;let d=DK[i-1];
-    if(on){if(!d){d=DK[i-1]=new Deck(i);new Face($('face'+i),d);new ResizeObserver(()=>faceResize(d.face)).observe($('face'+i));d.applySettings();}
+function addFace(ch){const d=DK[ch-1];new Face($('face'+ch),d);new ResizeObserver(()=>faceResize(d.face)).observe($('face'+ch));}
+function setBooth(b,save){
+  let p=[...new Set((b.p||[]).map(x=>x|0).filter(x=>x>=1&&x<=4))];if(!p.length)p=[2];
+  if(PHONE.matches&&p.length>2)p=CH_OF.filter(c=>p.includes(c)).slice(0,2);
+  p.sort((a,c)=>a-c);BOOTH.p=p;BOOTH.m=!!b.m;NDECK=p.length;
+  for(let ch=1;ch<=4;ch++){const on=p.includes(ch);$('wrap'+ch).hidden=!on;let d=DK[ch-1];
+    if(on){if(!d){d=DK[ch-1]=new Deck(ch);addFace(ch);d.applySettings();}
       else if(!DECKS.includes(d)){DECKS.push(d);BUS.add(d);}}
-    else if(d&&DECKS.includes(d)){d.pause();d.eject();DECKS.splice(DECKS.indexOf(d),1);const j=BUS.decks.indexOf(d);if(j>=0)BUS.decks.splice(j,1);if(BUS.master===d)BUS.setMaster(null);if(ACTIVE===d)ACTIVE=D1;}}
-  DECKS.sort((a,b)=>a.n-b.n);BUS.decks.sort((a,b)=>a.n-b.n);for(const d of DECKS)d.dirty=true;
-  try{localStorage.setItem('bc.decks',String(n));}catch(e){}
-  layoutBooth();
+    else if(d&&DECKS.includes(d)){d.pause();d.eject();DECKS.splice(DECKS.indexOf(d),1);const j=BUS.decks.indexOf(d);if(j>=0)BUS.decks.splice(j,1);if(BUS.master===d)BUS.setMaster(null);}}
+  if(!DECKS.includes(ACTIVE))ACTIVE=DECKS[0];
+  DECKS.sort((a,c)=>a.ch-c.ch);BUS.decks.sort((a,c)=>a.ch-c.ch);for(const d of DECKS)d.dirty=true;
+  document.body.dataset.n=NDECK;document.body.classList.toggle('two',NDECK>1);
+  if(MS.on!==BOOTH.m){MS.on=BOOTH.m;$('wrapM').hidden=!MS.on;mixApply();if(!MS.on)closePhones();}
+  if(save!==false)try{localStorage.setItem('bc.booth',JSON.stringify(BOOTH));}catch(e){}
+  layoutBooth();renderRail();
 }
-/* the booth row, left to right: channel 1, channel 2, the mixer, channel 3, channel 4 (deck 1 is on channel 2, deck 2 on 3, deck 3 on 1, deck 4 on 4) */
+/* first visit: one player alone; the V2.5 settings (number of decks, mixer) are carried over */
+function loadBooth(){
+  try{const v=JSON.parse(localStorage.getItem('bc.booth')||'null');if(v&&Array.isArray(v.p))return v;
+    const n=parseInt(localStorage.getItem('bc.decks'))||0,m=localStorage.getItem(PHONE.matches?'bc.mixerP':'bc.mixer');
+    if(n||m!=null)return {p:CH_OF.slice(0,Math.max(1,n)),m:m==='1'};}catch(e){}
+  return {p:[2],m:false};
+}
+/* the booth row, left to right: channel 1, channel 2, the mixer, channel 3, channel 4 */
 function layoutBooth(){
-  for(let n=1;n<=4;n++)$('wrap'+n).style.order=CH_OF[n-1]*10;$('wrapM').style.order=25;
+  for(let n=1;n<=4;n++)$('wrap'+n).style.order=n*10;$('wrapM').style.order=25;
   const items=[...document.querySelectorAll('.decks>.deckwrap')].filter(w=>!w.hidden).sort((a,b)=>(+a.style.order)-(+b.style.order));
   for(const w of document.querySelectorAll('.decks>.deckwrap'))w.classList.remove('first','last');
   if(items.length){items[0].classList.add('first');items[items.length-1].classList.add('last');}
@@ -28,15 +40,60 @@ function layoutBooth(){
   for(const F of FACES){F.ready=false;}MXF.ready=false;
   requestAnimationFrame(()=>{for(const F of FACES)if(!F.cv.closest('[hidden]'))faceResize(F);if(MS.on)mixResize();});
 }
-/* the mixer is shown (and in the sound path) by default on a computer, hidden on a phone; hidden, the players go straight out */
-const mixKey=()=>PHONE.matches?'bc.mixerP':'bc.mixer';
-function setMixer(on){
-  if(on===undefined)on=!MS.on;MS.on=on;$('wrapM').hidden=!on;$('bMix').setAttribute('aria-pressed',on);mixApply();
-  try{localStorage.setItem(mixKey(),on?'1':'0');}catch(e){}
-  if(!on)closePhones();layoutBooth();
+/* ---------- the booth rail: one slot per channel and the mixer, each opens a small menu (model, colour, remove) ---------- */
+/* the machines the site may offer; only the ones with ok:1 are drawn today, the others are announced as coming */
+const GEAR={
+  player:[{name:'CDJ-2000NXS2',ok:1,colors:['black','white']},{name:'CDJ-3000'},{name:'CDJ-3000X'}],
+  mixer:[{name:'DJM-900NXS2',ok:1,colors:['black','white']},{name:'DJM-A9'},{name:'DJM-V10'}]};
+const COLORS={black:{ok:1,l:['Noir','Black']},white:{ok:0,l:['Blanc (-W)','White (-W)']}};
+const SLOTS=['1','2','M','3','4'];
+const brk=n=>esc(n).replace(/^(CDJ-\d+|DJM-\d+)/,'$1<wbr>');
+function renderRail(){
+  const r=$('rail');if(!r)return;const open=$('slotMenu').hidden?null:$('slotMenu').dataset.slot;
+  r.innerHTML=SLOTS.map(k=>{const mx=k==='M',on=mx?BOOTH.m:BOOTH.p.includes(+k);
+    const sub=mx?say('Table','Mixer'):say('Tranche ','Channel ')+k;
+    const body=on?'<b>'+brk(mx?GEAR.mixer[0].name:GEAR.player[0].name)+'</b><small>'+(mx?sub:'PLAYER '+k)+' · '+esc(tl(COLORS.black.l))+'</small>'
+      :'<b>+ '+esc(mx?say('Table','Mixer'):say('Platine','Player'))+'</b><small>'+esc(mx?say('aucune','none'):sub)+'</small>';
+    return '<button type="button" class="slot'+(mx?' mx':'')+(on?'':' empty')+'" data-slot="'+k+'" aria-haspopup="dialog" aria-expanded="'+(open===k)+'">'+body+'</button>';}).join('');
 }
+function slotMenu(k,btn){
+  const m=$('slotMenu');if(!m.hidden&&m.dataset.slot===k){closeSlot();return;}
+  const mx=k==='M',on=mx?BOOTH.m:BOOTH.p.includes(+k),list=mx?GEAR.mixer:GEAR.player;
+  const h=mx?say('Table de mixage','Mixer'):say('Tranche ','Channel ')+k+' · PLAYER '+k;
+  let html='<h3>'+esc(h+(on?'':say(' : vide',': empty')))+'</h3><div class="lab">'+esc(mx?say('Modèle','Model'):say('Platine','Player'))+'</div>';
+  html+=list.map((g,i)=>'<button type="button" class="opt'+(g.ok?'':' soon')+'" data-act="model" data-i="'+i+'" aria-pressed="'+(on&&i===0)+'"><span>'+esc(g.name)+'</span>'+(g.ok?'':'<span class="tag">'+esc(say('bientôt','soon'))+'</span>')+'</button>').join('');
+  if(on){html+='<div class="lab">'+esc(say('Couleur','Colour'))+'</div><div class="cols">'+list[0].colors.map(c=>'<button type="button" class="opt'+(COLORS[c].ok?'':' soon')+'" data-act="color" data-c="'+c+'" aria-pressed="'+(c==='black')+'"><span><span class="sw '+c+'"></span>'+esc(tl(COLORS[c].l))+'</span>'+(COLORS[c].ok?'':'<span class="tag">'+esc(say('bientôt','soon'))+'</span>')+'</button>').join('')+'</div>';
+    if(mx||BOOTH.p.length>1)html+='<button type="button" class="rm" data-act="rm">'+esc(mx?say('Retirer la table','Remove the mixer'):say('Retirer cette platine','Remove this player'))+'</button>';}
+  m.innerHTML=html;m.dataset.slot=k;m.hidden=false;
+  const r=btn.getBoundingClientRect(),w=m.offsetWidth;m.style.left=Math.round(Math.max(8,Math.min(window.innerWidth-w-8,r.left+r.width/2-w/2)))+'px';m.style.top=Math.round(r.bottom+6)+'px';
+  renderRail();
+}
+function closeSlot(){const m=$('slotMenu');if(m.hidden)return;m.hidden=true;renderRail();}
+function slotAct(k,b){
+  const mx=k==='M',list=mx?GEAR.mixer:GEAR.player,on=mx?BOOTH.m:BOOTH.p.includes(+k);
+  if(b.dataset.act==='model'){const g=list[+b.dataset.i];
+    if(!g.ok){toast(say(g.name+' : pas encore dans Booth Check, prévu plus tard',g.name+': not in Booth Check yet, planned for later'),2600);return;}
+    if(on){closeSlot();return;}
+    if(mx)setBooth({p:BOOTH.p,m:true});
+    else{if(PHONE.matches&&BOOTH.p.length>=2){toast(say('Sur téléphone : 2 platines au plus','On a phone: 2 players at most'),2600);return;}setBooth({p:BOOTH.p.concat(+k),m:BOOTH.m});}
+    closeSlot();}
+  else if(b.dataset.act==='color'){const c=b.dataset.c;if(!COLORS[c].ok)toast(say('Version blanche (série limitée de 2017) : prévue, pas encore dessinée','White version (2017 limited edition): planned, not drawn yet'),3000);}
+  else if(b.dataset.act==='rm'){if(mx)setBooth({p:BOOTH.p,m:false});else setBooth({p:BOOTH.p.filter(x=>x!==+k),m:BOOTH.m});closeSlot();}
+}
+function wireRail(){
+  $('rail').addEventListener('click',e=>{const b=e.target.closest('.slot');if(b)slotMenu(b.dataset.slot,b);});
+  $('slotMenu').addEventListener('click',e=>{const b=e.target.closest('button');if(b)slotAct($('slotMenu').dataset.slot,b);});
+  document.addEventListener('pointerdown',e=>{if(!e.target.closest('#slotMenu')&&!e.target.closest('.slot'))closeSlot();if(!e.target.closest('#tools')&&!e.target.closest('#bMenu'))menu(false);});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSlot();menu(false);}});
+  window.addEventListener('resize',closeSlot);
+  /* phone: the tools live in a menu */
+  $('bMenu').onclick=()=>menu($('bMenu').getAttribute('aria-expanded')!=='true');
+  /* the decks are fitted under the real height of the header */
+  const hd=document.querySelector('header.bar');new ResizeObserver(()=>document.body.style.setProperty('--top',hd.offsetHeight+'px')).observe(hd);
+}
+function menu(on){$('tools').classList.toggle('open',on);$('bMenu').setAttribute('aria-expanded',on);}
 function nextDeck(){const L=DECKS.slice().sort((a,b)=>a.ch-b.ch),i=L.indexOf(ACTIVE);ACTIVE=L[(i+1)%L.length];for(const d of DECKS)d.dirty=true;
-  const w=$('wrap'+ACTIVE.n);if(w&&w.scrollIntoView)w.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});}
+  const w=$('wrap'+ACTIVE.ch);if(w&&w.scrollIntoView)w.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});}
 function tab(n){$('deck').hidden=n!=='deck';$('report').hidden=n!=='report';$('tabDeck').setAttribute('aria-selected',n==='deck');$('tabRep').setAttribute('aria-selected',n==='report');if(n==='report')zoom(false);}
 function zoom(v){ZOOM.on=v;document.body.classList.toggle('zoom',v);$('bZoom').setAttribute('aria-pressed',v);}
 async function useEntries(list,isDemo){
@@ -47,15 +104,12 @@ async function useEntries(list,isDemo){
 }
 function page(){
   wireChrome();wireReport();
-  new Face($('face1'),D1);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();$('bMix').onclick=()=>setMixer();
+  addFace(2);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();wireRail();
   $('tabDeck').onclick=()=>tab('deck');$('tabRep').onclick=()=>tab('report');
-  for(let i=1;i<=4;i++)$('bN'+i).onclick=()=>setDecks(i);
-  PHONE.addEventListener&&PHONE.addEventListener('change',()=>{if(NDECK>2)setDecks(2);});
-  {let m=null;try{m=localStorage.getItem(mixKey());}catch(e){}MS.on=m==null?!PHONE.matches:m==='1';$('wrapM').hidden=!MS.on;$('bMix').setAttribute('aria-pressed',MS.on);}
+  PHONE.addEventListener&&PHONE.addEventListener('change',()=>{if(NDECK>2)setBooth(BOOTH);});
   $('bLoad').onclick=()=>$('pick').click();
   $('bZoom').onclick=()=>{tab('deck');zoom(!ZOOM.on);};
   $('pick').onchange=e=>{const l=[...e.target.files].map(f=>({file:f,path:f.webkitRelativePath||f.name}));e.target.value='';setInfo({busy:true});useEntries(l,false);};
-  new ResizeObserver(()=>faceResize(D1.face)).observe($('face1'));
   wireZoom();wireKeys();
   /* drag and drop of the USB root folder */
   let dc=0;
@@ -69,8 +123,7 @@ function page(){
     if(en.isFile){await new Promise(r=>en.file(f=>{out.push({file:f,path:en.fullPath.replace(/^\//,'')});r();},r));}
     else{const rd=en.createReader();let b;do{b=await new Promise((res,rej)=>rd.readEntries(res,rej));for(const c of b)await walk(c,out);}while(b.length);}
   }
-  faceResize(D1.face);
-  {let n=1;try{n=parseInt(localStorage.getItem('bc.decks'))||1;}catch(e){}if(n>1)setDecks(n);else{document.body.dataset.n=1;layoutBooth();}}
+  setBooth(loadBooth(),false);
   /* the printed texts use the embedded fonts: redraw the faces once they are ready */
   if(document.fonts)Promise.all([document.fonts.load('400 10px "Fira Sans Condensed"'),document.fonts.load('400 10px Arimo'),document.fonts.load('700 10px Arimo')]).then(()=>{for(const F of FACES){F.ready=false;faceResize(F);}MXF.ready=false;mixResize();}).catch(()=>{});
   useEntries(demoEntries(),true).then(()=>requestAnimationFrame(tick));
@@ -151,7 +204,7 @@ function tick(){
   }
   BUS.tick();
   for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}
-  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();mixRender();}}catch(e){console.error(e);}
+  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();mixRender();}}catch(e){console.error(e);}
   renderStatus();
   requestAnimationFrame(tick);
 }

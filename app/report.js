@@ -50,11 +50,14 @@ function buildChecks(R){
     say('Sélectionner la racine de la clé (PIONEER et Contents).','Select the root of the USB (PIONEER and Contents).')));
   const bad=T.filter(t=>['ogg','opus','wma','mka','ape'].includes(t.ext));
   if(bad.length)c.push(chk('bad','audio',say('Formats non lus par les CDJ (.ogg, .opus, .wma…)','Formats CDJs cannot play (.ogg, .opus, .wma…)'),
-    say('Formats lus : MP3, AAC (M4A), WAV, AIFF, et FLAC/ALAC selon le firmware.','Playable formats: MP3, AAC (M4A), WAV, AIFF, and FLAC/ALAC depending on firmware.'),
+    say('Formats lus par la CDJ-2000NXS2 : MP3, AAC (M4A), WAV, AIFF, FLAC et ALAC.','Formats the CDJ-2000NXS2 plays: MP3, AAC (M4A), WAV, AIFF, FLAC and ALAC.'),
     say('Convertir ces fichiers dans un format lu, puis réexporter.','Convert these files to a playable format, then re-export.'),bad.map(t=>t.filePath)));
-  const fl=T.filter(t=>['flac','alac'].includes(t.ext));
-  if(fl.length)c.push(chk('info','audio',say('Fichiers FLAC / ALAC (dépend du firmware)','FLAC / ALAC files (firmware dependent)'),
-    say('Supportés seulement avec un firmware récent.','Supported only with a recent firmware.'),say('Vérifier la version du firmware de la platine.','Check the player’s firmware version.'),fl.map(t=>t.filePath)));
+  /* the manual's table of playable files: MP3 and AAC up to 48 kHz, WAV, AIFF, ALAC and FLAC from 44.1 to 96 kHz in 16 or 24 bits */
+  const hiRes=T.filter(t=>{const sr=t.sampleRate||0,b=t.depth||0,lossy=['mp3','m4a','aac','mp4'].includes(t.ext)&&!(t.ext==='m4a'&&b>=16&&sr>48000);
+    return sr>(lossy?48000:96000)||b>24;});
+  if(hiRes.length)c.push(chk('bad','audio',say('Fichiers au-delà de 96 kHz / 24 bits','Files above 96 kHz / 24 bits'),
+    say('La CDJ-2000NXS2 lit au plus 96 kHz en 16 ou 24 bits (48 kHz pour MP3 et AAC). Ces fichiers ne seront pas lus.','The CDJ-2000NXS2 plays at most 96 kHz in 16 or 24 bits (48 kHz for MP3 and AAC). These files will not play.'),
+    say('Les convertir en 44,1 ou 48 kHz, 16 ou 24 bits, puis réexporter.','Convert them to 44.1 or 48 kHz, 16 or 24 bits, then re-export.'),hiRes.map(t=>t.filePath+' ('+Math.round((t.sampleRate||0)/100)/10+' kHz'+(t.depth?' / '+t.depth+' bits':'')+')')));
   const long=T.filter(t=>t.filePath.length>200);
   if(long.length)c.push(chk('warn','audio',say('Chemins de plus de 200 caractères','Paths longer than 200 characters'),
     say('Risque de problème de lecture sur la platine.','May cause reading problems on the player.'),say('Raccourcir les noms de dossiers.','Shorten the folder names.'),long.map(t=>t.filePath)));
@@ -104,7 +107,7 @@ function buildChecks(R){
 function limitsList(){return [
   chk('info','tool',say('Format de la clé (FAT32, exFAT, MBR, GPT)','USB format (FAT32, exFAT, MBR, GPT)'),
     say('Un navigateur ne voit ni le système de fichiers ni le schéma de partition.','A browser cannot see the file system or the partition scheme.'),
-    say('Windows : Gestion des disques, clic droit sur la clé, Propriétés. FAT32 en MBR pour une NXS2 (exFAT n’est pas lu par tous les firmwares).','Windows: Disk Management, right-click the USB, Properties. FAT32 with MBR for an NXS2 (exFAT is not read by every firmware).')),
+    say('Windows : Gestion des disques, clic droit sur la clé, Propriétés. La CDJ-2000NXS2 lit les clés en FAT16, FAT32 ou HFS+ ; NTFS n’est pas pris en charge, exFAT n’est pas dans la liste du mode d’emploi.','Windows: Disk Management, right-click the USB, Properties. The CDJ-2000NXS2 reads drives in FAT16, FAT32 or HFS+; NTFS is not supported and exFAT is not in the manual’s list.')),
   chk('info','tool',say('Fidélité de la simulation','Simulation accuracy'),
     say('Reproduction du comportement de la platine d’après le manuel et les données exportées, pas une émulation du firmware. Le tempo change aussi la hauteur du son (MASTER TEMPO n’est qu’un voyant ici), et AIFF n’est pas décodable dans tous les navigateurs.','A reproduction of the player’s behaviour from the manual and the exported data, not a firmware emulation. Tempo also changes the pitch (MASTER TEMPO is only an indicator here), and AIFF cannot be decoded in every browser.')),
   chk('info','tool',say('Pas d’écriture sur la clé','No writing to the USB'),

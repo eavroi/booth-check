@@ -34,7 +34,8 @@ const BUS=new SyncBus();
 const DECKS=[];
 class Deck{
   constructor(n){
-    this.n=n;this.ch=CH_OF[n-1];this.pn=this.ch;this.gain=null;this.dirty=true;
+    this.n=n;this.ch=n;this.pn=n;                 /* the player on channel n of the mixer is PLAYER n */
+    this.gain=null;this.dirty=true;
     /* transport */
     Object.assign(this,{cur:null,buf:null,src:null,playing:false,_pos:0,last:now(),rate:1,bend:1,touch:1,touchTarget:1,dir:1,dur:1,cue:0,loop:null,
       scratchOn:false,scratchV:0,scratchT:0,touching:false,ghost:null,srcDir:1,srcRate:0,nudge:0,ended:false,loadTok:0});

@@ -1,4 +1,4 @@
-"""Test rapide : python3 tests/smoke.py  (pip install playwright ; playwright install chromium)
+"""Test rapide : python tests/smoke.py  (pip install playwright ; playwright install chromium)
 Ouvre index.html, vérifie qu'il n'y a pas d'erreur, joue la démo et fait des captures dans tests/out/."""
 import asyncio,os,pathlib
 from playwright.async_api import async_playwright
@@ -9,10 +9,12 @@ async def main():
     pg=await b.new_page(viewport={'width':1600,'height':1000})
     errs=[];pg.on('pageerror',lambda e:errs.append(str(e)));pg.on('console',lambda m:errs.append(m.text) if m.type=='error' else None)
     await pg.goto((ROOT/'index.html').as_uri());await pg.wait_for_timeout(1800)
-    r=await pg.evaluate("""(async()=>{const M=MEDIA[0];await D1.loadTrack(M.tracks[0],{list:M.tracks});D1.play();await new Promise(r=>setTimeout(r,1500));
-      return {player:D1.pn,mixer:MS.on,level:Math.round(MS.ch[D1.ch-1].level),master:Math.round(MS.mL)}})()""")
+    print('première visite',await pg.evaluate("({platines:BOOTH.p.join(),table:MS.on})"))
+    await pg.screenshot(path=str(OUT/'booth1.png'))
+    r=await pg.evaluate("""(async()=>{setBooth({p:[2,3],m:true});const M=MEDIA[0];await D1.loadTrack(M.tracks[0],{list:M.tracks});D1.play();await new Promise(r=>setTimeout(r,1500));
+      return {player:D1.pn,mixer:MS.on,level:Math.round(MS.ch[D1.ch-1].level),master:Math.round(MS.mL),bpm:MS.bpm}})()""")
     print('lecture',r)
-    for n in (1,2,4):
-      await pg.evaluate(f"setDecks({n})");await pg.wait_for_timeout(700);await pg.screenshot(path=str(OUT/f'booth{n}.png'))
+    for name,js in (('booth2',"setBooth({p:[2,3],m:true})"),('booth4',"setBooth({p:[1,2,3,4],m:true})")):
+      await pg.evaluate(js);await pg.wait_for_timeout(700);await pg.screenshot(path=str(OUT/f'{name}.png'))
     print('erreurs',errs or 'aucune');await b.close()
 asyncio.run(main())

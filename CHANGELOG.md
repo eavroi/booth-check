@@ -1,5 +1,17 @@
 # Booth Check — versions
 
+## V2.6 — 26 octobre 2026
+- Barre du haut refaite : onglet « Matériel » et rail du booth de gauche à droite (tranche 1, 2, table, 3, 4). Chaque emplacement ouvre un menu : modèle, couleur, retirer. Remplace les boutons 1·2·3·4 et « Mixer ».
+- Les platines se placent sur la tranche choisie ; PLAYER = numéro de tranche.
+- Première visite : une seule CDJ, sans table.
+- Annoncés « bientôt » dans le menu : CDJ-3000, CDJ-3000X, DJM-A9, DJM-V10 et la version blanche (-W).
+- Téléphone : barre sur une ligne, outils dans un menu ; en paysage, le rail rejoint les onglets et la platine prend toute la hauteur.
+- Platines ajustées à la hauteur réelle de la barre.
+- Table : MASTER LEVEL au centre par défaut (même volume qu'avant) ; double-clic pour remettre au centre EQ HI/MID/LOW, COLOR, TRIM, BALANCE, MIXING et le crossfader.
+- Table : vis replacées d'après la photo (ligne du bas alignée, vis entre les tranches 2 et 3 ajoutée) ; voyants USB éteints (aucun ordinateur branché, d'après le mode d'emploi) ; écran BEAT FX : BPM mesuré en AUTO (70 à 180), la dernière valeur clignote quand plus rien n'est mesurable.
+- Contrôle de clé, d'après le mode d'emploi : FLAC et ALAC lus par la CDJ-2000NXS2 ; nouveau contrôle des fichiers au-delà de 96 kHz / 24 bits (48 kHz en MP3 et AAC) ; formats de clé FAT16, FAT32, HFS+.
+- Tests : `tests/scenarios.py` (CUE, hot cue, boucle, SYNC, table…) ; `build.py` lit et écrit en UTF-8.
+
 ## V2.5 — 23 octobre 2026
 - Table de mixage DJM-900NXS2 jouable, entre les platines : sélecteur d'entrée, TRIM, EQ/ISO, faders et crossfader avec leurs 3 courbes, A / THRU / B, MASTER LEVEL, BALANCE, vumètres et CLIP.
 - SOUND COLOR FX : les 6 effets (SPACE, DUB ECHO, SWEEP, NOISE, CRUSH, FILTER) avec COLOR et PARAMETER.

@@ -118,7 +118,8 @@ function drawMixerBody(P,st){
   for(const x of [686,970.5,1255])vBar(P,x,288,1690,[110,111,117],5);
   for(const x of [686,970.5,1255]){vBar(P,x,1716,1800,[96,97,102],5);vBar(P,x,2160,2380,[96,97,102],5);}
   /* screws */
-  for(const [x,y] of [[48,152],[686,152],[1502,152],[2160,145],[48,1105],[48,1922],[48,2615],[370,2615],[442,1745],[1500,1745],[970.5,2330],[442,2615],[1500,2615],[1572,2622],[2160,1715],[2160,2060],[2160,2620]])screwD(P,x,y);
+  /* screws, placed from the top view photo: one line along the bottom, one between channels 2 and 3 under the LOW knobs */
+  for(const [x,y] of [[48,154],[686,154],[1504,154],[2164,154],[48,1090],[970.5,1200],[48,1921],[442,1745],[1500,1745],[970.5,2330],[2164,1724],[2164,2063],[48,2621],[371,2621],[450,2621],[1500,2621],[1577,2621],[2164,2621]])screwD(P,x,y);
   leftColumnD(P,st);for(let i=0;i<4;i++)stripD(P,i,st);masterD(P,st);fxD(P,st);faderSectionD(P,st);
 }
 function leftColumnD(P,st){
@@ -127,7 +128,8 @@ function leftColumnD(P,st){
   P.rrect([190,226,220,246],2,null,DPRINT,2.4);P.line([[183,252],[227,252]],DPRINT,3);
   for(const [x,l] of [[110,'A'],[302,'B']]){const b=[x-62,258,x+62,424];P.rrect([b[0]-4,b[1]-4,b[2]+4,b[3]+4],10,[6,6,7]);P.rrect(b,8,[24,24,26],[70,70,76],2);
     P.gradient([b[0]+10,b[1]+10,b[2]-10,b[3]-38],[64,64,68],[34,34,37],4);P.circle(x,b[3]-38,30,[42,42,46]);
-    glowBox(P,[b[0]+12,b[3]-26,b[2]-12,b[3]-12],[190,255,40],4,.7);P.rrect([b[0]+12,b[3]-26,b[2]-12,b[3]-12],2,[196,240,60]);
+    /* USB link indicator: lit only when a computer is connected (manual), never the case here */
+    P.rrect([b[0]+12,b[3]-26,b[2]-12,b[3]-12],2,[52,60,34]);
     dT(P,x,446,l,36);
     const k=[x-40,474,x+40,528];P.rrect([k[0]-3,k[1]-3,k[2]+3,k[3]+3],8,[4,4,5]);P.gradient(k,[40,40,44],[22,22,24],6);
     const on=false;P.rrect(k,6,null,on?[214,255,70]:[120,150,40],4);P.rrect([x-22,498,x+22,504],2,on?[230,255,90]:[110,130,40]);}
@@ -255,14 +257,14 @@ function fxD(P,st){
   dT(P,1880,318,'RETURN TYPE',22);dT(P,1840,340,'AUX',22,'rm');P.circle(1864,340,4,DPRINT);P.circle(1884,340,4,DPRINT);dT(P,1896,340,'INSERT',22,'lm');
   slideSwitch(P,1880,376,96,46,-1);
   const ub=[2028,225,2150,395];P.rrect([ub[0]-4,ub[1]-4,ub[2]+4,ub[3]+4],10,[6,6,7]);P.rrect(ub,8,[24,24,26],[70,70,76],2);P.gradient([ub[0]+10,ub[1]+10,ub[2]-10,ub[3]-48],[64,64,68],[34,34,37],4);
-  glowBox(P,[ub[0]+14,ub[3]-38,ub[2]-14,ub[3]-26],[190,255,40],4,.7);P.rrect([ub[0]+14,ub[3]-38,ub[2]-14,ub[3]-26],2,[196,240,60]);dT(P,(ub[0]+ub[2])/2,ub[3]-12,'5V ⎓ 2.1A',15,'mm',DPRINT_DIM);
+  P.rrect([ub[0]+14,ub[3]-38,ub[2]-14,ub[3]-26],2,[52,60,34]);dT(P,(ub[0]+ub[2])/2,ub[3]-12,'5V ⎓ 2.1A',15,'mm',DPRINT_DIM);
   dT(P,1890,433,'LEVEL',30);dScale(P,1892,526,52,{gap:16});dKnob(P,'std',1892,526,52,.5);dT(P,1830,594,'MIN',24);dT(P,1955,594,'MAX',24);
   dT(P,2088,433,'ON/OFF',30);bigBlue(P,2086,528,62,st.sendOn);
   /* BEAT FX: glass panel with the OLED screen, X-PAD, BEAT, TAP and QUANTIZE */
   band(P,1785,2160,625,'BEAT FX');
   const gp=[1784,646,2160,1464],g=P.g;P.rrect([gp[0]-3,gp[1]-3,gp[2]+3,gp[3]+3],12,[2,2,3]);P.rrect(gp,10,[10,10,12],[64,64,70],2);
   const lg=g.createLinearGradient(gp[0],gp[1],gp[2],gp[1]+260);lg.addColorStop(0,'rgba(255,255,255,.10)');lg.addColorStop(.5,'rgba(255,255,255,.02)');lg.addColorStop(.5001,'rgba(0,0,0,0)');g.fillStyle=lg;g.save();P.rr([gp[0],gp[1],gp[2],gp[1]+300],10);g.clip();g.fillRect(gp[0],gp[1],gp[2]-gp[0],300);g.restore();
-  oledD(P,[1860,704,2086,878],st);
+  dyn(P,()=>'oled|'+st.bpm+'|'+(st.bpmLost&&!blinkOn())+'|'+st.quantize,[1844,688,2102,894],P=>oledD(P,[1860,704,2086,878],st));
   dT(P,x,952,'X-PAD',30);
   xpadD(P,st);
   for(const [bx,dir] of [[1855,-1],[2085,1]]){const b=[bx-56,1230,bx+56,1286];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);P.gradient(b,[56,56,60],[24,24,26],6);P.rrect(b,6,null,[96,96,102],1.5);
@@ -308,7 +310,7 @@ function oledD(P,box,st){
   const txt=(t,x,y,px,wt,al,col)=>{g.save();g.font=(wt||400)+' '+px+'px '+FACE_FONT;g.fillStyle=col?css(col):css(W);g.textAlign=al||'center';g.textBaseline='alphabetic';g.fillText(t,x,y);g.restore();};
   txt(st.fxType.replace(' ',''),(x0+x1)/2,y0+38,40);
   P.rrect([x0+8,y0+52,x0+58,y0+66],2,null,W,1.4);txt('AUTO',x0+33,y0+63,11);txt('QUANTIZE',x0+33,y0+80,10,400,'center',st.quantize?W:[70,72,76]);
-  txt(st.bpm==null?'---':String(st.bpm),x0+170,y0+86,42,300,'right');txt('BPM',x0+178,y0+84,17,400,'left');
+  if(!(st.bpmLost&&!blinkOn()))txt(st.bpm==null?'---':String(st.bpm),x0+170,y0+86,42,300,'right');txt('BPM',x0+178,y0+84,17,400,'left');
   const by=y0+98,cw=w/3;P.rrect([x0,by,x1,by+40],0,null,W,1.6);
   for(let k=0;k<3;k++){const cx=x0+cw*(k+.5);if(k===1)P.rrect([x0+cw+3,by+3,x0+2*cw-3,by+37],0,W);if(k>0)P.line([[x0+cw*k,by+5],[x0+cw*k,by+35]],W,1.2);
     txt(st.beat[k],cx,by+32,30,k===1?700:400,'center',k===1?[0,0,0]:W);}

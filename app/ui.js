@@ -1,17 +1,19 @@
 /* ---------------- page chrome: language, key status, shortcuts panel and keyboard map, booth-only mode ---------------- */
 const I18N={
   views:['Vues','Views'],
-  tabDeck:['Deck','Deck'],
+  tabDeck:['Matériel','Gear'],
   tabRep:['Contrôle clé USB','USB check'],
   load:['Charger clé USB','Load USB'],
   size:['Taille','Size'],smaller:['Réduire','Smaller'],bigger:['Agrandir','Bigger'],fit:['Taille ajustée à la fenêtre','Fit to the window'],
   noKey:['Aucune clé USB chargée. Le contrôle se lance sur ta clé, pas sur l’exemple intégré.','No USB loaded. The check runs on your USB, not on the built-in demo.'],
-  decks:['Nombre de platines','Number of decks'],
+  menu:['Menu','Menu'],rail:['Le booth, de gauche à droite : tranches 1 et 2, la table, tranches 3 et 4','The booth, left to right: channels 1 and 2, the mixer, channels 3 and 4'],
   zoom:['Agrandir l’écran de la platine','Enlarge the deck screen'],
   solo:['Booth seul, plein écran','Booth only, full screen'],
   keys:['Raccourcis clavier','Keyboard shortcuts'],
-  face1:['Platine 1 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Deck 1: click the buttons, turn the jog and the selector, touch the screen'],
-  face2:['Platine 2','Deck 2'],face3:['Platine 3','Deck 3'],face4:['Platine 4','Deck 4'],
+  face1:['Platine 1 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 1: click the buttons, turn the jog and the selector, touch the screen'],
+  face2:['Platine 2 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 2: click the buttons, turn the jog and the selector, touch the screen'],
+  face3:['Platine 3 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 3: click the buttons, turn the jog and the selector, touch the screen'],
+  face4:['Platine 4 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 4: click the buttons, turn the jog and the selector, touch the screen'],
   zoomCv:['Écran agrandi','Enlarged screen'],
   hints:['molette : jog (backspin) / sélecteur / tempo','wheel: jog (backspin) / selector / tempo'],
   push:['Valider','Push'],
@@ -34,7 +36,6 @@ const I18N={
   mapTitle:['Plan du clavier','Keyboard map'],
   mapNote:['Main gauche : loops, cues et lecture, comme le côté gauche de la platine. Main droite : les 4 touches de l’écran (rangée du haut) et les 4 touches autour du sélecteur (rangée du milieu), dans le même ordre que sur la platine.','Left hand: loops, cues and playback, like the left side of the deck. Right hand: the 4 screen keys (top row) and the 4 keys around the selector (middle row), in the same order as on the deck.'],
   drop:['Dépose le dossier de la clé','Drop the USB folder'],
-  mixer:['Afficher la table de mixage','Show the mixer'],
   faceM:['Table de mixage : clique sur les touches, tourne les potards et glisse les faders','Mixer: click the keys, turn the knobs and slide the faders'],
   phTitle:['Sortie casque','Headphone output'],
   mapMove:['Déplacer le plan','Move the map'],
@@ -46,7 +47,7 @@ function setLang(l){
   for(const el of document.querySelectorAll('[data-i18n]')){const v=I18N[el.dataset.i18n];if(v)el.textContent=v[LANG==='en'?1:0];}
   for(const el of document.querySelectorAll('[data-i18n-aria]')){const v=I18N[el.dataset.i18nAria];if(v){el.setAttribute('aria-label',v[LANG==='en'?1:0]);if(el.tagName==='BUTTON')el.title=v[LANG==='en'?1:0];}}
   $('lFR').setAttribute('aria-pressed',LANG==='fr');$('lEN').setAttribute('aria-pressed',LANG==='en');
-  renderInfo();buildKeys();if(!$('mapPanel').hidden)buildMap();if(typeof rerenderReport==='function')rerenderReport();
+  renderInfo();buildKeys();if(typeof renderRail==='function')renderRail();if(!$('mapPanel').hidden)buildMap();if(typeof rerenderReport==='function')rerenderReport();
 }
 /* ---------- the key shown in the top bar ---------- */
 let INFO=null;
