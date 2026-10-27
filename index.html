@@ -227,8 +227,9 @@ footer .pop .ic{text-decoration:none;color:#b4b8bf;width:34px;height:34px}
 .phItem:hover{background:#24272c}
 #phList{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
 .floatwin{position:fixed;z-index:85;left:16px;top:80px;max-width:calc(100vw - 16px);background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:0 16px 40px rgba(0,0,0,.6);display:flex;flex-direction:column}
-.floatwin .fw-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px 8px 16px;border-bottom:1px solid var(--edge);cursor:move;touch-action:none;user-select:none}
+.floatwin .fw-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 6px 3px 14px;border-bottom:1px solid var(--edge);cursor:move;touch-action:none;user-select:none}
 .floatwin .fw-h h2{margin:0;font-size:14px;font-weight:700;color:var(--hi);white-space:nowrap}
+.floatwin .fw-h .ic{width:30px;height:30px}.floatwin .fw-h .seg button{min-height:28px;padding:4px 9px}
 .floatwin .fw-b{padding:12px 16px 14px;display:flex;flex-direction:column;gap:10px;overflow:auto;max-height:calc(100vh - 140px)}
 .modal{position:fixed;inset:0;z-index:90;background:rgba(8,9,10,.66);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px;overflow:auto}
 .dlg{width:min(620px,100%);background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:20px 24px 22px;display:flex;flex-direction:column;gap:16px}
@@ -3601,11 +3602,13 @@ const MACT={};
   K('browse','browse','BROWSE','BROWSE');K('tag_list','tag_list','TAG LIST','TAG LIST');K('info','info','INFO','INFO');K('menu','menu','MENU (maintenu : UTILITY)','MENU (held: UTILITY)');
   K('tag_track','tag_track','TAG TRACK/REMOVE','TAG TRACK/REMOVE');K('track_filter','track_filter','TRACK FILTER (maintenu : EDIT)','TRACK FILTER (held: EDIT)');K('short_cut','short_cut','SHORT CUT','SHORT CUT');
   A('reverse','deck','btn','REVERSE','REVERSE',(d,on)=>{if(on)setLever(d,d.lever===1?0:1);});
+  /* the DIRECTION lever pushed up to SLIP REV while the key is held (the lever springs back to FWD) */
+  A('slip_rev','deck','btn','SLIP REVERSE (maintenu)','SLIP REVERSE (held)',(d,on)=>setLever(d,on?-1:0));
   /* the 4 HOT CUE keys of the CDJ: A-D, or E-H once BANK is pressed */
   for(let i=0;i<4;i++)K('hb'+(i+1),'hot_cue_'+'abcd'[i],'HOT CUE '+HL[i]+' / '+HL[i+4]+' (selon BANK)','HOT CUE '+HL[i]+' / '+HL[i+4]+' (by BANK)');
   A('bank','deck','btn','BANK (hot cues A-D ↔ E-H)','BANK (hot cues A-D ↔ E-H)',(d,on)=>{if(!on)return;d.bank=d.bank?0:1;d.dirty=true;toast('HOT CUE BANK '+(d.bank?'E-H':'A-D'),1400);});
   /* a function key: alone = its own function, held with another key = that key's second function */
-  A('fn','deck','btn','Touche fonction (seule : MASTER TEMPO ; maintenue : 2e fonction des autres boutons)','Function key (alone: MASTER TEMPO; held: second function of the other keys)',null);
+  A('fn','deck','btn','Stop = touche ALT (seule : MASTER TEMPO ; maintenue : 2e fonction ■ des autres boutons)','Stop = ALT key (alone: MASTER TEMPO; held: second function ■ of the other keys)',null);
   /* out of a loop: BEAT JUMP; during a loop: LOOP 1/2X and 2X, like CUE/LOOP CALL on the CDJ */
   const J=dir=>(d,on)=>{if(!on||!d.loaded())return;if(d.loop){d.loopScale(dir<0?.5:2);toast('LOOP '+fmtBeat(d.loopLenBeats())+' BEAT');}else beatJump(d,dir);d.dirty=true;};
   A('jump_rev','deck','btn','BEAT JUMP ◀ (pendant une boucle : LOOP 1/2X)','BEAT JUMP ◀ (during a loop: LOOP 1/2X)',J(-1));
@@ -3646,8 +3649,7 @@ function steelMap(){
   const side=(s,o)=>{
     /* Stop is the function key: held, the keys below get their second function */
     cc(o.stop,'fn',s);cc(o.play,'play',s,0,'reverse');
-    /* with Stop held, the row CUE LOAD LOAD CUE = BROWSE TAG LIST INFO MENU, for the player of the Stop held (Victor's layout) */
-    cc(o.cue,'cue',s,0,s==='L'?'browse':'menu',1);cc(o.prev,'search_rev',s,0,'track_rev');cc(o.next,'search_fwd',s,0,'track_fwd');
+    cc(o.cue,'cue',s,0,'slip_rev');cc(o.prev,'search_rev',s,0,'track_rev');cc(o.next,'search_fwd',s,0,'track_fwd');
     cc(o.sync,'sync',s,0,'player_master');cc(o.bm,'nudge_rev',s,0,'tempo_range');cc(o.bp,'nudge_fwd',s,0,'tempo_reset');cc(o.load,'load',s,0,s==='L'?'tag_list':'info',1);
     /* Controls 1 with Apply Ctrl on Deck A or Deck B: the rotary selector of that player; Controls 2 is kept for the BEAT FX (V2.9) */
     cc(o.color,'selector',s,'tc');cc(o.param,'beatfx',0,'tc');
@@ -3655,7 +3657,9 @@ function steelMap(){
     /* pads, two columns: 1 2 3 on the left, 4 5 6 on the right; SHIFT turns them into 7..12 */
     ['loop_in','four_beat','jump_rev','loop_out','reloop','jump_fwd'].forEach((a,i)=>cc(o.pad+i,a,s));
     ['hb1','hb3','bank','hb2','hb4','call'].forEach((a,i)=>cc(o.pad2+i,a,s));
-    cc(o.trim,'trim',s,0,'color');cc(o.hi,'hi',s);cc(o.mid,'mid',s);cc(o.low,'low',s);cc(o.fader,'fader',s);cc(o.phc,'ph_cue',s);
+    cc(o.trim,'trim',s,0,'color');cc(o.hi,'hi',s);cc(o.mid,'mid',s);cc(o.low,'low',s);cc(o.fader,'fader',s);
+    /* with Stop held, the middle row headphone CUE, LOAD, LOAD, headphone CUE = BROWSE TAG LIST INFO MENU, for the player of the Stop held (Victor's layout) */
+    cc(o.phc,'ph_cue',s,0,s==='L'?'browse':'menu',1);
     /* with Stop held, the 6 Kill keys pick the 6 SOUND COLOR FX, in the order of the DJM's buttons */
     const fx=s==='L'?['SPACE','DUB ECHO','SWEEP']:['NOISE','CRUSH','FILTER'];
     cc(o.khi,'kill_hi',s,0,'fx:'+fx[0]);cc(o.kmid,'kill_mid',s,0,'fx:'+fx[1]);cc(o.klow,'kill_low',s,0,'fx:'+fx[2]);};
@@ -4052,7 +4056,7 @@ function wireMidi(){
    It floats over the booth like the keyboard map, and the control being touched lights up. Units: the manual drawing's. ---------------- */
 const PSH={play:'PLAY',cue:'CUE',loop_in:'LOOP IN',loop_out:'LOOP OUT',reloop:'RELOOP',four_beat:'4/8 BEAT',jump_rev:'JUMP◀ ½X',jump_fwd:'JUMP▶ 2X',
   hb1:'A / E',hb2:'B / F',hb3:'C / G',hb4:'D / H',bank:'BANK',call:'CALL/DEL',search_rev:'SEARCH ◀◀',search_fwd:'SEARCH ▶▶',track_rev:'TRACK ◀◀',track_fwd:'TRACK ▶▶',
-  sync:'SYNC',player_master:'MASTER',tempo_reset:'T.RESET',tempo_range:'T.RANGE',master_tempo:'M.TEMPO',fn:'M.TEMPO',reverse:'REVERSE',slip:'SLIP',quantize:'QUANTIZE',jog_mode:'JOG MODE',
+  sync:'SYNC',player_master:'MASTER',tempo_reset:'T.RESET',tempo_range:'T.RANGE',master_tempo:'M.TEMPO',fn:'ALT',reverse:'REVERSE',slip:'SLIP',slip_rev:'SLIP REV',quantize:'QUANTIZE',jog_mode:'JOG MODE',
   nudge_rev:'BEND −',nudge_fwd:'BEND +',load:'LOAD',tempo:'TEMPO',jog:'JOG',trim:'TRIM',hi:'HI',mid:'MID',low:'LOW',fader:'FADER',color:'COLOR',ph_cue:'CUE',
   kill_hi:'KILL HI',kill_mid:'KILL MID',kill_low:'KILL LOW',xfader:'CROSSFADER',master:'MASTER',balance:'BALANCE',mixing:'MIXING',ph_level:'LEVEL',param:'PARAMETER',fx_color:'COLOR',
   beatfx:'BEAT FX',selector:'SÉLECTEUR',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
@@ -4103,16 +4107,16 @@ const STEEL_GEO=(function(){
 const pkey=c=>'c0:'+c.toString(16).padStart(2,'0');
 /* the light check: a click on the map answers which control is lit */
 let PLAN_PICK=null;
-const PVIEW='70 160 283 196';
+const PVIEW='70 166 283 190';
 function planSvg(){
   const map=MIDI.cfg?MIDI.cfg.map:steelMap(),E=[];
   const T=(x,y,t,cl,sz,anc)=>'<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" class="'+cl+'"'+(sz?' font-size="'+sz+'"':'')+(anc?' text-anchor="'+anc+'"':'')+'>'+esc(t)+'</text>';
   const lab=(b)=>b?pshort(b.a):'';
   /* a label always fits its key: the font shrinks for the long ones */
   const fit=(t,w,sz)=>Math.min(sz,w*1.72/Math.max(1,String(t).length));
-  const tip=(b,bs)=>{if(!b&&!bs)return say('Non relié','Not mapped');let t=b?midiBindLabel(b):'';if(b&&b.f)t+=' — '+say('avec Stop : ','with Stop: ')+tl(MACT[b.f].l);if(bs)t+=' — SHIFT : '+midiBindLabel(bs);return t;};
+  const tip=(b,bs)=>{if(!b&&!bs)return say('Non relié','Not mapped');let t=b?midiBindLabel(b):'';if(b&&b.f)t+=' — '+say('avec Stop (ALT) : ','with Stop (ALT): ')+tl(MACT[b.f].l);if(bs)t+=' — SHIFT : '+midiBindLabel(bs);return t;};
   /* the body: two dark wings and the lighter mixer panel in the middle */
-  E.push('<path class="p-body" d="M76.3,172 Q76.3,166 82,166 L114,166 C119,166 119,171.4 124,171.4 L299,171.4 C304,171.4 304,166 309,166 L341,166 Q346.7,166 346.7,172 L346.7,343 Q346.7,350 340,350 L83,350 Q76.3,350 76.3,343 Z"/>');
+  E.push('<path class="p-body" d="M76.3,175 Q76.3,169 82,169 L114,169 C119,169 119,173 124,173 L299,173 C304,173 304,169 309,169 L341,169 Q346.7,169 346.7,175 L346.7,343 Q346.7,350 340,350 L83,350 Q76.3,350 76.3,343 Z"/>');
   E.push('<rect class="p-mix" x="160" y="175.2" width="103" height="172" rx="2"/>');
   E.push(T(99,175.6,'Hercules','p-brand',3.6,'middle')+T(322,177,'DJ CONTROL STEEL','p-brand',2.6,'middle'));
   for(const g of STEEL_GEO){
@@ -4126,6 +4130,8 @@ function planSvg(){
       const cx=g.x+g.w/2;
       if(g.pad){h+='<line x1="'+(g.x+.8)+'" x2="'+(g.x+g.w-.8)+'" y1="'+(g.y+g.h/2)+'" y2="'+(g.y+g.h/2)+'" class="p-sep"/>'+T(cx,g.y+3.2,lab(b),'p-t c-'+pcat(b&&b.a),fit(lab(b),g.w,2.15),'middle')+T(cx,g.y+g.h-1.1,lab(bs),'p-t c-'+pcat(bs&&bs.a),fit(lab(bs),g.w,2.15),'middle');}
       else if(g.lab)h+=T(cx,g.y+g.h/2+.9,g.lab,'p-t',2.3,'middle');
+      /* Stop: the ALT key, MASTER TEMPO when pressed alone */
+      else if(b&&b.a==='fn')h+=T(cx,g.y+g.h/2-.3,'ALT','p-t',2.4,'middle')+T(cx,g.y+g.h-1.1,say('seul : M.TEMPO','alone: M.TEMPO'),'p-t',fit(say('seul : M.TEMPO','alone: M.TEMPO'),g.w,1.8),'middle');
       else{const f=b&&b.f;h+=T(cx,g.y+(f?g.h/2-.3:g.h/2+.9),lab(b),'p-t',fit(lab(b),g.w,f?2.2:2.4),'middle');if(f)h+=T(cx,g.y+g.h-1.1,'■ '+pshort(f),'p-t c-fn',fit('■ '+pshort(f),g.w,1.95),'middle');}
     }else if(g.t==='k'){
       h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-knob"/><line x1="'+g.cx+'" y1="'+(g.cy-g.r+1)+'" x2="'+g.cx+'" y2="'+(g.cy-1.5)+'" class="p-tick"/>';
@@ -4149,7 +4155,7 @@ function buildPlan(){
   const tp=MIDI.cfg?MIDI.cfg.tpl:'steel';
   $('planName').textContent=MIDI.port||tplName('steel');
   $('planBody').innerHTML=tp==='steel'?planSvg():'<p class="note">'+esc(say('Le plan dessiné existe pour le Hercules DJ Control Steel. Pour ce contrôleur, les correspondances sont dans le panneau Contrôleur.','The drawn map exists for the Hercules DJ Control Steel. For this controller, the mapping is in the Controller panel.'))+'</p>';
-  const LEG=[['play',say('Platine','Player')],['loop',say('Boucles et sauts','Loops and jumps')],['hot',say('Hot cues (avec SHIFT)','Hot cues (with SHIFT)')],['fn',say('■ = maintenir Stop','■ = hold Stop')],['mix',say('Table','Mixer')],['fx','SOUND COLOR FX'],['nav',say('Écran et navigation','Screen and browsing')]];
+  const LEG=[['play',say('Platine','Player')],['loop',say('Boucles et sauts','Loops and jumps')],['hot',say('Hot cues (avec SHIFT)','Hot cues (with SHIFT)')],['fn',say('■ = maintenir Stop (ALT)','■ = hold Stop (ALT)')],['mix',say('Table','Mixer')],['fx','SOUND COLOR FX'],['nav',say('Écran et navigation','Screen and browsing')]];
   $('planLeg').innerHTML=LEG.map(l=>'<span class="c-'+l[0]+'"><i></i>'+esc(l[1])+'</span>').join('');
 }
 /* the control being touched lights up on the map */

@@ -22,11 +22,13 @@ const MACT={};
   K('browse','browse','BROWSE','BROWSE');K('tag_list','tag_list','TAG LIST','TAG LIST');K('info','info','INFO','INFO');K('menu','menu','MENU (maintenu : UTILITY)','MENU (held: UTILITY)');
   K('tag_track','tag_track','TAG TRACK/REMOVE','TAG TRACK/REMOVE');K('track_filter','track_filter','TRACK FILTER (maintenu : EDIT)','TRACK FILTER (held: EDIT)');K('short_cut','short_cut','SHORT CUT','SHORT CUT');
   A('reverse','deck','btn','REVERSE','REVERSE',(d,on)=>{if(on)setLever(d,d.lever===1?0:1);});
+  /* the DIRECTION lever pushed up to SLIP REV while the key is held (the lever springs back to FWD) */
+  A('slip_rev','deck','btn','SLIP REVERSE (maintenu)','SLIP REVERSE (held)',(d,on)=>setLever(d,on?-1:0));
   /* the 4 HOT CUE keys of the CDJ: A-D, or E-H once BANK is pressed */
   for(let i=0;i<4;i++)K('hb'+(i+1),'hot_cue_'+'abcd'[i],'HOT CUE '+HL[i]+' / '+HL[i+4]+' (selon BANK)','HOT CUE '+HL[i]+' / '+HL[i+4]+' (by BANK)');
   A('bank','deck','btn','BANK (hot cues A-D ↔ E-H)','BANK (hot cues A-D ↔ E-H)',(d,on)=>{if(!on)return;d.bank=d.bank?0:1;d.dirty=true;toast('HOT CUE BANK '+(d.bank?'E-H':'A-D'),1400);});
   /* a function key: alone = its own function, held with another key = that key's second function */
-  A('fn','deck','btn','Touche fonction (seule : MASTER TEMPO ; maintenue : 2e fonction des autres boutons)','Function key (alone: MASTER TEMPO; held: second function of the other keys)',null);
+  A('fn','deck','btn','Stop = touche ALT (seule : MASTER TEMPO ; maintenue : 2e fonction ■ des autres boutons)','Stop = ALT key (alone: MASTER TEMPO; held: second function ■ of the other keys)',null);
   /* out of a loop: BEAT JUMP; during a loop: LOOP 1/2X and 2X, like CUE/LOOP CALL on the CDJ */
   const J=dir=>(d,on)=>{if(!on||!d.loaded())return;if(d.loop){d.loopScale(dir<0?.5:2);toast('LOOP '+fmtBeat(d.loopLenBeats())+' BEAT');}else beatJump(d,dir);d.dirty=true;};
   A('jump_rev','deck','btn','BEAT JUMP ◀ (pendant une boucle : LOOP 1/2X)','BEAT JUMP ◀ (during a loop: LOOP 1/2X)',J(-1));
@@ -67,8 +69,7 @@ function steelMap(){
   const side=(s,o)=>{
     /* Stop is the function key: held, the keys below get their second function */
     cc(o.stop,'fn',s);cc(o.play,'play',s,0,'reverse');
-    /* with Stop held, the row CUE LOAD LOAD CUE = BROWSE TAG LIST INFO MENU, for the player of the Stop held (Victor's layout) */
-    cc(o.cue,'cue',s,0,s==='L'?'browse':'menu',1);cc(o.prev,'search_rev',s,0,'track_rev');cc(o.next,'search_fwd',s,0,'track_fwd');
+    cc(o.cue,'cue',s,0,'slip_rev');cc(o.prev,'search_rev',s,0,'track_rev');cc(o.next,'search_fwd',s,0,'track_fwd');
     cc(o.sync,'sync',s,0,'player_master');cc(o.bm,'nudge_rev',s,0,'tempo_range');cc(o.bp,'nudge_fwd',s,0,'tempo_reset');cc(o.load,'load',s,0,s==='L'?'tag_list':'info',1);
     /* Controls 1 with Apply Ctrl on Deck A or Deck B: the rotary selector of that player; Controls 2 is kept for the BEAT FX (V2.9) */
     cc(o.color,'selector',s,'tc');cc(o.param,'beatfx',0,'tc');
@@ -76,7 +77,9 @@ function steelMap(){
     /* pads, two columns: 1 2 3 on the left, 4 5 6 on the right; SHIFT turns them into 7..12 */
     ['loop_in','four_beat','jump_rev','loop_out','reloop','jump_fwd'].forEach((a,i)=>cc(o.pad+i,a,s));
     ['hb1','hb3','bank','hb2','hb4','call'].forEach((a,i)=>cc(o.pad2+i,a,s));
-    cc(o.trim,'trim',s,0,'color');cc(o.hi,'hi',s);cc(o.mid,'mid',s);cc(o.low,'low',s);cc(o.fader,'fader',s);cc(o.phc,'ph_cue',s);
+    cc(o.trim,'trim',s,0,'color');cc(o.hi,'hi',s);cc(o.mid,'mid',s);cc(o.low,'low',s);cc(o.fader,'fader',s);
+    /* with Stop held, the middle row headphone CUE, LOAD, LOAD, headphone CUE = BROWSE TAG LIST INFO MENU, for the player of the Stop held (Victor's layout) */
+    cc(o.phc,'ph_cue',s,0,s==='L'?'browse':'menu',1);
     /* with Stop held, the 6 Kill keys pick the 6 SOUND COLOR FX, in the order of the DJM's buttons */
     const fx=s==='L'?['SPACE','DUB ECHO','SWEEP']:['NOISE','CRUSH','FILTER'];
     cc(o.khi,'kill_hi',s,0,'fx:'+fx[0]);cc(o.kmid,'kill_mid',s,0,'fx:'+fx[1]);cc(o.klow,'kill_low',s,0,'fx:'+fx[2]);};

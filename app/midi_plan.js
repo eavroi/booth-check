@@ -3,7 +3,7 @@
    It floats over the booth like the keyboard map, and the control being touched lights up. Units: the manual drawing's. ---------------- */
 const PSH={play:'PLAY',cue:'CUE',loop_in:'LOOP IN',loop_out:'LOOP OUT',reloop:'RELOOP',four_beat:'4/8 BEAT',jump_rev:'JUMP◀ ½X',jump_fwd:'JUMP▶ 2X',
   hb1:'A / E',hb2:'B / F',hb3:'C / G',hb4:'D / H',bank:'BANK',call:'CALL/DEL',search_rev:'SEARCH ◀◀',search_fwd:'SEARCH ▶▶',track_rev:'TRACK ◀◀',track_fwd:'TRACK ▶▶',
-  sync:'SYNC',player_master:'MASTER',tempo_reset:'T.RESET',tempo_range:'T.RANGE',master_tempo:'M.TEMPO',fn:'M.TEMPO',reverse:'REVERSE',slip:'SLIP',quantize:'QUANTIZE',jog_mode:'JOG MODE',
+  sync:'SYNC',player_master:'MASTER',tempo_reset:'T.RESET',tempo_range:'T.RANGE',master_tempo:'M.TEMPO',fn:'ALT',reverse:'REVERSE',slip:'SLIP',slip_rev:'SLIP REV',quantize:'QUANTIZE',jog_mode:'JOG MODE',
   nudge_rev:'BEND −',nudge_fwd:'BEND +',load:'LOAD',tempo:'TEMPO',jog:'JOG',trim:'TRIM',hi:'HI',mid:'MID',low:'LOW',fader:'FADER',color:'COLOR',ph_cue:'CUE',
   kill_hi:'KILL HI',kill_mid:'KILL MID',kill_low:'KILL LOW',xfader:'CROSSFADER',master:'MASTER',balance:'BALANCE',mixing:'MIXING',ph_level:'LEVEL',param:'PARAMETER',fx_color:'COLOR',
   beatfx:'BEAT FX',selector:'SÉLECTEUR',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
@@ -54,16 +54,16 @@ const STEEL_GEO=(function(){
 const pkey=c=>'c0:'+c.toString(16).padStart(2,'0');
 /* the light check: a click on the map answers which control is lit */
 let PLAN_PICK=null;
-const PVIEW='70 160 283 196';
+const PVIEW='70 166 283 190';
 function planSvg(){
   const map=MIDI.cfg?MIDI.cfg.map:steelMap(),E=[];
   const T=(x,y,t,cl,sz,anc)=>'<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" class="'+cl+'"'+(sz?' font-size="'+sz+'"':'')+(anc?' text-anchor="'+anc+'"':'')+'>'+esc(t)+'</text>';
   const lab=(b)=>b?pshort(b.a):'';
   /* a label always fits its key: the font shrinks for the long ones */
   const fit=(t,w,sz)=>Math.min(sz,w*1.72/Math.max(1,String(t).length));
-  const tip=(b,bs)=>{if(!b&&!bs)return say('Non relié','Not mapped');let t=b?midiBindLabel(b):'';if(b&&b.f)t+=' — '+say('avec Stop : ','with Stop: ')+tl(MACT[b.f].l);if(bs)t+=' — SHIFT : '+midiBindLabel(bs);return t;};
+  const tip=(b,bs)=>{if(!b&&!bs)return say('Non relié','Not mapped');let t=b?midiBindLabel(b):'';if(b&&b.f)t+=' — '+say('avec Stop (ALT) : ','with Stop (ALT): ')+tl(MACT[b.f].l);if(bs)t+=' — SHIFT : '+midiBindLabel(bs);return t;};
   /* the body: two dark wings and the lighter mixer panel in the middle */
-  E.push('<path class="p-body" d="M76.3,172 Q76.3,166 82,166 L114,166 C119,166 119,171.4 124,171.4 L299,171.4 C304,171.4 304,166 309,166 L341,166 Q346.7,166 346.7,172 L346.7,343 Q346.7,350 340,350 L83,350 Q76.3,350 76.3,343 Z"/>');
+  E.push('<path class="p-body" d="M76.3,175 Q76.3,169 82,169 L114,169 C119,169 119,173 124,173 L299,173 C304,173 304,169 309,169 L341,169 Q346.7,169 346.7,175 L346.7,343 Q346.7,350 340,350 L83,350 Q76.3,350 76.3,343 Z"/>');
   E.push('<rect class="p-mix" x="160" y="175.2" width="103" height="172" rx="2"/>');
   E.push(T(99,175.6,'Hercules','p-brand',3.6,'middle')+T(322,177,'DJ CONTROL STEEL','p-brand',2.6,'middle'));
   for(const g of STEEL_GEO){
@@ -77,6 +77,8 @@ function planSvg(){
       const cx=g.x+g.w/2;
       if(g.pad){h+='<line x1="'+(g.x+.8)+'" x2="'+(g.x+g.w-.8)+'" y1="'+(g.y+g.h/2)+'" y2="'+(g.y+g.h/2)+'" class="p-sep"/>'+T(cx,g.y+3.2,lab(b),'p-t c-'+pcat(b&&b.a),fit(lab(b),g.w,2.15),'middle')+T(cx,g.y+g.h-1.1,lab(bs),'p-t c-'+pcat(bs&&bs.a),fit(lab(bs),g.w,2.15),'middle');}
       else if(g.lab)h+=T(cx,g.y+g.h/2+.9,g.lab,'p-t',2.3,'middle');
+      /* Stop: the ALT key, MASTER TEMPO when pressed alone */
+      else if(b&&b.a==='fn')h+=T(cx,g.y+g.h/2-.3,'ALT','p-t',2.4,'middle')+T(cx,g.y+g.h-1.1,say('seul : M.TEMPO','alone: M.TEMPO'),'p-t',fit(say('seul : M.TEMPO','alone: M.TEMPO'),g.w,1.8),'middle');
       else{const f=b&&b.f;h+=T(cx,g.y+(f?g.h/2-.3:g.h/2+.9),lab(b),'p-t',fit(lab(b),g.w,f?2.2:2.4),'middle');if(f)h+=T(cx,g.y+g.h-1.1,'■ '+pshort(f),'p-t c-fn',fit('■ '+pshort(f),g.w,1.95),'middle');}
     }else if(g.t==='k'){
       h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-knob"/><line x1="'+g.cx+'" y1="'+(g.cy-g.r+1)+'" x2="'+g.cx+'" y2="'+(g.cy-1.5)+'" class="p-tick"/>';
@@ -100,7 +102,7 @@ function buildPlan(){
   const tp=MIDI.cfg?MIDI.cfg.tpl:'steel';
   $('planName').textContent=MIDI.port||tplName('steel');
   $('planBody').innerHTML=tp==='steel'?planSvg():'<p class="note">'+esc(say('Le plan dessiné existe pour le Hercules DJ Control Steel. Pour ce contrôleur, les correspondances sont dans le panneau Contrôleur.','The drawn map exists for the Hercules DJ Control Steel. For this controller, the mapping is in the Controller panel.'))+'</p>';
-  const LEG=[['play',say('Platine','Player')],['loop',say('Boucles et sauts','Loops and jumps')],['hot',say('Hot cues (avec SHIFT)','Hot cues (with SHIFT)')],['fn',say('■ = maintenir Stop','■ = hold Stop')],['mix',say('Table','Mixer')],['fx','SOUND COLOR FX'],['nav',say('Écran et navigation','Screen and browsing')]];
+  const LEG=[['play',say('Platine','Player')],['loop',say('Boucles et sauts','Loops and jumps')],['hot',say('Hot cues (avec SHIFT)','Hot cues (with SHIFT)')],['fn',say('■ = maintenir Stop (ALT)','■ = hold Stop (ALT)')],['mix',say('Table','Mixer')],['fx','SOUND COLOR FX'],['nav',say('Écran et navigation','Screen and browsing')]];
   $('planLeg').innerHTML=LEG.map(l=>'<span class="c-'+l[0]+'"><i></i>'+esc(l[1])+'</span>').join('');
 }
 /* the control being touched lights up on the map */

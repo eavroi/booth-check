@@ -1,5 +1,11 @@
 # Booth Check — versions
 
+## V2.8.1 — 27 octobre 2026
+- Steel, Stop maintenu : BROWSE et MENU passent sur les CUE casque du milieu (rangée CUE casque, LOAD, LOAD, CUE casque = BROWSE, TAG LIST, INFO, MENU), comme Victor l'avait demandé ; la V2.8 les avait mis par erreur sur les CUE des platines.
+- Steel : Stop + CUE de la platine = SLIP REVERSE tant qu'on appuie (le levier DIRECTION poussé sur SLIP REV).
+- Plan du contrôleur : Stop affiché comme touche « ALT » (seule : MASTER TEMPO ; maintenue : la 2e fonction ■ des autres boutons) ; moins de vide en haut du dessin.
+- Plans du contrôleur et du clavier : barre de titre plus fine.
+
 ## V2.8 — 27 octobre 2026
 - Nouveau moteur de lecture des platines (AudioWorklet) : le morceau est lu échantillon par échantillon. Boucles, hot cues et sauts sans clic (fondu de 3 ms), marche arrière et scratch sans trou, l'écran suit le son (même quand l'onglet est caché).
 - Vrai MASTER TEMPO, d'après le mode d'emploi p. 22 : le tempo change sans changer la hauteur, avec le fader TEMPO comme avec le jog (pitch bend) et SYNC. Un léger traitement s'entend, comme sur la vraie machine (« sa qualité diminue »). Test : un La 440 Hz reste à 440 Hz à +8 %.
