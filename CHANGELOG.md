@@ -1,5 +1,18 @@
 # Booth Check — versions
 
+## V2.8 — 27 octobre 2026
+- Nouveau moteur de lecture des platines (AudioWorklet) : le morceau est lu échantillon par échantillon. Boucles, hot cues et sauts sans clic (fondu de 3 ms), marche arrière et scratch sans trou, l'écran suit le son (même quand l'onglet est caché).
+- Vrai MASTER TEMPO, d'après le mode d'emploi p. 22 : le tempo change sans changer la hauteur, avec le fader TEMPO comme avec le jog (pitch bend) et SYNC. Un léger traitement s'entend, comme sur la vraie machine (« sa qualité diminue »). Test : un La 440 Hz reste à 440 Hz à +8 %.
+- SOUND COLOR FX revus d'après le mode d'emploi (p. 16) et les retours de Victor sur la vraie table :
+  - CRUSH ne monte plus le volume (+10 dB en trop à gauche avant) ;
+  - NOISE : la musique passe dans le même filtre que le bruit, bien plus marqué, et marche aussi à gauche ;
+  - SWEEP : à gauche, une vraie porte qui ne laisse passer que les attaques (son plus serré) ; à droite, une bande qui se resserre sans à-coup, PARAMETER = fréquence centrale ;
+  - SPACE plus présent ; SPACE et DUB ECHO continuent de sonner quand on baisse le fader (l'écho et la réverbération s'éteignent d'eux-mêmes) ;
+  - les valeurs précises (temps d'écho, longueur de réverbération, fréquences) ne sont pas dans le mode d'emploi : réglages de départ, à caler sur un enregistrement de la vraie table (kit de test fourni avec la V2.8).
+- Steel, Stop maintenu : CUE / LOAD / LOAD / CUE = BROWSE, TAG LIST, INFO, MENU de la platine du Stop ; ◀ BACK, ▲ TAG TRACK/REMOVE, ▶ SHORT CUT, ▼ TRACK FILTER (maintenu : EDIT) ; Scratch = SLIP.
+- Steel, voyants : 4/8 BEAT et RELOOP/EXIT allumés seulement pendant l'appui ; le Kill de l'effet SOUND COLOR FX choisi clignote, comme la touche de la table ; le guide du fader TEMPO sur Pitch bend clignote au lieu de rester fixe (au démarrage, il indique dans quel sens bouger le fader pour reprendre la main).
+- Tests : MASTER TEMPO (hauteur), niveau de CRUSH, porte de SWEEP, filtre de NOISE, queues après fader, nouvelles combinaisons du Steel. `tests/kit_djm.py` fabrique le fichier son du kit de test.
+
 ## V2.7.2 — 27 octobre 2026
 - Steel, voyants vérifiés un par un sur le vrai contrôleur : la table du mode d'emploi est juste ; ses codes « Mode » sont les voyants SHIFT, et ses codes « Folders » / « Files » sont les flèches ◀ ▶ du milieu (allumées quand la platine active affiche une liste). LOAD, SEARCH et les flèches ▲ ▼ n'ont pas de voyant pilotable ; ceux d'Apply Ctrl sont gérés par le Steel lui-même.
 - « Tester les voyants » n'allume plus que les vrais voyants puis éteint tout (il faisait clignoter le SHIFT gauche sans fin) ; tous les voyants repartent éteints à la connexion.

@@ -6,7 +6,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 ## Façon de travailler
 - Répondre en français, de façon concise. Victor dicte souvent à la voix : lire le contexte attentivement.
 - Avant chaque version : faire un « point » (liste de ce qui va changer, questions s'il y en a) et attendre son « GO ».
-- À la livraison, toujours dire le numéro de version (V2.7.2 est la dernière livrée ; la suivante est V2.8).
+- À la livraison, toujours dire le numéro de version (V2.8 est la dernière livrée ; la suivante est V2.9).
 - Ne jamais inventer de fonction ni d'élément d'interface : tout vient de la vraie machine (mode d'emploi, photos, vidéos, captures). En cas de doute, le dire.
 - Vérifier chaque version : `python build.py`, `python tests/scenarios.py` (comportements du mode d'emploi), `python tests/smoke.py` (captures), comparer avec les photos de la vraie machine.
 - Références hors dépôt, dans `BOOTH CHECK/references/` : modes d'emploi FR de la CDJ-2000NXS2 et de la DJM-900NXS2 (PDF + texte extrait), photos de Victor.
@@ -29,13 +29,15 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Machines « bientôt » (CDJ-3000, CDJ-3000X, DJM-A9, DJM-V10) et couleur blanche (-W, série limitée 2017) : annoncées dans le menu, pas encore dessinées (`GEAR`, `COLORS` dans main.js).
 - Table masquée : les platines sortent en direct.
 - Raccourcis clavier par position physique (KeyboardEvent.code), aucun Shift ; AZERTY BE par défaut.
+- Moteur de lecture : un AudioWorklet par platine (`DECK_SRC` dans deck.js) qui reçoit les échantillons une fois ; la page lui envoie vitesse, boucle, MASTER TEMPO, et la position seulement aux sauts (numérotés) ; il renvoie sa position et l'écran le suit. MASTER TEMPO = étirement WSOLA (grains de 43 ms). Sans AudioWorklet, l'ancien lecteur (AudioBufferSourceNode) reste en secours.
+- SOUND COLOR FX (mixer.js) : sens des potards d'après le mode d'emploi p. 16 ; valeurs chiffrées = réglages de départ, à caler sur l'enregistrement de la vraie table (kit : `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.8/kit-test-DJM/`). SPACE et DUB ECHO pris après le fader et rendus avant le crossfader (queue quand on baisse le fader).
 - Casque : clic sur la prise PHONES, sortie choisie avec setSinkId (Chrome / Edge).
 - Contrôleurs MIDI (`midi.js`, Web MIDI, Chrome / Edge) : actions `MACT`, modèles `MTPL` (Hercules DJ Control Steel d'après la table MIDI de son mode d'emploi, dans `references/manuels/`), reprise douce des potards, voyants, apprentissage. Plan dessiné du Steel dans `midi_plan.js`. Voyants du Steel vérifiés un par un (résultats dans `references/`) : codes « Mode » = SHIFT, « Folders » / « Files » = flèches ◀ ▶. Le navigateur intégré de l'app Claude refuse Web MIDI : tester dans Chrome ou Edge.
 
 ## À faire plus tard
 - LINK entre platines (la clé dans une seule platine, les autres la parcourent par LINK), puis site hors ligne : reportés après la V2.7 (version à fixer avec Victor).
 - Contrôleurs : modèles Pioneer DDJ-FLX4 / DDJ-400 si leurs listes MIDI officielles existent ; BEAT FX sur le Steel (Apply Ctrl en « Select ») en V2.9.
-- V2.8 : moteur audio en AudioWorklet et vrai MASTER TEMPO. V2.9 : BEAT FX.
+- V2.9 : BEAT FX (avec les queues après le fader, mode d'emploi p. 16-17). Caler les SOUND COLOR FX sur l'enregistrement de la vraie table quand Victor l'aura fait.
 - Fréquences de l'EQ de la table : le mode d'emploi donne HI 30 kHz, MID 1 kHz, LOW 20 Hz, inutilisables tels quels ; garder 300 Hz / 4 kHz tant qu'on n'a pas mieux.
 - BEAT FX de la table (14 effets, X-PAD, écran OLED, TAP, QUANTIZE) — affichés mais pas encore simulés.
 - Tester la sortie casque sur un vrai 2e appareil son.

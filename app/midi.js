@@ -63,11 +63,13 @@ const MACT={};
 const MGROUPS=[['deck',['Platine','Player']],['chan',['Tranche de la table','Mixer channel']],['mix',['Table','Mixer']],['nav',['Navigation','Browsing']]];
 /* ---------- the templates (codes from the maker's documents or checked on the real controller) ---------- */
 function steelMap(){
-  const m={},cc=(code,a,s,e,f)=>{const b={a};if(s)b.s=s;if(e)b.e=e;if(f)b.f=f;m['c0:'+code.toString(16).padStart(2,'0')]=b;};
+  const m={},cc=(code,a,s,e,f,fa)=>{const b={a};if(s)b.s=s;if(e)b.e=e;if(f)b.f=f;if(fa)b.fa=1;m['c0:'+code.toString(16).padStart(2,'0')]=b;};
   const side=(s,o)=>{
     /* Stop is the function key: held, the keys below get their second function */
-    cc(o.stop,'fn',s);cc(o.play,'play',s,0,'reverse');cc(o.cue,'cue',s,0,'slip');cc(o.prev,'search_rev',s,0,'track_rev');cc(o.next,'search_fwd',s,0,'track_fwd');
-    cc(o.sync,'sync',s,0,'player_master');cc(o.bm,'nudge_rev',s,0,'tempo_range');cc(o.bp,'nudge_fwd',s,0,'tempo_reset');cc(o.load,'load',s,0,'tag_track');
+    cc(o.stop,'fn',s);cc(o.play,'play',s,0,'reverse');
+    /* with Stop held, the row CUE LOAD LOAD CUE = BROWSE TAG LIST INFO MENU, for the player of the Stop held (Victor's layout) */
+    cc(o.cue,'cue',s,0,s==='L'?'browse':'menu',1);cc(o.prev,'search_rev',s,0,'track_rev');cc(o.next,'search_fwd',s,0,'track_fwd');
+    cc(o.sync,'sync',s,0,'player_master');cc(o.bm,'nudge_rev',s,0,'tempo_range');cc(o.bp,'nudge_fwd',s,0,'tempo_reset');cc(o.load,'load',s,0,s==='L'?'tag_list':'info',1);
     /* Controls 1 with Apply Ctrl on Deck A or Deck B: the rotary selector of that player; Controls 2 is kept for the BEAT FX (V2.9) */
     cc(o.color,'selector',s,'tc');cc(o.param,'beatfx',0,'tc');
     cc(o.tempo,'tempo',s);cc(o.jog,'jog',s,'tc');
@@ -82,10 +84,10 @@ function steelMap(){
     trim:0x33,hi:0x34,mid:0x35,low:0x36,fader:0x32,phc:0x14,khi:0x0E,kmid:0x0F,klow:0x10});
   side('R',{play:0x23,cue:0x24,stop:0x25,prev:0x21,next:0x22,sync:0x1F,bm:0x20,bp:0x15,load:0x16,color:0x43,param:0x44,tempo:0x3B,jog:0x30,pad:0x19,pad2:0x6A,
     trim:0x3D,hi:0x3E,mid:0x3F,low:0x40,fader:0x3C,phc:0x18,khi:0x26,kmid:0x27,klow:0x28});
-  cc(0x39,'xfader');cc(0x38,'master');cc(0x37,'balance',0,0,'param');cc(0x3A,'mixing');cc(0x29,'jog_mode_all',0,0,'track_filter');
+  cc(0x39,'xfader');cc(0x38,'master');cc(0x37,'balance',0,0,'param');cc(0x3A,'mixing');cc(0x29,'jog_mode_all',0,0,'slip');
   cc(0x47,'ph_level');cc(0x45,'beatfx',0,'tc');cc(0x46,'beatfx',0,'tc');
-  /* the cross: the selector of the active player; with Stop held, the 4 keys above the CDJ screen */
-  cc(0x2A,'nav_up',0,0,'browse');cc(0x2B,'nav_down',0,0,'tag_list');cc(0x2C,'nav_back',0,0,'info');cc(0x2D,'nav_push',0,0,'menu');
+  /* the cross: the selector of the active player; with Stop held, ◀ BACK, ▲ TAG TRACK/REMOVE, ▶ SHORT CUT, ▼ TRACK FILTER (held: EDIT) */
+  cc(0x2A,'nav_up',0,0,'tag_track');cc(0x2B,'nav_down',0,0,'track_filter');cc(0x2C,'nav_back',0,0,'nav_back');cc(0x2D,'nav_push',0,0,'short_cut');
   return m;
 }
 const MTPL={
@@ -182,7 +184,7 @@ function midiRun(b,m){
     /* keys in the middle (no side): the Stop held on either side, and that side's player becomes the active one */
     let act=A,eb=b;
     if(on){const fs=midiFnSide(b);
-      if(b.f&&fs&&MACT[b.f]){act=MACT[b.f];MIDI.fn[fs].used=true;if(!b.s){eb={...b,s:fs};midiActive(fs);}}
+      if(b.f&&fs&&MACT[b.f]){act=MACT[b.f];MIDI.fn[fs].used=true;if(!b.s||b.fa){eb={...b,s:fs};midiActive(fs);}}
       MIDI.down.set(m.k,{a:act.id,b:eb});}
     else{const w=MIDI.down.get(m.k);if(w){act=MACT[w.a]||A;eb=w.b;}MIDI.down.delete(m.k);}
     midiButton(act,eb,on);return;}
@@ -194,7 +196,7 @@ function midiRun(b,m){
 }
 /* touching a side of the controller makes its player the active one (white outline): the browsing keys then act on it */
 /* the side whose Stop is held for this key: its own side, or either side for the keys in the middle and for the effects */
-function midiFnSide(b){if(!b.f)return null;const any=!b.s||b.f.startsWith('fx:');if(b.s&&MIDI.fn[b.s])return b.s;return any?(MIDI.fn.L?'L':MIDI.fn.R?'R':null):null;}
+function midiFnSide(b){if(!b.f)return null;const any=!b.s||b.fa||b.f.startsWith('fx:');if(b.s&&MIDI.fn[b.s])return b.s;return any?(MIDI.fn.L?'L':MIDI.fn.R?'R':null):null;}
 function midiActive(s){const d=s&&sideDeck(s);if(d&&ACTIVE!==d){ACTIVE=d;for(const x of DECKS)x.dirty=true;}}
 function midiDeck(b){const d=sideDeck(b.s||'L');if(!d&&!MIDI.said['nodeck'+b.s]){MIDI.said['nodeck'+b.s]=true;toast(say('Pas de platine pour ce côté du contrôleur : ajoute-la dans « Matériel »','No player for this side of the controller: add one in “Gear”'),3000);}return d;}
 function needMixer(){if(MS.on)return true;if(!MIDI.said.mixer){MIDI.said.mixer=true;toast(say('Table masquée : les commandes de table du contrôleur ne font rien. Ajoute la table dans « Matériel ».','Mixer hidden: the controller’s mixer controls do nothing. Add the mixer in “Gear”.'),3600);}return false;}
@@ -288,20 +290,24 @@ function midiLedState(b,k){
     /* IN / OUT ADJUST: that key blinks, the other one is off (manual p. 24-25) */
     case 'loop_in':return !ld?0:d.adjust==='in'?2:d.adjust==='out'?0:L(d.loop||d.loopIn!=null);
     case 'loop_out':return !ld?0:d.adjust==='out'?2:d.adjust==='in'?0:L(d.loop);
-    case 'reloop':return L(ld&&(d.loop||d.lastLoop));
-    case 'four_beat':case 'jump_rev':case 'jump_fwd':return L(ld&&d.loop);
+    /* 4/8 BEAT and RELOOP/EXIT: lit only while pressed (Victor); the BEAT JUMP pads stay lit in a loop, where they are LOOP 1/2X and 2X */
+    case 'reloop':case 'four_beat':return L(MIDI.btn.get(k));
+    case 'jump_rev':case 'jump_fwd':return L(ld&&d.loop);
     case 'call':case 'bank':return L(MIDI.btn.get(k));
     case 'sync':return L(d&&d.sync);case 'player_master':return L(d&&BUS.master===d);case 'slip':return L(d&&d.slip);case 'quantize':return L(d&&d.quant);
     case 'fn':return L(MIDI.fn[b.s]);case 'master_tempo':return L(d&&d.mt);
     case 'jog_mode':return L(d&&d.vinyl);case 'jog_mode_all':return L(DECKS[0]&&DECKS[0].vinyl);
-    /* pitch bend lights: pressed, or a guide while the TEMPO slider of the controller has not met the one on screen */
-    case 'nudge_rev':case 'nudge_fwd':{if(MIDI.btn.get(k))return 1;const g=midiTempoGuide(b.s);return L(g&&(g<0)===(b.a==='nudge_rev'));}
+    /* pitch bend lights: pressed, or blinking as a guide while the TEMPO slider of the controller has not met the one on screen
+       (at start-up the slider is often elsewhere: the light says which way to move it, and goes out once it has met it) */
+    case 'nudge_rev':case 'nudge_fwd':{if(MIDI.btn.get(k))return 1;const g=midiTempoGuide(b.s);return g&&(g<0)===(b.a==='nudge_rev')?2:0;}
     /* LOAD: browsing on that player; blinking in the last 30 s of the track, like the end warning of the CDJ */
     case 'load':return L(d&&ACTIVE===d&&(d.ui.scr==='browse'||d.ui.scr==='taglist'));
     /* ◀ BACK and ▶ enter: lit while the active player shows a list */
     case 'nav_back':case 'nav_push':return L(ACTIVE&&['browse','taglist','menu','utility','filter','iplay'].includes(ACTIVE.ui.scr));
     case 'ph_cue':return L(d&&MS.on&&MS.ch[d.ch-1].cue);
-    case 'kill_hi':case 'kill_mid':case 'kill_low':return L(MIDI.kill.has(b.s+b.a.slice(5))||d&&MS.on&&MS.ch[d.ch-1][b.a.slice(5)]<.01);
+    /* Kill: lit while the band is down; the Kill that picks the SOUND COLOR FX in use blinks, like the effect's key on the mixer (manual p. 13) */
+    case 'kill_hi':case 'kill_mid':case 'kill_low':{if(MIDI.kill.has(b.s+b.a.slice(5))||d&&MS.on&&MS.ch[d.ch-1][b.a.slice(5)]<.01)return 1;
+      return MS.on&&b.f&&b.f==='fx:'+MS.color?2:0;}
   }
   let n=0;if(/^hb\d$/.test(b.a))n=(d?d.bank:0)*4+(+b.a[2]);else if(/^hot\d$/.test(b.a))n=+b.a[3];
   /* hot cue pads: lit when that hot cue exists */

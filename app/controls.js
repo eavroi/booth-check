@@ -261,7 +261,7 @@ function keyActions(d){return {
   sync:{press:()=>{d.setSync(!d.sync);if(d.sync&&BUS.master===d&&DECKS.length===1)toast(say('SYNC : pas d’autre platine, ce lecteur devient MASTER','SYNC: no other player, this one becomes MASTER'));},long:()=>toast(say('INSTANT DOUBLES : il faut une autre platine','INSTANT DOUBLES: needs another player'))},
   master:{down:()=>{if(!d.loaded()){toast(say('MASTER : charge un morceau','MASTER: load a track'));return;}BUS.setMaster(BUS.master===d?null:d);}},
   tempo_range:{down:()=>{d.rangeIdx=(d.rangeIdx+1)%4;d.applyTempo();}},
-  master_tempo:{down:()=>{d.mt=!d.mt;d.dirty=true;if(d.mt)toast(say('MASTER TEMPO : voyant seulement ici, la hauteur suit le tempo','MASTER TEMPO: indicator only here, pitch follows tempo'));}},
+  master_tempo:{down:()=>{d.mt=!d.mt;d.syncSrc();d.dirty=true;if(d.mt&&!AU.engOk)toast(say('MASTER TEMPO : ce navigateur ne peut pas garder la hauteur','MASTER TEMPO: this browser cannot keep the pitch'));}},
   tempo_reset:{down:()=>{d.tReset=!d.tReset;d.applyTempo();}},
 };}
 function scanStart(d,dir){

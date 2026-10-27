@@ -1,10 +1,76 @@
 /* ---------------- audio, one Deck per player, and the sync bus that links them ---------------- */
-const AU={ctx:null,out:null};
+const AU={ctx:null,out:null,engOk:false,engReady:null};
 function ensureCtx(){
-  if(!AU.ctx){const C=window.AudioContext||window.webkitAudioContext;AU.ctx=new C();AU.out=AU.ctx.createGain();AU.out.gain.value=.9;AU.out.connect(AU.ctx.destination);mixBuild();}
+  if(!AU.ctx){const C=window.AudioContext||window.webkitAudioContext;AU.ctx=new C();AU.out=AU.ctx.createGain();AU.out.gain.value=.9;AU.out.connect(AU.ctx.destination);AU.engReady=loadDeckWorklet(AU.ctx);mixBuild();}
   if(AU.ctx.state==='suspended')AU.ctx.resume();
   return AU.ctx;
 }
+/* ---------- the player's engine: an AudioWorklet that reads the track sample by sample ----------
+   Direct reading follows the velocity (pitch moves with the speed, as on the real deck), with a short crossfade on every jump
+   (loop, hot cue, seek) so nothing clicks. MASTER TEMPO (manual p. 22: "the pitch does not change even when the playback speed
+   is changed", "the sound is processed digitally so its quality drops") is a WSOLA time stretch: 43 ms grains read at the
+   normal speed, each one placed where it best continues the previous one. */
+const DECK_SRC=`class BcDeck extends AudioWorkletProcessor{
+  constructor(o){super();const sr=sampleRate;
+    this.ch=null;this.len=0;this.k=1;this.pos=0;this.v=0;this.vt=0;this.run=false;this.g=0;this.lp=null;this.mtWant=false;this.mt=false;this.seq=0;this.rep=0;
+    this.va=1-Math.exp(-1/(.003*sr));this.gs=1/(.002*sr);this.F=Math.round(.003*sr);this.fade=0;this.fp=0;this.fs=0;
+    this.H=2*Math.round(.0107*sr);this.D=this.H>>1;const N=2*this.H;this.w=new Float32Array(N);for(let j=0;j<N;j++)this.w[j]=.5-.5*Math.cos(2*Math.PI*j/N);
+    this.j=0;this.cur=0;this.prev=0;this.cg=1;this.pg=1;this.force=false;this.R=new Float32Array(2*this.D+this.H+8);this.ref=new Float32Array(this.H);
+    this.port.onmessage=e=>this.msg(e.data);const q=o&&o.processorOptions;if(q&&q.msgs)for(const m of q.msgs)this.msg(m);}
+  msg(m){
+    if(m.load){this.ch=m.load;this.len=m.load[0].length;this.k=m.sr/sampleRate;this.pos=0;this.run=false;this.g=0;this.v=this.vt=0;this.lp=null;return;}
+    if(m.unload){this.ch=null;this.len=0;this.run=false;this.g=0;return;}
+    if(m.lp!==undefined)this.lp=m.lp?[m.lp[0]*this.k*sampleRate,m.lp[1]*this.k*sampleRate]:null;
+    if(m.v!==undefined)this.vt=m.v;if(m.mt!==undefined)this.mtWant=m.mt;
+    if(m.pos!==undefined){this.seq=m.seq;const p=m.pos*this.k*sampleRate;
+      if(!this.run&&this.g<=0||!this.ch){this.pos=p;this.v=this.vt;this.init();}
+      else if(Math.abs(p-this.pos)>.004*sampleRate*this.k){if(this.mt)this.force=true;else this.xf(this.pos,this.v*this.k);this.pos=p;}}
+    if(m.run!==undefined){if(m.run&&!this.run&&this.g<=0){this.v=this.vt;this.mt=this.mtWant;this.init();}this.run=m.run;}}
+  init(keep){const g=(this.v<0?-1:1)*this.k;this.cur=this.pos;this.prev=this.pos-g*this.H;this.cg=this.pg=g;this.j=0;this.force=false;if(!keep)this.fade=0;}
+  xf(p,s){this.fp=p;this.fs=s;this.fade=this.F;}
+  map(p){const l=this.lp;if(l){const L=l[1]-l[0];if(L>1){if(p>=l[1])p=l[0]+(p-l[0])%L;else if(p<l[0]&&this.v<0)p=l[1]-(l[0]-p)%L;}}return p;}
+  rd(d,p){let i=Math.floor(p);if(i<1||i>=this.len-2)return i>=0&&i<this.len?d[i]:0;const f=p-i,xm=d[i-1],x0=d[i],x1=d[i+1],x2=d[i+2];
+    return (((.5*(x2-xm)+1.5*(x0-x1))*f+(xm-2.5*x0+2*x1-.5*x2))*f+.5*(x1-xm))*f+x0;}
+  mono(p){p=this.map(p);const c=this.ch;return c.length>1?this.rd(c[0],p)+this.rd(c[1],p):2*this.rd(c[0],p);}
+  grain(){
+    const g=(this.v<0?-1:1)*this.k,ideal=this.pos,H=this.H,D=this.D;this.prev=this.cur;this.pg=this.cg;this.cg=g;
+    if(this.force||this.pg!==g){this.cur=ideal;this.force=false;return;}
+    const nat=this.prev+this.pg*H,ref=this.ref,R=this.R;let er=0;
+    for(let i=0;i<H;i++){const x=this.mono(nat+g*i);ref[i]=x;er+=x*x;}
+    if(er<1e-7||Math.abs(nat-ideal)<.5){this.cur=Math.abs(nat-ideal)<D*this.k?nat:ideal;return;}
+    const n=2*D+H;for(let m=0;m<n;m++)R[m]=this.mono(ideal+g*(m-D));
+    let best=0,bs=-1e9;
+    for(let o=-D;o<=D;o+=4){let c=0,e=1e-9;for(let i=0;i<H;i+=4){const x=R[o+D+i];c+=x*ref[i];e+=x*x;}const s=c/Math.sqrt(e);if(s>bs){bs=s;best=o;}}
+    const b0=best;for(let o=Math.max(-D,b0-3);o<=Math.min(D,b0+3);o++){let c=0,e=1e-9;for(let i=0;i<H;i++){const x=R[o+D+i];c+=x*ref[i];e+=x*x;}const s=c/Math.sqrt(e);if(s>bs){bs=s;best=o;}}
+    this.cur=ideal+g*best;}
+  process(inp,out){
+    const O=out[0],L=O[0],Rr=O[1]||O[0],n=L.length,c=this.ch;
+    if(!c||!this.run&&this.g<=0){L.fill(0);if(O[1])O[1].fill(0);return true;}
+    const c0=c[0],c1=c[1]||c[0],H=this.H,w=this.w;
+    for(let i=0;i<n;i++){
+      /* MASTER TEMPO on or off (or the jog takes over): a 3 ms crossfade from the old reading to the new one */
+      if(this.mtWant!==this.mt){if(this.mt)this.xf(this.cur+this.cg*this.j,this.cg);else this.xf(this.pos,this.v*this.k);this.mt=this.mtWant;if(this.mt)this.init(true);}
+      const want=this.run?1:0;if(this.g<want)this.g=Math.min(want,this.g+this.gs);else if(this.g>want)this.g=Math.max(want,this.g-this.gs);
+      this.v+=(this.vt-this.v)*this.va;
+      let l=0,r=0;
+      if(this.mt){
+        if(this.j>=H){this.j=0;this.grain();}
+        const j=this.j,w0=w[j],w1=w[j+H],a=this.map(this.cur+this.cg*j),b=this.map(this.prev+this.pg*(j+H));
+        l=this.rd(c0,a)*w0+this.rd(c0,b)*w1;r=this.rd(c1,a)*w0+this.rd(c1,b)*w1;this.j++;
+      }else{const p=this.pos;l=this.rd(c0,p);r=this.rd(c1,p);}
+      if(this.fade>0){const t=this.fade/this.F;l=l*(1-t)+this.rd(c0,this.fp)*t;r=r*(1-t)+this.rd(c1,this.fp)*t;this.fp+=this.fs;this.fade--;}
+      L[i]=l*this.g;Rr[i]=r*this.g;
+      if(this.run||this.g>0){
+        this.pos+=this.v*this.k;const lp=this.lp;
+        if(lp&&lp[1]-lp[0]>1){const LL=lp[1]-lp[0];
+          if(this.v>0&&this.pos>=lp[1]){if(!this.mt)this.xf(this.pos,this.v*this.k);this.pos=lp[0]+(this.pos-lp[1])%LL;}
+          else if(this.v<0&&this.pos<=lp[0]){if(!this.mt)this.xf(this.pos,this.v*this.k);this.pos=lp[1]-(lp[0]-this.pos)%LL;}}
+        if(this.pos>=this.len){this.pos=this.len;this.vt=this.v=0;}else if(this.pos<0){this.pos=0;this.vt=this.v=0;}}
+    }
+    if(this.run&&(this.rep+=n)>=1024){this.rep=0;this.port.postMessage({p:this.pos/(this.k*sampleRate),t:currentTime,q:this.seq});}
+    return true;}}
+registerProcessor('bc-deck',BcDeck);`;
+async function loadDeckWorklet(c){try{if(!c.audioWorklet)return false;const u=URL.createObjectURL(new Blob([DECK_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);return AU.engOk=true;}catch(e){return AU.engOk=false;}}
 /* Pro DJ Link style tempo master and beat sync. With one player the deck can be master of itself;
    the bus is written for several decks (and a mixer) to plug in later. */
 class SyncBus{
@@ -38,7 +104,7 @@ class Deck{
     this.gain=null;this.dirty=true;
     /* transport */
     Object.assign(this,{cur:null,buf:null,src:null,playing:false,_pos:0,last:now(),rate:1,bend:1,touch:1,touchTarget:1,dir:1,dur:1,cue:0,loop:null,
-      scratchOn:false,scratchV:0,scratchT:0,touching:false,ghost:null,srcDir:1,srcRate:0,nudge:0,ended:false,loadTok:0});
+      scratchOn:false,scratchV:0,scratchT:0,touching:false,ghost:null,srcDir:1,srcRate:0,nudge:0,ended:false,loadTok:0,eng:null,engHas:false,engSeq:0,engLast:null});
     /* controls */
     Object.assign(this,{quant:true,qBeat:1,remain:true,autoCueOn:true,vinyl:true,mt:false,sync:false,rangeIdx:1,tempoV:0,tReset:false,slip:false,
       rev:false,lever:0,slipRevHeld:false,hotHeld:null,bank:0,callMode:false,callHeld:false,callUsed:false,loopIn:null,lastLoop:null,adjust:null,adjOrig:null,
@@ -57,8 +123,19 @@ class Deck{
   /* ---------- velocity model ---------- */
   vel(){if(this.scratchOn)return this.scratchV;if(!this.playing)return 0;return this.dir*this.rate*this.bend*this.touch*(1+this.nudge);}
   moving(){return this.playing||this.scratchOn;}
-  stopSrc(){if(this.src){const s=this.src;this.src=null;try{s.onended=null;s.stop();}catch(e){}try{s.disconnect();}catch(e){}}}
+  /* the engine: told the velocity, the loop and MASTER TEMPO when they change, the position only on a jump (seq numbers the jumps) */
+  engine(){if(this.eng||!AU.engOk)return this.eng;const e=this.eng=new AudioWorkletNode(AU.ctx,'bc-deck',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+    e.connect(this.out());this.engSeq=0;this.engLast=null;e.port.onmessage=m=>this.engPos(m.data);return e;}
+  engSend(jump){const e=this.eng;if(!e||!this.engHas)return;const lp=this.loop&&!this.scratchOn?this.loop:null,run=this.moving(),
+    s={v:run?this.vel():0,run,mt:this.mt&&!this.scratchOn&&this.touch>.999&&this.touchTarget===1,lp:lp?[lp.a,lp.b]:null},o=this.engLast;
+    if(!jump&&o&&o.run===s.run&&o.mt===s.mt&&Math.abs(o.v-s.v)<1e-4&&String(o.lp)===String(s.lp))return;
+    this.engLast=s;if(jump){s.pos=this._pos;s.seq=++this.engSeq;}e.port.postMessage(s);}
+  /* what is heard wins: the screen follows the engine's position (a hidden tab keeps playing) */
+  engPos(m){if(m.q!==this.engSeq||!this.playing||this.scratchOn||!AU.ctx)return;const p=m.p+this.vel()*clamp(AU.ctx.currentTime-m.t,0,.1),d=p-this._pos,lp=this.loop;
+    if(lp&&Math.abs(d)>(lp.b-lp.a)/2)return;if(Math.abs(d)>.25)this._pos=p;else if(Math.abs(d)>.004)this._pos+=d*.25;}
+  stopSrc(){if(this.engHas){this.engSend(false);return;}if(this.src){const s=this.src;this.src=null;try{s.onended=null;s.stop();}catch(e){}try{s.disconnect();}catch(e){}}}
   startSrc(){
+    if(this.engHas){this.engSend(true);return;}
     this.stopSrc();if(!this.buf||!this.moving())return;
     const v=this.vel(),av=Math.abs(v);if(av<0.03)return;
     const c=ensureCtx(),s=c.createBufferSource(),lp=this.loop&&!this.scratchOn?this.loop:null;
@@ -71,6 +148,7 @@ class Deck{
     this.srcRate=av;this.src=s;s.onended=()=>{if(this.src===s)this.src=null;};
   }
   syncSrc(){
+    if(this.engHas){this.engSend(false);return;}
     if(!this.buf)return;const v=this.vel(),av=Math.abs(v);
     if(!this.moving()||av<0.03){if(this.src)this.stopSrc();return;}
     const d=v>0?1:-1;if(!this.src||this.srcDir!==d)this.startSrc();
@@ -86,7 +164,7 @@ class Deck{
     if(this.ghost&&this.playing)this.ghost.pos=Math.min(this.dur,this.ghost.pos+this.rate*dt);
     this._pos+=v*dt;
     const lp=this.loop;
-    if(lp&&!this.scratchOn){const L=lp.b-lp.a;if(v>0&&this._pos>=lp.b)this._pos=lp.a+(this._pos-lp.b)%L;else if(v<0&&this._pos<=lp.a){this._pos=lp.b-(lp.a-this._pos)%L;this.stopSrc();}}
+    if(lp&&!this.scratchOn){const L=lp.b-lp.a;if(v>0&&this._pos>=lp.b)this._pos=lp.a+(this._pos-lp.b)%L;else if(v<0&&this._pos<=lp.a){this._pos=lp.b-(lp.a-this._pos)%L;if(!this.engHas)this.stopSrc();}}
     if(this._pos>=this.dur){this._pos=this.dur;if(this.scratchOn)this.scratchV=Math.min(0,this.scratchV);else{this.pauseNow();this.ended=true;this.onEnd();}}
     else if(this._pos<=0){this._pos=0;if(this.scratchOn)this.scratchV=Math.max(0,this.scratchV);else if(v<0)this.pauseNow();}
     this.syncSrc();
@@ -137,7 +215,7 @@ class Deck{
   applyTempo(){if(this.sync&&BUS.master&&BUS.master!==this&&BUS.masterBpm())return;this.setRate(this.sliderRate());this.dirty=true;}
   setSync(on){this.sync=on;if(on){if(!BUS.master||!BUS.master.loaded())BUS.setMaster(this);}else{this.nudge=0;this.applyTempo();}this.dirty=true;}
   /* ---------- loading ---------- */
-  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;this._pos=0;this.loop=null;this.ghost=null;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
+  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
     if(BUS.master===this)BUS.setMaster(null);this.ui.scr='play';this.dirty=true;}
   async getAudio(tr,an){
     const M=tr.m,f=M.idx.get(tr.fileKey);
@@ -157,7 +235,7 @@ class Deck{
     this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,list:opt.list||(this.cur&&this.cur.list)||null};
     this.ui.scr='play';this.ui.info=false;this.ui.sort=null;this.dirty=true;
     const an=await getAnalysis(tr);if(tok!==this.loadTok)return false;
-    const au=await this.getAudio(tr,an);if(tok!==this.loadTok)return false;
+    const au=await this.getAudio(tr,an);if(AU.engReady)await AU.engReady;if(tok!==this.loadTok)return false;
     const c=this.cur;c.an=an;c.beats=an.beats;c.note=au.note;c.loading=false;
     if(!c.list)c.list=tr.m.tracks.slice().sort(byTitle);
     for(const q of an.cueList){if(q.hot>0&&q.hot<=8)c.store[q.hot]=q;else if(q.hot===0)c.mem.push(q);}
@@ -168,6 +246,11 @@ class Deck{
     this.dur=au.buf?au.buf.duration:Math.max(tr.duration,lastBeat,1);
     this.cue=0;
     if(this.autoCueOn){if(SET.autoCueLevel===8){const m=c.mem[0];if(m)this.cue=m.time;}else if(this.buf)this.cue=findAutoCue(this.buf,-36-6*SET.autoCueLevel);}
+    /* the samples go to the engine (copied once); the page keeps only the length */
+    if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}
+    if(this.buf&&this.engine()){const b=this.buf,ch=[];for(let k=0;k<Math.min(2,b.numberOfChannels);k++)ch.push(b.getChannelData(k).slice());
+      this.eng.port.postMessage({load:ch,sr:b.sampleRate},ch.map(a=>a.buffer));this.engHas=true;this.engLast=null;
+      this.buf={duration:b.duration,sampleRate:b.sampleRate,numberOfChannels:b.numberOfChannels,length:b.length};}
     this._pos=this.cue;this.applyTempo();this.dirty=true;
     if(c.note)toast(c.note,4000);
     if(was)this.play();

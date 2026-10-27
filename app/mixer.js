@@ -56,7 +56,8 @@ function mixBuild(){
     for(const g of [C.gLo,C.gMid,C.gHi])g.connect(C.eq);
     C.an=c.createAnalyser();C.an.fftSize=1024;C.eq.connect(C.an);
     C.cue=c.createGain();C.eq.connect(C.cue);C.cue.connect(N.cueSum);
-    C.fader=c.createGain();C.eq.connect(C.fader);C.fader.connect(N.mSum);
+    /* channel fader, then the crossfader assign (SPACE and DUB ECHO come back between the two) */
+    C.fader=c.createGain();C.xfg=c.createGain();C.eq.connect(C.fader);C.fader.connect(C.xfg);C.xfg.connect(N.mSum);
   }
   mixApply();loadFxWorklet();
 }
@@ -71,76 +72,105 @@ function mixApply(){
     setP(C.sel.gain,ch.input==='DIGITAL'||ch.input==='LINE'?1:0);setP(C.trim.gain,trimGain(ch.trim));
     const iso=MS.eqCurve<0;setP(C.gLo.gain,eqGain(ch.low,iso));setP(C.gMid.gain,eqGain(ch.mid,iso));setP(C.gHi.gain,eqGain(ch.hi,iso));
     setP(C.cue.gain,ch.cue?1:0);
-    setP(C.fader.gain,chFaderGain(ch.fader,MS.chCurve)*(ch.xf<0?gA:ch.xf>0?gB:1));
+    setP(C.fader.gain,chFaderGain(ch.fader,MS.chCurve));setP(C.xfg.gain,ch.xf<0?gA:ch.xf>0?gB:1);
     colorParams(i);});
   setP(N.mLevel.gain,masterGain(MS.master));setP(N.bl.gain,Math.min(1,2*(1-MS.balance)));setP(N.br.gain,Math.min(1,2*MS.balance));
   setP(N.cueMaster.gain,MS.cueMaster?1:0);
   const m=MS.mixing;setP(N.phCue.gain,Math.min(1,2*(1-m)));setP(N.phMst.gain,Math.min(1,2*m));
   setP(N.phStG.gain,MS.mono<0?0:1);setP(N.phSpG.gain,MS.mono<0?1:0);setP(N.phLevel.gain,Math.pow(MS.phLevel,2));
 }
-/* ---------- SOUND COLOR FX: one effect for every channel, each channel's COLOR knob sets its amount (centre = off) ---------- */
+/* ---------- SOUND COLOR FX: one effect for every channel, each channel's COLOR knob sets its amount (centre = off) ----------
+   What each side of COLOR and PARAMETER does comes from the manual (p. 16). The amounts (frequencies, times) are not in the manual:
+   they are first settings, to be checked against recordings of the real mixer.
+   SPACE and DUB ECHO are fed after the channel fader and come back after it: when the fader goes down, the echo and the reverb
+   die out on their own instead of stopping dead (what the real mixer does; the manual says it for the BEAT FX echoes). */
 const FX_SRC=`class BcFx extends AudioWorkletProcessor{
-  constructor(){super();this.mode=0;this.thr=0;this.rel=.05;this.bits=16;this.ds=1;this.env=0;this.g=1;this.h=[0,0];this.n=0;
+  constructor(){super();this.mode=0;this.depth=0;this.thr=.5;this.rel=.05;this.bits=16;this.ds=1;this.ef=0;this.hd=0;this.g=1;this.h=[0,0];this.n=0;
     this.port.onmessage=e=>Object.assign(this,e.data);}
   process(inp,out){const I=inp[0],O=out[0];if(!I||!I.length){return true;}const L=I[0].length,sr=sampleRate;
-    const ra=Math.exp(-1/(.0008*sr)),rr=Math.exp(-1/(Math.max(.005,this.rel)*sr));
+    const rf=Math.exp(-1/(.005*sr)),rh=Math.exp(-1/(1.2*sr)),ka=1-Math.exp(-1/(.0005*sr)),kr=1-Math.exp(-1/(Math.max(.004,this.rel)*sr));
     for(let i=0;i<L;i++){
-      if(this.mode===1){let pk=0;for(let c=0;c<I.length;c++)pk=Math.max(pk,Math.abs(I[c][i]));this.env=pk>this.env?pk:this.env*rr+pk*(1-rr);
-        const want=this.env>this.thr?1:0;this.g+=(want-this.g)*(want>this.g?.02:.002);for(let c=0;c<O.length;c++)O[c][i]=(I[c]||I[0])[i]*this.g;}
+      /* SWEEP, COLOR to the left: a gate that only lets the attacks through (a tighter sound that seems quieter) */
+      if(this.mode===1){let pk=0;for(let c=0;c<I.length;c++)pk=Math.max(pk,Math.abs(I[c][i]));
+        this.ef=pk>this.ef?pk:this.ef*rf;this.hd=this.ef>this.hd?this.ef:this.hd*rh;
+        const want=this.ef>this.hd*this.thr&&this.hd>1e-4?1:1-this.depth;this.g+=(want-this.g)*(want>this.g?ka:kr);
+        for(let c=0;c<O.length;c++)O[c][i]=(I[c]||I[0])[i]*this.g;}
+      /* CRUSH, COLOR to the right: fewer bits and a lower sample rate */
       else if(this.mode===2){if(this.n<=0){for(let c=0;c<2;c++){const s=(I[c]||I[0])[i];const q=Math.pow(2,this.bits-1);this.h[c]=Math.round(s*q)/q;}this.n=this.ds;}this.n--;
         for(let c=0;c<O.length;c++)O[c][i]=this.h[Math.min(c,1)];}
       else for(let c=0;c<O.length;c++)O[c][i]=(I[c]||I[0])[i];}
     return true;}}
 registerProcessor('bc-fx',BcFx);`;
 async function loadFxWorklet(){try{const c=AU.ctx;if(!c.audioWorklet)return;const u=URL.createObjectURL(new Blob([FX_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);MIX.fxReady=true;if(MS.color)colorBuild();}catch(e){MIX.fxReady=false;}}
-function noiseBuf(){if(MIX.noise)return MIX.noise;const c=AU.ctx,b=c.createBuffer(2,c.sampleRate*2,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}return MIX.noise=b;}
-function reverbIR(p){const c=AU.ctx,len=Math.round(c.sampleRate*(.8+p*4)),b=c.createBuffer(2,len,c.sampleRate);
-  for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<len;i++){const t=i/len;d[i]=(Math.random()*2-1)*Math.pow(1-t,2.6)*(i<c.sampleRate*.012?i/(c.sampleRate*.012):1);}}return b;}
+function noiseBuf(){if(MIX.noise&&MIX.noise.sampleRate===AU.ctx.sampleRate)return MIX.noise;const c=AU.ctx,b=c.createBuffer(2,c.sampleRate*2,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}return MIX.noise=b;}
+/* SPACE: a stereo reverb tail; PARAMETER ("feedback") makes it last longer, the high end dies out faster than the rest */
+function reverbIR(p){const c=AU.ctx,sr=c.sampleRate,rt=.6+p*4.4,len=Math.round(sr*Math.min(6,rt*1.1)),b=c.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);let lp=0;for(let i=0;i<len;i++){const t=i/sr,a=.2+.75*Math.exp(-t*3/rt);
+    lp+=a*((Math.random()*2-1)-lp);d[i]=lp*Math.exp(-6.9*t/rt)*(i<sr*.008?i/(sr*.008):1);}}return b;}
 function chBpm(i){const d=DECKS.find(x=>x.ch===i+1);return d&&d.loaded()?d.bpmNow()||120:120;}
+const bqDb=(c,t,f,q)=>{const b=c.createBiquadFilter();b.type=t;b.frequency.value=f;b.Q.value=q==null?-3.0103:q;return b;};
+function fxDrop(fx){if(fx.wet)setP(fx.wet.gain,0);if(fx.send)setP(fx.send.gain,0);
+  setTimeout(()=>{for(const n of fx.nodes){try{n.disconnect();}catch(e){}if(n.stop)try{n.stop();}catch(e){}}},120);}
 function colorBuild(){
   const N=MIX.N;if(!N)return;const c=AU.ctx;
   for(let i=0;i<4;i++){const C=N.ch[i];
-    if(C.fx){for(const n of C.fx.nodes){try{n.disconnect();}catch(e){}if(n.stop)try{n.stop();}catch(e){}}C.fx=null;}
-    const t=MS.color;if(!t){setP(C.dry.gain,1);continue;}
+    if(C.fx){fxDrop(C.fx);C.fx=null;}
+    const t=MS.color;setP(C.dry.gain,1);if(!t)continue;
     const fx={t,nodes:[]};const add=n=>(fx.nodes.push(n),n);
-    fx.wet=add(c.createGain());fx.wet.gain.value=0;fx.wet.connect(C.cOut);
-    if(t==='FILTER'){fx.f=add(c.createBiquadFilter());C.cIn.connect(fx.f);fx.f.connect(fx.wet);}
-    else if(t==='SWEEP'){fx.f=add(c.createBiquadFilter());fx.f.type='bandpass';fx.mk=add(c.createGain());C.cIn.connect(fx.f);fx.f.connect(fx.mk);fx.mk.connect(fx.wet);
-      if(MIX.fxReady){fx.gate=add(new AudioWorkletNode(c,'bc-fx',{outputChannelCount:[2]}));fx.gate.port.postMessage({mode:1});fx.gw=add(c.createGain());C.cIn.connect(fx.gate);fx.gate.connect(fx.gw);fx.gw.connect(C.cOut);fx.gw.gain.value=0;}}
-    else if(t==='SPACE'){fx.send=add(c.createGain());fx.cv=add(c.createConvolver());fx.cv.normalize=true;fx.f=add(c.createBiquadFilter());
-      if(!MIX.ir||Math.abs(MIX.irP-MS.param)>.02){MIX.ir=reverbIR(MS.param);MIX.irP=MS.param;}fx.cv.buffer=MIX.ir;
-      C.cIn.connect(fx.send);fx.send.connect(fx.f);fx.f.connect(fx.cv);fx.cv.connect(fx.wet);fx.wet.gain.value=1;}
-    else if(t==='DUB ECHO'){fx.send=add(c.createGain());fx.dl=add(c.createDelay(4));fx.fb=add(c.createGain());fx.f=add(c.createBiquadFilter());
-      C.cIn.connect(fx.send);fx.send.connect(fx.dl);fx.dl.connect(fx.f);fx.f.connect(fx.fb);fx.fb.connect(fx.dl);fx.f.connect(fx.wet);fx.wet.gain.value=.9;}
-    else if(t==='NOISE'){fx.src=add(c.createBufferSource());fx.src.buffer=noiseBuf();fx.src.loop=true;fx.f=add(c.createBiquadFilter());fx.src.connect(fx.f);fx.f.connect(fx.wet);fx.src.start();}
+    fx.wet=add(c.createGain());fx.wet.gain.value=0;
+    if(t==='FILTER'){fx.f=add(bqDb(c,'lowpass',20000));C.cIn.connect(fx.f);fx.f.connect(fx.wet);fx.wet.connect(C.cOut);}
+    else if(t==='SWEEP'){fx.hp=add(bqDb(c,'highpass',20));fx.lp=add(bqDb(c,'lowpass',20000));fx.mk=add(c.createGain());
+      C.cIn.connect(fx.hp);fx.hp.connect(fx.lp);fx.lp.connect(fx.mk);fx.mk.connect(fx.wet);fx.wet.connect(C.cOut);
+      if(MIX.fxReady){fx.gate=add(new AudioWorkletNode(c,'bc-fx',{outputChannelCount:[2]}));fx.gate.port.postMessage({mode:1});fx.gw=add(c.createGain());fx.gw.gain.value=0;
+        C.cIn.connect(fx.gate);fx.gate.connect(fx.gw);fx.gw.connect(C.cOut);}}
+    else if(t==='NOISE'){
+      /* white noise mixed into the channel, and the two go through the filter together */
+      fx.src=add(c.createBufferSource());fx.src.buffer=noiseBuf();fx.src.loop=true;fx.ng=add(c.createGain());fx.ng.gain.value=0;
+      fx.f=add(bqDb(c,'lowpass',20000,2));fx.f2=add(bqDb(c,'lowpass',20000));
+      fx.src.connect(fx.ng);fx.ng.connect(fx.f);C.cIn.connect(fx.f);fx.f.connect(fx.f2);fx.f2.connect(fx.wet);fx.wet.connect(C.cOut);fx.src.start();}
     else if(t==='CRUSH'){
       if(MIX.fxReady){fx.cr=add(new AudioWorkletNode(c,'bc-fx',{outputChannelCount:[2]}));fx.cr.port.postMessage({mode:2});}else{fx.cr=add(c.createGain());}
-      fx.ws=add(c.createWaveShaper());fx.ws.oversample='2x';fx.f=add(c.createBiquadFilter());fx.f.type='highpass';
-      C.cIn.connect(fx.cr);fx.cr.connect(fx.ws);fx.ws.connect(fx.f);fx.f.connect(fx.wet);}
+      fx.ws=add(c.createWaveShaper());fx.ws.oversample='4x';fx.f=add(bqDb(c,'highpass',20));fx.mk=add(c.createGain());
+      C.cIn.connect(fx.cr);fx.cr.connect(fx.ws);fx.ws.connect(fx.f);fx.f.connect(fx.mk);fx.mk.connect(fx.wet);fx.wet.connect(C.cOut);}
+    else if(t==='SPACE'){fx.send=add(c.createGain());fx.send.gain.value=0;fx.f=add(bqDb(c,'lowpass',2200));fx.pre=add(c.createDelay(.1));fx.pre.delayTime.value=.02;
+      fx.cv=add(c.createConvolver());fx.cv.normalize=true;
+      if(!MIX.ir||Math.abs(MIX.irP-MS.param)>.02||MIX.ir.sampleRate!==c.sampleRate){MIX.ir=reverbIR(MS.param);MIX.irP=MS.param;}fx.cv.buffer=MIX.ir;
+      C.fader.connect(fx.send);fx.send.connect(fx.f);fx.f.connect(fx.pre);fx.pre.connect(fx.cv);fx.cv.connect(fx.wet);fx.wet.gain.value=1;fx.wet.connect(C.xfg);fx.wet.connect(C.cue);}
+    else if(t==='DUB ECHO'){fx.send=add(c.createGain());fx.send.gain.value=0;fx.dl=add(c.createDelay(4));fx.fb=add(c.createGain());fx.f=add(c.createBiquadFilter());
+      C.fader.connect(fx.send);fx.send.connect(fx.dl);fx.dl.connect(fx.f);fx.f.connect(fx.fb);fx.fb.connect(fx.dl);fx.f.connect(fx.wet);fx.wet.gain.value=1;fx.wet.connect(C.xfg);fx.wet.connect(C.cue);}
     C.fx=fx;colorParams(i);
   }
 }
-function wsCurve(drive){const n=1024,a=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;a[i]=Math.tanh(x*drive)/Math.tanh(drive);}return a;}
+/* CRUSH to the left: soft clipping that keeps the loud parts where they were (no jump in level) */
+function wsCurve(drive){const n=2048,a=new Float32Array(n),k=.5/Math.tanh(drive*.5);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;a[i]=Math.tanh(x*drive)*k;}return a;}
 function colorParams(i){
   const N=MIX.N;if(!N)return;const C=N.ch[i],fx=C.fx,v=MS.ch[i].color,d=v-.5,a=Math.min(1,Math.abs(d)*2),p=MS.param,on=a>.03;
   if(!fx){setP(C.dry.gain,1);return;}
-  const f=fx.f;
+  const f=fx.f,ex=(lo,hi,x)=>lo*Math.pow(hi/lo,x);
   switch(fx.t){
+    /* left: low-pass going down, right: high-pass going up; PARAMETER: resonance */
     case 'FILTER':setP(C.dry.gain,on?0:1);setP(fx.wet.gain,on?1:0);
-      if(d<0){f.type='lowpass';setP(f.frequency,20000*Math.pow(60/20000,a));}else{f.type='highpass';setP(f.frequency,20*Math.pow(9000/20,a));}setP(f.Q,.7+p*12);break;
+      if(d<0){f.type='lowpass';setP(f.frequency,ex(20000,45,a));}else{f.type='highpass';setP(f.frequency,ex(20,10000,a));}setP(f.Q,-3+p*18);break;
+    /* right: band-pass, narrower as COLOR turns, PARAMETER = centre frequency; left: gate, PARAMETER = how much it cuts */
     case 'SWEEP':
-      if(d>0){setP(C.dry.gain,on?0:1);setP(fx.wet.gain,on?1:0);if(fx.gw)setP(fx.gw.gain,0);setP(f.frequency,150*Math.pow(8000/150,p));setP(f.Q,.5+a*8);setP(fx.mk.gain,1+a*1.5);}
-      else if(fx.gate){setP(C.dry.gain,on?0:1);setP(fx.wet.gain,0);setP(fx.gw.gain,on?1:0);fx.gate.port.postMessage({thr:.02+a*.35,rel:.02+p*.25});}
-      else{setP(C.dry.gain,1-a*.6);setP(fx.wet.gain,0);}break;
-    case 'SPACE':setP(C.dry.gain,1);setP(fx.send.gain,on?a*1.1:0);if(d<0){f.type='lowpass';f.frequency.value=2500;}else{f.type='highpass';f.frequency.value=900;}
+      if(!fx.gate&&d<=0){setP(C.dry.gain,1-a*.6);setP(fx.wet.gain,0);break;}
+      if(d>0){setP(C.dry.gain,on?0:1);setP(fx.wet.gain,on?1:0);if(fx.gw)setP(fx.gw.gain,0);
+        const fc=ex(120,9000,p),bw=.5+9*Math.pow(1-a,1.6);setP(fx.hp.frequency,Math.max(20,fc/Math.pow(2,bw/2)));setP(fx.lp.frequency,Math.min(20000,fc*Math.pow(2,bw/2)));
+        setP(fx.hp.Q,-3+a*7);setP(fx.lp.Q,-3+a*7);setP(fx.mk.gain,1+a*.8);}
+      else{setP(C.dry.gain,on?0:1);setP(fx.wet.gain,0);setP(fx.gw.gain,on?1:0);fx.gate.port.postMessage({depth:Math.min(1,a*1.1),thr:.3+.6*p,rel:.15-.13*p});}break;
+    /* SPACE: left = reverb on the mids and lows, right = on the mids and highs; PARAMETER = feedback (longer tail) */
+    case 'SPACE':setP(C.dry.gain,1);setP(fx.send.gain,on?a*(d<0?2.1:4.2):0);if(d<0){f.type='lowpass';f.frequency.value=2200;}else{f.type='highpass';f.frequency.value=700;}
       if(Math.abs(MIX.irP-p)>.05){clearTimeout(MIX.irT);MIX.irT=setTimeout(()=>{MIX.ir=reverbIR(MS.param);MIX.irP=MS.param;for(const X of N.ch)if(X.fx&&X.fx.cv)X.fx.cv.buffer=MIX.ir;},150);}break;
-    case 'DUB ECHO':setP(C.dry.gain,1);setP(fx.send.gain,on?a:0);setP(fx.dl.delayTime,60/chBpm(i)*.75);setP(fx.fb.gain,.3+p*.6);
-      if(d<0){f.type='bandpass';f.frequency.value=1000;f.Q.value=.9;}else{f.type='highpass';f.frequency.value=2500;f.Q.value=.7;}break;
-    case 'NOISE':setP(C.dry.gain,1);setP(fx.wet.gain,on?a*(.03+p*.3):0);
-      if(d<0){f.type='lowpass';setP(f.frequency,20000*Math.pow(200/20000,a));}else{f.type='highpass';setP(f.frequency,20*Math.pow(8000/20,a));}break;
+    /* DUB ECHO: left = echo of the mids only, right = of the highs only; PARAMETER = feedback. The echo time is not in the manual (3/4 beat here) */
+    case 'DUB ECHO':setP(C.dry.gain,1);setP(fx.send.gain,on?a*2:0);setP(fx.dl.delayTime,60/chBpm(i)*.75);setP(fx.fb.gain,.3+p*.62);
+      if(d<0){f.type='bandpass';f.frequency.value=1000;f.Q.value=1;}else{f.type='highpass';f.frequency.value=2500;f.Q.value=-3;}break;
+    /* NOISE: the filter the noise (and the channel) goes through closes from the top to the left, opens from the bottom to the right; PARAMETER = noise level */
+    case 'NOISE':setP(C.dry.gain,on?0:1);setP(fx.wet.gain,on?1:0);setP(fx.ng.gain,on?a*(.03+.42*p):0);
+      {const t=d<0?'lowpass':'highpass',fr=d<0?ex(20000,140,a):ex(20,7000,a);for(const x of [f,fx.f2]){x.type=t;setP(x.frequency,fr);}}break;
+    /* CRUSH: left = more distortion, right = crushed (bits, sample rate) then a high-pass; PARAMETER = stronger */
     case 'CRUSH':setP(C.dry.gain,on?0:1);setP(fx.wet.gain,on?1:0);
-      if(d<0){fx.ws.curve=wsCurve(1+a*(4+p*30));setP(f.frequency,20);if(fx.cr.port)fx.cr.port.postMessage({bits:16,ds:1});}
-      else{fx.ws.curve=wsCurve(1+p*3);setP(f.frequency,20*Math.pow(3000/20,a*a));if(fx.cr.port)fx.cr.port.postMessage({bits:Math.round(16-a*(9+p*4)),ds:1+Math.round(a*(4+p*12))});}break;
+      if(d<0){const dr=1+a*(3+p*22);fx.ws.curve=wsCurve(dr);setP(f.frequency,20);setP(fx.mk.gain,Math.pow(dr,-.4));if(fx.cr.port)fx.cr.port.postMessage({bits:16,ds:1});}
+      else{fx.ws.curve=wsCurve(1+a*p*2);setP(f.frequency,ex(20,2500,a*a));setP(fx.mk.gain,1+a*a*.6);if(fx.cr.port)fx.cr.port.postMessage({bits:Math.round(16-a*(8+p*5)),ds:1+Math.round(a*(3+p*13))});}break;
   }
 }
 /* BEAT FX screen, AUTO mode: the BPM measured on the channel the FX channel selector picks (70 to 180 BPM, manual p. 13);
