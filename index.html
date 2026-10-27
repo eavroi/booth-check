@@ -199,6 +199,7 @@ footer .pop .ic{text-decoration:none;color:#b4b8bf;width:34px;height:34px}
 .p-t{fill:#e6e8ec;font-weight:700;dominant-baseline:auto}.p-t.p-sub{fill:#9aa0a8;font-weight:400}.p-t.p-lab{fill:#cfd3d9}
 .p-t.c-loop{fill:#f0a14a}.p-t.c-hot{fill:#5fd07a}.p-t.c-fn{fill:#e8c65a}.p-t.c-fx{fill:#c39be8}.p-t.c-off{fill:#6f757e}
 .p-c.c-loop{--c:#e8902a}.p-c.c-hot{--c:#4fbf6a}.p-c.c-fn{--c:#d6b24a}.p-c.c-mix{--c:#5fb3b3}.p-c.c-nav{--c:#6b8fc7}.p-c.c-fx{--c:#b18cd9}.p-c.c-play{--c:#d9dce1}.p-c.c-hw{--c:#6f757e}.p-c.c-off{--c:#454a51}
+.pbody.pick .p-c{cursor:pointer}.pbody.pick .p-c:hover .p-key,.pbody.pick .p-c:hover .p-knob,.pbody.pick .p-c:hover .p-jog,.pbody.pick .p-c:hover .p-led{stroke:#9fd2ff;stroke-width:1}
 .p-c.hit .p-key,.p-c.hit .p-knob,.p-c.hit .p-jog{fill:#3a3320;stroke:#ffd75a;stroke-width:.9}
 .pleg span{display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:12.5px;color:var(--dim)}
 .pleg i{width:11px;height:11px;border-radius:3px;border:2px solid var(--c);display:inline-block}
@@ -3557,6 +3558,8 @@ const MTPL={
   /* the Steel's lights: the key's own code lights it, another code makes it blink (manual, MIDI table); 0x70 asks for the knobs' positions */
   /* checked light by light on the real Steel (2026-10-27): as in the manual; its « Mode » lights 0x13 / 0x17 are the SHIFT keys (blinking 0x43 / 0x57) */
   steel:{name:'Hercules DJ Control Steel',match:/steel/i,tested:true,map:steelMap,init:[[0xB0,0x70,0x7F]],blinkOff:[0x43,0x57],
+    /* the manual's « Folders » / « Files » lights are the ◀ / ▶ keys of the cross (checked by Victor), not LOAD */
+    led:{0x12:null,0x16:null,0x2C:0x12,0x2D:0x16},
     blink:{0x01:0x31,0x02:0x32,0x03:0x33,0x04:0x34,0x05:0x35,0x06:0x36,0x07:0x37,0x08:0x38,0x0B:0x3B,0x0C:0x3C,0x0D:0x3D,0x0E:0x3E,0x0F:0x3F,0x10:0x40,0x11:0x41,0x12:0x42,0x14:0x44,
       0x15:0x60,0x16:0x47,0x18:0x58,0x19:0x4A,0x1A:0x4B,0x1B:0x4C,0x1C:0x4D,0x1D:0x4E,0x1E:0x50,0x1F:0x5F,0x20:0x55,0x23:0x53,0x24:0x54,0x25:0x46,0x26:0x5A,0x27:0x5B,0x28:0x5C,0x29:0x59,
       0x64:0x74,0x65:0x75,0x66:0x76,0x67:0x77,0x68:0x78,0x69:0x79,0x6A:0x7A,0x6B:0x7B,0x6C:0x7C,0x6D:0x7D,0x6E:0x7E,0x6F:0x7F}},
@@ -3760,7 +3763,9 @@ function midiLedState(b,k){
     /* pitch bend lights: pressed, or a guide while the TEMPO slider of the controller has not met the one on screen */
     case 'nudge_rev':case 'nudge_fwd':{if(MIDI.btn.get(k))return 1;const g=midiTempoGuide(b.s);return L(g&&(g<0)===(b.a==='nudge_rev'));}
     /* LOAD: browsing on that player; blinking in the last 30 s of the track, like the end warning of the CDJ */
-    case 'load':return ld&&d.playing&&d.dur-d._pos<30&&d.dur>40?2:L(d&&ACTIVE===d&&(d.ui.scr==='browse'||d.ui.scr==='taglist'));
+    case 'load':return L(d&&ACTIVE===d&&(d.ui.scr==='browse'||d.ui.scr==='taglist'));
+    /* ◀ BACK and ▶ enter: lit while the active player shows a list */
+    case 'nav_back':case 'nav_push':return L(ACTIVE&&['browse','taglist','menu','utility','filter','iplay'].includes(ACTIVE.ui.scr));
     case 'ph_cue':return L(d&&MS.on&&MS.ch[d.ch-1].cue);
     case 'kill_hi':case 'kill_mid':case 'kill_low':return L(MIDI.kill.has(b.s+b.a.slice(5))||d&&MS.on&&MS.ch[d.ch-1][b.a.slice(5)]<.01);
   }
@@ -3778,15 +3783,18 @@ function midiTempoGuide(s){
    blinking is done by the controller itself (its own "blink" code) */
 function midiSend(list){const o=MIDI.out;if(!o)return;let t=Math.max(performance.now(),MIDI.sendT||0);for(const m of list){try{o.send(m,t);}catch(e){}t+=4;}MIDI.sendT=t;}
 /* ---------- light check, one code at a time: what the manual announces, and what the person sees on the controller ---------- */
-const STEEL_LEDS=[[0x01,'pad 1 gauche'],[0x02,'pad 2 gauche'],[0x03,'pad 3 gauche'],[0x04,'pad 4 gauche'],[0x05,'pad 5 gauche'],[0x06,'pad 6 gauche'],[0x07,'Sync gauche'],[0x08,'Pitch bend + gauche'],[0x0B,'Play gauche'],[0x0C,'Cue gauche'],[0x0D,'Stop gauche'],[0x0E,'Kill aigus gauche'],[0x0F,'Kill médiums gauche'],[0x10,'Kill basses gauche'],[0x11,'Pitch bend − gauche'],[0x12,'Load gauche (« Folders »)'],[0x13,'SHIFT gauche (« Mode » dans le manuel)'],[0x14,'Cue casque gauche'],[0x15,'Pitch bend + droit'],[0x16,'Load droit (« Files »)'],[0x17,'SHIFT droit (« Mode » dans le manuel)'],[0x18,'Cue casque droit'],[0x19,'pad 1 droit'],[0x1A,'pad 2 droit'],[0x1B,'pad 3 droit'],[0x1C,'pad 4 droit'],[0x1D,'pad 5 droit'],[0x1E,'pad 6 droit'],[0x1F,'Sync droit'],[0x20,'Pitch bend − droit (le manuel écrit « + »)'],[0x23,'Play droit'],[0x24,'Cue droit'],[0x25,'Stop droit'],[0x26,'Kill aigus droit'],[0x27,'Kill médiums droit'],[0x28,'Kill basses droit'],[0x29,'Scratch'],[0x31,'pad 1 gauche, clignotant'],[0x32,'pad 2 gauche, clignotant'],[0x33,'pad 3 gauche, clignotant'],[0x34,'pad 4 gauche, clignotant'],[0x35,'pad 5 gauche, clignotant'],[0x36,'pad 6 gauche, clignotant'],[0x37,'Sync gauche, clignotant'],[0x38,'Pitch bend + gauche, clignotant'],[0x3B,'Play gauche, clignotant'],[0x3C,'Cue gauche, clignotant'],[0x3D,'Stop gauche, clignotant'],[0x3E,'Kill aigus gauche, clignotant'],[0x3F,'Kill médiums gauche, clignotant'],[0x40,'Kill basses gauche, clignotant'],[0x41,'Pitch bend − gauche, clignotant'],[0x42,'Load gauche, clignotant'],[0x43,'SHIFT gauche, clignotant'],[0x44,'Cue casque gauche, clignotant'],[0x46,'Stop droit, clignotant'],[0x47,'Load droit, clignotant'],[0x4A,'pad 1 droit, clignotant'],[0x4B,'pad 2 droit, clignotant'],[0x4C,'pad 3 droit, clignotant'],[0x4D,'pad 4 droit, clignotant'],[0x4E,'pad 5 droit, clignotant'],[0x50,'pad 6 droit, clignotant'],[0x53,'Play droit, clignotant'],[0x54,'Cue droit, clignotant'],[0x55,'Pitch bend − droit, clignotant'],[0x57,'SHIFT droit, clignotant'],[0x58,'Cue casque droit, clignotant'],[0x59,'Scratch, clignotant'],[0x5A,'Kill aigus droit, clignotant'],[0x5B,'Kill médiums droit, clignotant'],[0x5C,'Kill basses droit, clignotant'],[0x5F,'Sync droit, clignotant'],[0x60,'Pitch bend + droit, clignotant'],[0x64,'pad 7 gauche (SHIFT)'],[0x65,'pad 8 gauche (SHIFT)'],[0x66,'pad 9 gauche (SHIFT)'],[0x67,'pad 10 gauche (SHIFT)'],[0x68,'pad 11 gauche (SHIFT)'],[0x69,'pad 12 gauche (SHIFT)'],[0x6A,'pad 7 droit (SHIFT)'],[0x6B,'pad 8 droit (SHIFT)'],[0x6C,'pad 9 droit (SHIFT)'],[0x6D,'pad 10 droit (SHIFT)'],[0x6E,'pad 11 droit (SHIFT)'],[0x6F,'pad 12 droit (SHIFT)'],[0x74,'pad 7 gauche (SHIFT), clignotant'],[0x75,'pad 8 gauche (SHIFT), clignotant'],[0x76,'pad 9 gauche (SHIFT), clignotant'],[0x77,'pad 10 gauche (SHIFT), clignotant'],[0x78,'pad 11 gauche (SHIFT), clignotant'],[0x79,'pad 12 gauche (SHIFT), clignotant'],[0x7A,'pad 7 droit (SHIFT), clignotant'],[0x7B,'pad 8 droit (SHIFT), clignotant'],[0x7C,'pad 9 droit (SHIFT), clignotant'],[0x7D,'pad 10 droit (SHIFT), clignotant'],[0x7E,'pad 11 droit (SHIFT), clignotant'],[0x7F,'pad 12 droit (SHIFT), clignotant']];
-const STEEL_LEDS_X=(()=>{const known=new Set(STEEL_LEDS.map(x=>x[0]));const L=[];for(let n=1;n<=0x7F;n++)if(!known.has(n)&&n!==0x70)L.push([n,say('code absent du manuel (SEARCH, Apply Ctrl… ?)','code not in the manual (SEARCH, Apply Ctrl… ?)')]);return L;})();
+const STEEL_LEDS=[[0x01,'pad 1 gauche'],[0x02,'pad 2 gauche'],[0x03,'pad 3 gauche'],[0x04,'pad 4 gauche'],[0x05,'pad 5 gauche'],[0x06,'pad 6 gauche'],[0x07,'Sync gauche'],[0x08,'Pitch bend + gauche'],[0x0B,'Play gauche'],[0x0C,'Cue gauche'],[0x0D,'Stop gauche'],[0x0E,'Kill aigus gauche'],[0x0F,'Kill médiums gauche'],[0x10,'Kill basses gauche'],[0x11,'Pitch bend − gauche'],[0x12,'flèche ◀ du milieu (« Folders »)'],[0x13,'SHIFT gauche (« Mode » dans le manuel)'],[0x14,'Cue casque gauche'],[0x15,'Pitch bend + droit'],[0x16,'flèche ▶ du milieu (« Files »)'],[0x17,'SHIFT droit (« Mode » dans le manuel)'],[0x18,'Cue casque droit'],[0x19,'pad 1 droit'],[0x1A,'pad 2 droit'],[0x1B,'pad 3 droit'],[0x1C,'pad 4 droit'],[0x1D,'pad 5 droit'],[0x1E,'pad 6 droit'],[0x1F,'Sync droit'],[0x20,'Pitch bend − droit (le manuel écrit « + »)'],[0x23,'Play droit'],[0x24,'Cue droit'],[0x25,'Stop droit'],[0x26,'Kill aigus droit'],[0x27,'Kill médiums droit'],[0x28,'Kill basses droit'],[0x29,'Scratch'],[0x31,'pad 1 gauche, clignotant'],[0x32,'pad 2 gauche, clignotant'],[0x33,'pad 3 gauche, clignotant'],[0x34,'pad 4 gauche, clignotant'],[0x35,'pad 5 gauche, clignotant'],[0x36,'pad 6 gauche, clignotant'],[0x37,'Sync gauche, clignotant'],[0x38,'Pitch bend + gauche, clignotant'],[0x3B,'Play gauche, clignotant'],[0x3C,'Cue gauche, clignotant'],[0x3D,'Stop gauche, clignotant'],[0x3E,'Kill aigus gauche, clignotant'],[0x3F,'Kill médiums gauche, clignotant'],[0x40,'Kill basses gauche, clignotant'],[0x41,'Pitch bend − gauche, clignotant'],[0x42,'flèche ◀ (« Folders »), clignotant'],[0x43,'SHIFT gauche, clignotant'],[0x44,'Cue casque gauche, clignotant'],[0x46,'Stop droit, clignotant'],[0x47,'flèche ▶ (« Files »), clignotant'],[0x4A,'pad 1 droit, clignotant'],[0x4B,'pad 2 droit, clignotant'],[0x4C,'pad 3 droit, clignotant'],[0x4D,'pad 4 droit, clignotant'],[0x4E,'pad 5 droit, clignotant'],[0x50,'pad 6 droit, clignotant'],[0x53,'Play droit, clignotant'],[0x54,'Cue droit, clignotant'],[0x55,'Pitch bend − droit, clignotant'],[0x57,'SHIFT droit, clignotant'],[0x58,'Cue casque droit, clignotant'],[0x59,'Scratch, clignotant'],[0x5A,'Kill aigus droit, clignotant'],[0x5B,'Kill médiums droit, clignotant'],[0x5C,'Kill basses droit, clignotant'],[0x5F,'Sync droit, clignotant'],[0x60,'Pitch bend + droit, clignotant'],[0x64,'pad 7 gauche (SHIFT)'],[0x65,'pad 8 gauche (SHIFT)'],[0x66,'pad 9 gauche (SHIFT)'],[0x67,'pad 10 gauche (SHIFT)'],[0x68,'pad 11 gauche (SHIFT)'],[0x69,'pad 12 gauche (SHIFT)'],[0x6A,'pad 7 droit (SHIFT)'],[0x6B,'pad 8 droit (SHIFT)'],[0x6C,'pad 9 droit (SHIFT)'],[0x6D,'pad 10 droit (SHIFT)'],[0x6E,'pad 11 droit (SHIFT)'],[0x6F,'pad 12 droit (SHIFT)'],[0x74,'pad 7 gauche (SHIFT), clignotant'],[0x75,'pad 8 gauche (SHIFT), clignotant'],[0x76,'pad 9 gauche (SHIFT), clignotant'],[0x77,'pad 10 gauche (SHIFT), clignotant'],[0x78,'pad 11 gauche (SHIFT), clignotant'],[0x79,'pad 12 gauche (SHIFT), clignotant'],[0x7A,'pad 7 droit (SHIFT), clignotant'],[0x7B,'pad 8 droit (SHIFT), clignotant'],[0x7C,'pad 9 droit (SHIFT), clignotant'],[0x7D,'pad 10 droit (SHIFT), clignotant'],[0x7E,'pad 11 droit (SHIFT), clignotant'],[0x7F,'pad 12 droit (SHIFT), clignotant']];
+const STEEL_LEDS_X=(()=>{const known=new Set(STEEL_LEDS.map(x=>x[0]));const L=[[0x12,'« Folders » (à revérifier)'],[0x16,'« Files » (à revérifier)']];for(let n=1;n<=0x7F;n++)if(!known.has(n)&&n!==0x70)L.push([n,'code absent du manuel']);return L;})();
 function diagList(){return MIDI.diag&&MIDI.diag.x?STEEL_LEDS_X:STEEL_LEDS;}
 function diagOn(){return MIDI.diag&&MIDI.diag.on;}
-function diagShow(){const D=MIDI.diag,L=diagList();if(!D||!MIDI.out)return;const prev=D.lit;if(prev!=null)midiSend([[0xB0,prev,0]]);D.lit=D.i<L.length?L[D.i][0]:null;if(D.lit!=null)midiSend([[0xB0,D.lit,0x7F]]);mstore.set(D.x?'diagx':'diag',{i:D.i,res:D.res});renderMidi();}
-function diagStart(x){const old=mstore.get(x?'diagx':'diag',null),N=(x?STEEL_LEDS_X:STEEL_LEDS).length;MIDI.diag={on:true,x:!!x,i:old&&old.i<N?old.i:0,res:old?old.res:{},lit:null};
+function diagShow(){const D=MIDI.diag,L=diagList();if(!D||!MIDI.out)return;const prev=D.lit;if(prev!=null)midiSend([[0xB0,prev,0]]);D.lit=D.i<L.length?L[D.i][0]:null;if(D.lit!=null)midiSend([[0xB0,D.lit,0x7F]]);mstore.set(D.x?'diagx2':'diag',{i:D.i,res:D.res});renderMidi();}
+function diagStart(x){const old=mstore.get(x?'diagx2':'diag',null),N=(x?STEEL_LEDS_X:STEEL_LEDS).length;MIDI.diag={on:true,x:!!x,i:old&&old.i<N?old.i:0,res:old?old.res:{},lit:null};
+  /* second check: the answer is the control clicked on the map of the controller */
+  /* the map on the left, the panel stays on the right: both visible */
+  if(x){showPlan(true);const pr=$('midiPanel').getBoundingClientRect();$('planPanel').style.width=Math.max(480,Math.min($('planPanel').offsetWidth,pr.left-20))+'px';placePlan(8,Math.max(56,pr.top));PLAN_PICK=(id,lab)=>{const D=MIDI.diag;if(!D||!D.on||D.i>=STEEL_LEDS_X.length)return;D.res[STEEL_LEDS_X[D.i][0]]=lab+' ['+id+']';D.i++;diagShow();};}
   /* everything off first, so only the code being checked is lit */
   const off=[];for(let n=1;n<=0x7F;n++)if(n!==0x70)off.push([0xB0,n,0]);midiSend(off);diagShow();}
-function diagStop(){const D=MIDI.diag;if(D&&D.lit!=null)midiSend([[0xB0,D.lit,0]]);if(D)D.on=false;MIDI.leds.clear();renderMidi();}
+function diagStop(){PLAN_PICK=null;const D=MIDI.diag;if(D&&D.lit!=null)midiSend([[0xB0,D.lit,0]]);if(D)D.on=false;MIDI.leds.clear();renderMidi();}
 function diagAnswer(a){const D=MIDI.diag,LL=diagList();if(!D||D.i>=LL.length)return;const L=LL[D.i];
   if(a==='other'){const t=($('diagTxt')||{}).value||'';if(!t.trim()){toast(say('Écris d’abord quel voyant s’allume','First write which light comes on'),2400);return;}D.res[L[0]]='autre : '+t.trim();}
   else D.res[L[0]]=a==='ok'?'ok':'rien';D.i++;diagShow();}
@@ -3800,11 +3808,11 @@ function diagHtml(){
   if(!D||!D.on){const old=mstore.get('diag',null),done=old?Object.keys(old.res).length:0;
     h+='<p class="note">'+esc(say('Booth Check allume les voyants un par un, d’après le mode d’emploi. Pour chacun, dis ce que tu vois sur le Steel.','Booth Check lights the lights one by one, after the manual. For each one, say what you see on the Steel.'))+(done?' '+esc(say('Déjà fait : ','Done: ')+done+' / '+N):'')+'</p>';
     h+='<div class="cols"><button type="button" class="opt" data-act="diag-start"><span>'+esc(done?say('Reprendre','Resume'):say('Commencer','Start'))+'</span></button>'+(done?'<button type="button" class="opt" data-act="diag-export"><span>'+esc(say('Exporter le résultat','Export the result'))+'</span></button>':'')+'</div>';
-    const ox=mstore.get('diagx',null),dx=ox?Object.keys(ox.res).length:0;h+='<button type="button" class="opt" data-act="diag-startx"><span>'+esc(say('Codes absents du manuel (','Codes not in the manual (')+STEEL_LEDS_X.length+')'+(dx?' · '+dx+' / '+STEEL_LEDS_X.length:''))+'</span></button>';}
+    const ox=mstore.get('diagx2',null),dx=ox?Object.keys(ox.res).length:0;h+='<button type="button" class="opt" data-act="diag-startx"><span>'+esc(say('Codes absents du manuel (','Codes not in the manual (')+STEEL_LEDS_X.length+')'+(dx?' · '+dx+' / '+STEEL_LEDS_X.length:''))+'</span></button>';}
   else if(D.i>=N){h+='<p class="note">'+esc(say('Terminé : ','Done: ')+Object.keys(D.res).length+' / '+N+say('. Exporte le résultat et donne-le à Claude.','. Export the result and give it to Claude.'))+'</p><div class="cols"><button type="button" class="opt" data-act="diag-export"><span>'+esc(say('Exporter le résultat','Export the result'))+'</span></button><button type="button" class="opt" data-act="diag-stop"><span>'+esc(say('Fermer','Close'))+'</span></button></div>';}
   else{const [c,n]=LL[D.i],r=D.res[c];
-    h+='<div class="last"><div>'+esc((D.i+1)+' / '+N+' · code 0x'+c.toString(16).toUpperCase().padStart(2,'0'))+'</div><div>'+esc(say('Le manuel annonce : ','The manual says: ')+n)+'</div>'+(r?'<div class="old">'+esc(say('Ta réponse : ','Your answer: ')+r)+'</div>':'')+'</div>';
-    h+='<div class="cols"><button type="button" class="opt" data-act="diag-ans" data-a="ok"><span>'+esc(say('C’est bien ça','That’s right'))+'</span></button><button type="button" class="opt" data-act="diag-ans" data-a="none"><span>'+esc(say('Rien ne s’allume','Nothing lights'))+'</span></button></div>';
+    h+='<div class="last"><div>'+esc((D.i+1)+' / '+N+' · code 0x'+c.toString(16).toUpperCase().padStart(2,'0'))+'</div><div>'+esc(D.x?say('Clique sur le plan le bouton qui s’allume (ou « Rien ne s’allume »)','Click on the map the control that lights (or “Nothing lights”)'):say('Le manuel annonce : ','The manual says: ')+n)+'</div>'+(r?'<div class="old">'+esc(say('Ta réponse : ','Your answer: ')+r)+'</div>':'')+'</div>';
+    h+='<div class="cols">'+(D.x?'':'<button type="button" class="opt" data-act="diag-ans" data-a="ok"><span>'+esc(say('C’est bien ça','That’s right'))+'</span></button>')+'<button type="button" class="opt" data-act="diag-ans" data-a="none"><span>'+esc(say('Rien ne s’allume','Nothing lights'))+'</span></button></div>';
     h+='<div class="side"><input type="text" id="diagTxt" placeholder="'+esc(say('Un autre voyant : lequel ?','Another light: which one?'))+'"><button type="button" class="mini" data-act="diag-ans" data-a="other">OK</button></div>';
     h+='<div class="cols"><button type="button" class="opt" data-act="diag-prev"><span>◀ '+esc(say('Précédent','Previous'))+'</span></button><button type="button" class="opt" data-act="diag-next"><span>'+esc(say('Suivant','Next'))+' ▶</span></button><button type="button" class="opt" data-act="diag-stop"><span>'+esc(say('Pause','Pause'))+'</span></button></div>';}
   return h+'</details>';
@@ -3815,7 +3823,7 @@ function midiTick(){
   for(const [k,b] of Object.entries(MIDI.cfg.map)){
     if(k[0]!=='c')continue;const st=midiLedState(b,k);if(st==null)continue;
     if(MIDI.leds.get(k)===st)continue;MIDI.leds.set(k,st);
-    const ch=0xB0|parseInt(k.slice(1)),n=parseInt(k.split(':')[1],16),bl=t.blink[n];
+    const ch=0xB0|parseInt(k.slice(1)),c=parseInt(k.split(':')[1],16),n=t.led&&c in t.led?t.led[c]:c;if(n==null)continue;const bl=t.blink[n];
     midiSend(st===2&&bl!=null?[[ch,n,0],[ch,bl,0x7F]]:bl!=null?[[ch,bl,0],[ch,n,st?0x7F:0]]:[[ch,n,st?0x7F:0]]);
   }
 }
@@ -3914,7 +3922,7 @@ function wireMidi(){
   $('midiPanel').addEventListener('input',e=>{if(e.target.id==='midiJog'){const v=+e.target.value;mstore.set('jogSens',v);$('midiJogV').textContent=Math.round(v*100)+' %';}});
   window.addEventListener('focus',()=>{if(MIDI.out){MIDI.leds.clear();midiInit();}});
   $('midiFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)midiImport(f);};
-  document.addEventListener('pointerdown',e=>{if(!$('midiPanel').hidden&&!e.target.closest('#midiPanel')&&!e.target.closest('#bMidi'))midiOpen(false);});
+  document.addEventListener('pointerdown',e=>{if(!$('midiPanel').hidden&&!e.target.closest('#midiPanel')&&!e.target.closest('#bMidi')&&!e.target.closest('#planPanel'))midiOpen(false);});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('midiPanel').hidden)midiOpen(false);});
   window.addEventListener('resize',()=>{if(!$('midiPanel').hidden)placeMidi();});
   midiStart(false);
@@ -3954,7 +3962,7 @@ const STEEL_GEO=(function(){
     G.push({t:'j',cx:L?125.4:297.6,cy:301.6,r:27.2,c:L?0x2F:0x30});
     const bx=L?[96.5,118.9,141.4]:[268,290.5,312.9],bc=L?[0x0C,0x0D,0x0B]:[0x24,0x25,0x23];
     bx.forEach((x,i)=>b(x,334.6,13.6,8.9,bc[i]));
-    b(X(127.4,13.1),187.2,13.1,9,null,{lab:'SHIFT',shift:1});
+    b(X(127.4,13.1),187.2,13.1,9,null,{lab:'SHIFT',shift:1,id:L?'SHIFT gauche':'SHIFT droit'});
     k(L?150.4:272.6,191.2,5.6,L?0x33:0x3D);
     /* the mixer half of that side */
     [0x0E,0x0F,0x10].map(c=>L?c:c+0x18).forEach((c,i)=>b(X(162.3,12.4),[188.3,211.5,234.5][i],12.4,8.3,c));
@@ -3965,7 +3973,7 @@ const STEEL_GEO=(function(){
   side(true);side(false);
   /* top left: the two endless Controls (their code changes with Apply Ctrl), Apply Ctrl and its 3 lights; top right: Monitor and Vol */
   k(90.7,189.4,5.6,[0x41,0x43,0x45],{ctl:1});k(116.2,189.4,5.6,[0x42,0x44,0x46],{ctl:2});
-  b(89.1,199.1,7.9,5.6,null,{lab:'APPLY',apply:1});
+  b(89.1,199.1,7.9,5.6,null,{lab:'APPLY',apply:1,id:'Apply Ctrl'});
   k(306.8,189.4,5.6,0x3A);k(332.3,189.4,5.6,0x47);
   k(211.5,192.3,5.6,0x37);b(205.1,210.4,12.4,8.3,0x29);
   b(206.7,225,9.7,6.8,0x2A);b(196.6,234,8.5,7.2,0x2C);b(217.9,234,8.5,7.2,0x2D);b(206.7,242.3,9.7,7.5,0x2B);
@@ -3974,6 +3982,8 @@ const STEEL_GEO=(function(){
   return G;
 })();
 const pkey=c=>'c0:'+c.toString(16).padStart(2,'0');
+/* the light check: a click on the map answers which control is lit */
+let PLAN_PICK=null;
 const PVIEW='70 160 283 196';
 function planSvg(){
   const map=MIDI.cfg?MIDI.cfg.map:steelMap(),E=[];
@@ -3990,7 +4000,8 @@ function planSvg(){
     const codes=Array.isArray(g.c)?g.c:g.c!=null?[g.c]:[],keys=codes.map(pkey),b=keys.length?map[keys[0]]:null,bs=g.s!=null?map[pkey(g.s)]:null;
     const dk=keys.concat(g.s!=null?[pkey(g.s)]:[]).join(' ');
     const cat=g.shift||g.apply?'hw':pcat(b&&b.a);
-    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : platine gauche ; Deck B : platine droite ; Select : BEAT FX (V2.9)','Apply Ctrl Deck A: left player; Deck B: right player; Select: BEAT FX (V2.9)'):tip(b,bs))+'</title>';
+    const nm=g.id||(keys.length?(b?midiBindLabel(b):keys[0]):'');
+    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'" data-id="'+esc(keys[0]||g.id||'')+'" data-n="'+esc(nm)+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : platine gauche ; Deck B : platine droite ; Select : BEAT FX (V2.9)','Apply Ctrl Deck A: left player; Deck B: right player; Select: BEAT FX (V2.9)'):tip(b,bs))+'</title>';
     if(g.t==='b'){
       h+='<rect x="'+g.x+'" y="'+g.y+'" width="'+g.w+'" height="'+g.h+'" rx="1.2" class="p-key"/>';
       const cx=g.x+g.w/2;
@@ -4012,7 +4023,7 @@ function planSvg(){
     E.push(h+'</g>');
   }
   /* Apply Ctrl's 3 lights */
-  [[102.2,'A'],[110.8,'SEL'],[118.2,'B']].forEach(([x,t])=>E.push('<circle cx="'+x+'" cy="202" r="1.4" class="p-led"/>'+T(x,206.4,t,'p-t p-sub',1.5,'middle')));
+  [[102.2,'A','Deck A'],[110.8,'SEL','Select'],[118.2,'B','Deck B']].forEach(([x,t,n])=>E.push('<g class="p-c c-hw" data-k="" data-id="led-'+n+'" data-n="'+esc(say('voyant ','light ')+n+' (Apply Ctrl)')+'"><title>'+esc(say('Voyant ','Light ')+n+' (Apply Ctrl)')+'</title><circle cx="'+x+'" cy="202" r="1.6" class="p-led"/></g>'+T(x,206.4,t,'p-t p-sub',1.6,'middle')));
   return '<svg viewBox="'+PVIEW+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="'+esc(say('Plan du Hercules DJ Control Steel','Hercules DJ Control Steel map'))+'">'+E.join('')+'</svg>';
 }
 function buildPlan(){
@@ -4027,7 +4038,7 @@ function planHit(k,on){
   const p=$('planPanel');if(!p||p.hidden)return;
   for(const g of p.querySelectorAll('.p-c'))if(g.dataset.k.split(' ').includes(k)){g.classList.add('hit');clearTimeout(g._t);g._t=setTimeout(()=>g.classList.remove('hit'),on===false?60:260);}
 }
-function showPlan(on){const p=$('planPanel');if(on===!p.hidden)return;p.hidden=!on;if(on){buildPlan();placePlan();}}
+function showPlan(on){const p=$('planPanel');$('planBody').classList.toggle('pick',!!PLAN_PICK||on&&MIDI.diag&&MIDI.diag.x&&MIDI.diag.on);if(on===!p.hidden)return;p.hidden=!on;if(on){buildPlan();placePlan();}}
 function placePlan(x,y){const p=$('planPanel');let pos=null;try{pos=JSON.parse(localStorage.getItem('bc.planPos')||'null');}catch(e){}
   if(x==null){if(pos){x=pos[0];y=pos[1];}else{x=(window.innerWidth-p.offsetWidth)/2;y=Math.max(60,window.innerHeight-p.offsetHeight-24);}}
   x=clamp(x,8-p.offsetWidth+120,window.innerWidth-120);y=clamp(y,8,window.innerHeight-48);p.style.left=x+'px';p.style.top=y+'px';return [x,y];}
@@ -4035,6 +4046,7 @@ function wirePlan(){
   const h=$('planHead');let st=null;
   sizeWin('planPanel','bc.planW',860,480,1500);
   $('pClose').onclick=()=>showPlan(false);
+  $('planBody').addEventListener('click',e=>{const g=e.target.closest('.p-c');if(PLAN_PICK&&g){PLAN_PICK(g.dataset.id||'?',g.dataset.n||'?');planHit(g.dataset.k.split(' ')[0]||'');}});
   h.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const p=$('planPanel'),r=p.getBoundingClientRect();st={dx:e.clientX-r.left,dy:e.clientY-r.top};h.setPointerCapture(e.pointerId);e.preventDefault();});
   h.addEventListener('pointermove',e=>{if(st)placePlan(e.clientX-st.dx,e.clientY-st.dy);});
   const up=()=>{if(!st)return;st=null;const p=$('planPanel');try{localStorage.setItem('bc.planPos',JSON.stringify([parseFloat(p.style.left),parseFloat(p.style.top)]));}catch(_){}};

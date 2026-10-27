@@ -32,7 +32,7 @@ const STEEL_GEO=(function(){
     G.push({t:'j',cx:L?125.4:297.6,cy:301.6,r:27.2,c:L?0x2F:0x30});
     const bx=L?[96.5,118.9,141.4]:[268,290.5,312.9],bc=L?[0x0C,0x0D,0x0B]:[0x24,0x25,0x23];
     bx.forEach((x,i)=>b(x,334.6,13.6,8.9,bc[i]));
-    b(X(127.4,13.1),187.2,13.1,9,null,{lab:'SHIFT',shift:1});
+    b(X(127.4,13.1),187.2,13.1,9,null,{lab:'SHIFT',shift:1,id:L?'SHIFT gauche':'SHIFT droit'});
     k(L?150.4:272.6,191.2,5.6,L?0x33:0x3D);
     /* the mixer half of that side */
     [0x0E,0x0F,0x10].map(c=>L?c:c+0x18).forEach((c,i)=>b(X(162.3,12.4),[188.3,211.5,234.5][i],12.4,8.3,c));
@@ -43,7 +43,7 @@ const STEEL_GEO=(function(){
   side(true);side(false);
   /* top left: the two endless Controls (their code changes with Apply Ctrl), Apply Ctrl and its 3 lights; top right: Monitor and Vol */
   k(90.7,189.4,5.6,[0x41,0x43,0x45],{ctl:1});k(116.2,189.4,5.6,[0x42,0x44,0x46],{ctl:2});
-  b(89.1,199.1,7.9,5.6,null,{lab:'APPLY',apply:1});
+  b(89.1,199.1,7.9,5.6,null,{lab:'APPLY',apply:1,id:'Apply Ctrl'});
   k(306.8,189.4,5.6,0x3A);k(332.3,189.4,5.6,0x47);
   k(211.5,192.3,5.6,0x37);b(205.1,210.4,12.4,8.3,0x29);
   b(206.7,225,9.7,6.8,0x2A);b(196.6,234,8.5,7.2,0x2C);b(217.9,234,8.5,7.2,0x2D);b(206.7,242.3,9.7,7.5,0x2B);
@@ -52,6 +52,8 @@ const STEEL_GEO=(function(){
   return G;
 })();
 const pkey=c=>'c0:'+c.toString(16).padStart(2,'0');
+/* the light check: a click on the map answers which control is lit */
+let PLAN_PICK=null;
 const PVIEW='70 160 283 196';
 function planSvg(){
   const map=MIDI.cfg?MIDI.cfg.map:steelMap(),E=[];
@@ -68,7 +70,8 @@ function planSvg(){
     const codes=Array.isArray(g.c)?g.c:g.c!=null?[g.c]:[],keys=codes.map(pkey),b=keys.length?map[keys[0]]:null,bs=g.s!=null?map[pkey(g.s)]:null;
     const dk=keys.concat(g.s!=null?[pkey(g.s)]:[]).join(' ');
     const cat=g.shift||g.apply?'hw':pcat(b&&b.a);
-    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : platine gauche ; Deck B : platine droite ; Select : BEAT FX (V2.9)','Apply Ctrl Deck A: left player; Deck B: right player; Select: BEAT FX (V2.9)'):tip(b,bs))+'</title>';
+    const nm=g.id||(keys.length?(b?midiBindLabel(b):keys[0]):'');
+    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'" data-id="'+esc(keys[0]||g.id||'')+'" data-n="'+esc(nm)+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : platine gauche ; Deck B : platine droite ; Select : BEAT FX (V2.9)','Apply Ctrl Deck A: left player; Deck B: right player; Select: BEAT FX (V2.9)'):tip(b,bs))+'</title>';
     if(g.t==='b'){
       h+='<rect x="'+g.x+'" y="'+g.y+'" width="'+g.w+'" height="'+g.h+'" rx="1.2" class="p-key"/>';
       const cx=g.x+g.w/2;
@@ -90,7 +93,7 @@ function planSvg(){
     E.push(h+'</g>');
   }
   /* Apply Ctrl's 3 lights */
-  [[102.2,'A'],[110.8,'SEL'],[118.2,'B']].forEach(([x,t])=>E.push('<circle cx="'+x+'" cy="202" r="1.4" class="p-led"/>'+T(x,206.4,t,'p-t p-sub',1.5,'middle')));
+  [[102.2,'A','Deck A'],[110.8,'SEL','Select'],[118.2,'B','Deck B']].forEach(([x,t,n])=>E.push('<g class="p-c c-hw" data-k="" data-id="led-'+n+'" data-n="'+esc(say('voyant ','light ')+n+' (Apply Ctrl)')+'"><title>'+esc(say('Voyant ','Light ')+n+' (Apply Ctrl)')+'</title><circle cx="'+x+'" cy="202" r="1.6" class="p-led"/></g>'+T(x,206.4,t,'p-t p-sub',1.6,'middle')));
   return '<svg viewBox="'+PVIEW+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="'+esc(say('Plan du Hercules DJ Control Steel','Hercules DJ Control Steel map'))+'">'+E.join('')+'</svg>';
 }
 function buildPlan(){
@@ -105,7 +108,7 @@ function planHit(k,on){
   const p=$('planPanel');if(!p||p.hidden)return;
   for(const g of p.querySelectorAll('.p-c'))if(g.dataset.k.split(' ').includes(k)){g.classList.add('hit');clearTimeout(g._t);g._t=setTimeout(()=>g.classList.remove('hit'),on===false?60:260);}
 }
-function showPlan(on){const p=$('planPanel');if(on===!p.hidden)return;p.hidden=!on;if(on){buildPlan();placePlan();}}
+function showPlan(on){const p=$('planPanel');$('planBody').classList.toggle('pick',!!PLAN_PICK||on&&MIDI.diag&&MIDI.diag.x&&MIDI.diag.on);if(on===!p.hidden)return;p.hidden=!on;if(on){buildPlan();placePlan();}}
 function placePlan(x,y){const p=$('planPanel');let pos=null;try{pos=JSON.parse(localStorage.getItem('bc.planPos')||'null');}catch(e){}
   if(x==null){if(pos){x=pos[0];y=pos[1];}else{x=(window.innerWidth-p.offsetWidth)/2;y=Math.max(60,window.innerHeight-p.offsetHeight-24);}}
   x=clamp(x,8-p.offsetWidth+120,window.innerWidth-120);y=clamp(y,8,window.innerHeight-48);p.style.left=x+'px';p.style.top=y+'px';return [x,y];}
@@ -113,6 +116,7 @@ function wirePlan(){
   const h=$('planHead');let st=null;
   sizeWin('planPanel','bc.planW',860,480,1500);
   $('pClose').onclick=()=>showPlan(false);
+  $('planBody').addEventListener('click',e=>{const g=e.target.closest('.p-c');if(PLAN_PICK&&g){PLAN_PICK(g.dataset.id||'?',g.dataset.n||'?');planHit(g.dataset.k.split(' ')[0]||'');}});
   h.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const p=$('planPanel'),r=p.getBoundingClientRect();st={dx:e.clientX-r.left,dy:e.clientY-r.top};h.setPointerCapture(e.pointerId);e.preventDefault();});
   h.addEventListener('pointermove',e=>{if(st)placePlan(e.clientX-st.dx,e.clientY-st.dy);});
   const up=()=>{if(!st)return;st=null;const p=$('planPanel');try{localStorage.setItem('bc.planPos',JSON.stringify([parseFloat(p.style.left),parseFloat(p.style.top)]));}catch(_){}};
