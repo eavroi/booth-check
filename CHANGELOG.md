@@ -1,5 +1,10 @@
 # Booth Check — versions
 
+## V2.7.2 — 27 octobre 2026
+- Steel, voyants vérifiés un par un sur le vrai contrôleur : la table du mode d'emploi est juste ; ses codes « Mode » sont les voyants SHIFT, et ses codes « Folders » / « Files » sont les flèches ◀ ▶ du milieu (allumées quand la platine active affiche une liste). LOAD, SEARCH et les flèches ▲ ▼ n'ont pas de voyant pilotable ; ceux d'Apply Ctrl sont gérés par le Steel lui-même.
+- « Tester les voyants » n'allume plus que les vrais voyants puis éteint tout (il faisait clignoter le SHIFT gauche sans fin) ; tous les voyants repartent éteints à la connexion.
+- Panneau Contrôleur : diagnostic des voyants, code par code (réponse au clic sur le plan pour les codes hors manuel), avec export du résultat.
+
 ## V2.7.1 — 27 octobre 2026
 - Steel : COLOR de la tranche = Stop + Gain (le TRIM ne bouge pas), PARAMETER = Stop + Balance ; les deux Stop choisissent les 6 SOUND COLOR FX avec les Kill ; Controls 1 = sélecteur rotatif de la platine choisie par Apply Ctrl, Controls 2 et Select gardés pour les BEAT FX (V2.9).
 - Steel, voyants : un bouton maintenu est allumé tant qu'on appuie (Stop, BANK, CALL/DELETE, Pitch bend), un bouton qui bascule est allumé tant que sa fonction est active ; avec SHIFT, seuls les hot cues existants sont allumés.
