@@ -34,11 +34,17 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Casque : clic sur la prise PHONES, sortie choisie avec setSinkId (Chrome / Edge).
 - Contrôleurs MIDI (`midi.js`, Web MIDI, Chrome / Edge) : actions `MACT`, modèles `MTPL` (Hercules DJ Control Steel d'après la table MIDI de son mode d'emploi, dans `references/manuels/`), reprise douce des potards, voyants, apprentissage. Plan dessiné du Steel dans `midi_plan.js`. Voyants du Steel vérifiés un par un (résultats dans `references/`) : codes « Mode » = SHIFT, « Folders » / « Files » = flèches ◀ ▶. Le navigateur intégré de l'app Claude refuse Web MIDI : tester dans Chrome ou Edge.
 
+## Feuille de route (validée par Victor le 27 octobre 2026, susceptible de changer)
+1. Audit complet des modes d'emploi CDJ-2000NXS2 et DJM-900NXS2, page par page : chaque fonction, chaque comportement d'écran et de la platine classé « simulé / partiel / absent / différent du réel », avec la liste d'écarts que Victor a constatés. Résultat = base des versions suivantes.
+2. V2.9 : BEAT FX de la table (14 effets, X-PAD, écran OLED, TAP, QUANTIZE, queues après le fader, mode d'emploi p. 16-17) + BEAT FX sur le Steel (Apply Ctrl en « Select », Controls 2).
+3. Calage des SOUND COLOR FX et des BEAT FX sur un enregistrement de la vraie table (kit `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.8/kit-test-DJM/`, à compléter pour les BEAT FX) : Victor fera un seul passage sur la vraie DJM pour les deux.
+4. V2.10 : LINK entre platines, fente SD de la CDJ (2e clé, ex. clé de secours), site utilisable sans internet.
+5. V2.11 : contrôle de clé enrichi : rapport à garder ou envoyer (texte / PDF), comparaison de deux clés, nouveaux contrôles (doublons, morceaux sans tonalité, playlists vides, fichiers trop gros ; chaque limite vérifiée dans le mode d'emploi), export de l'HISTORY.
+6. V3 : nouvelles machines (CDJ-3000, DJM-A9…) ; versions blanches (-W) possibles plus tôt.
+- Pistes non classées : MIC 1 / MIC 2 avec le vrai micro (TALK OVER), BOOTH MONITOR en 2e sortie son, modèles DDJ-FLX4 / DDJ-400 (si listes MIDI officielles), assistant d'apprentissage pas à pas pour les autres contrôleurs, deux contrôleurs en même temps, tests automatiques sur GitHub, téléphone et Safari. Hors machine, à décider par Victor : enregistrer son mix, mode guidé pour apprendre la CDJ. SEND / RETURN : déconseillé.
+
 ## À faire plus tard
-- LINK entre platines (la clé dans une seule platine, les autres la parcourent par LINK), puis site hors ligne : reportés après la V2.7 (version à fixer avec Victor).
-- Contrôleurs : modèles Pioneer DDJ-FLX4 / DDJ-400 si leurs listes MIDI officielles existent ; BEAT FX sur le Steel (Apply Ctrl en « Select ») en V2.9.
-- V2.9 : BEAT FX (avec les queues après le fader, mode d'emploi p. 16-17). Caler les SOUND COLOR FX sur l'enregistrement de la vraie table quand Victor l'aura fait.
+- Essai de la V2.8.1 sur le vrai Steel (Stop + CUE casque, Stop + CUE = SLIP REVERSE, plan).
 - Fréquences de l'EQ de la table : le mode d'emploi donne HI 30 kHz, MID 1 kHz, LOW 20 Hz, inutilisables tels quels ; garder 300 Hz / 4 kHz tant qu'on n'a pas mieux.
-- BEAT FX de la table (14 effets, X-PAD, écran OLED, TAP, QUANTIZE) — affichés mais pas encore simulés.
 - Tester la sortie casque sur un vrai 2e appareil son.
 - Relancer l'émulateur du firmware CDJ (cdj-nxs2-qemu) sur le PC de Victor pour observer les écrans.
