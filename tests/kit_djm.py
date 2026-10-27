@@ -1,12 +1,13 @@
 """Fichier son du kit de test de la vraie DJM-900NXS2 : python tests/kit_djm.py DOSSIER
-Écrit DOSSIER/booth-check-test-djm.wav (44,1 kHz, 16 bits, stéréo, 13 min) : un « passage » de 12 s répété 65 fois.
+Écrit DOSSIER/booth-check-test-djm.wav (44,1 kHz, 16 bits, stéréo, 20 min) : un « passage » de 12 s répété 100 fois
+(57 passages SOUND COLOR FX + 38 passages BEAT FX depuis la V2.9, avec une marge ; la fiche est dans BOOTH CHECK/V2.9/kit-test-DJM/).
 Un passage, à 120 BPM (6 mesures) :
-  0 s     un clic (une seule impulsion) puis 3 s de silence : temps d'écho, longueur de la réverbération, réponse des filtres ;
+  0 s     un clic (une seule impulsion) puis 3 s de silence : temps d'écho et de retard, longueur de la réverbération, réponse des filtres ;
   3-4,5 s du bruit blanc puis 1,5 s de silence : forme des filtres et du bruit de NOISE ;
   6-12 s  une boucle de batterie (grosse caisse, caisse claire, charleston, basse, accords) : son musical, porte de SWEEP.
 Le clic marque le début de chaque passage : il sert à retrouver les passages dans l'enregistrement."""
 import math,os,random,struct,sys,wave
-SR=44100;PASS=12;N=SR*PASS;REPEAT=65
+SR=44100;PASS=12;N=SR*PASS;REPEAT=100
 def passage():
   x=[0.0]*N;x[0]=.95
   rnd=random.Random(1)

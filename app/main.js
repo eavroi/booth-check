@@ -205,7 +205,7 @@ function tick(){
   }
   BUS.tick();
   for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}
-  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();mixRender();}}catch(e){console.error(e);}
+  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();bfxTick();mixRender();}}catch(e){console.error(e);}
   renderStatus();midiTick();
   requestAnimationFrame(tick);
 }

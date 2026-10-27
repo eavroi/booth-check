@@ -231,7 +231,7 @@ function midiTurn(A,b,n){
     if(MIDI.navHeld){MIDI.navUsed=true;if(ACTIVE)rotaryTurn(ACTIVE,Math.sign(n));return;}
     const d=midiDeck(b);if(!d)return;midiJog(d,n);return;}
   if(A.id==='selector'){const d=midiDeck(b);if(!d)return;midiActive(b.s);for(let i=0;i<Math.min(8,Math.abs(n));i++)rotaryTurn(d,Math.sign(n));d.dirty=true;return;}
-  if(A.id==='beatfx'){if(!MIDI.said.bfx||now()-MIDI.said.bfx>4){MIDI.said.bfx=now();toast(say('BEAT FX : pas encore simulé, prévu en V2.9','BEAT FX: not simulated yet, planned for V2.9'),2600);}return;}
+  if(A.id==='beatfx'){if(!MIDI.said.bfx||now()-MIDI.said.bfx>4){MIDI.said.bfx=now();toast(say('BEAT FX sur le contrôleur : prévu en V2.9.1 (sur la table, il marche)','BEAT FX on the controller: planned for V2.9.1 (it works on the mixer)'),2600);}return;}
   const tg=midiTarget(A,b);if(!tg)return;tg.set(clamp(tg.get()+n/64,0,1),true);
 }
 /* the controller's jog has no touch sensor: turning it is the hand on the platter; when it stops, the hand is lifted */

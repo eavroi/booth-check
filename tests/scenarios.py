@@ -18,13 +18,29 @@ window.TT={wait:ms=>new Promise(r=>setTimeout(r,ms)),near:(a,b,e)=>Math.abs(a-b)
       hl+=.9*(nz-hl);x+=(nz-hl)*Math.exp(-e*60)*.25;if(beat%2){sn+=.4*(nz-sn);x+=(sn*.6+Math.sin(2*Math.PI*190*bt)*.3)*Math.exp(-bt*18)*.6;}
       x+=((t*[110,82.4,98,73.4][Math.floor(beat/4)%4])%1*2-1)*.18;if(bt>.25){let c=0;for(const f of [261.6,329.6,392])for(let h=1;h<8;h++)c+=Math.sin(2*Math.PI*f*h*t)/h;x+=c*.05*Math.exp(-(bt-.25)*6);}
       L[i]=R[i]=x*.6;}return this._m=b;},
-  async fx(type,color,param,cutAt){const sr=48000,oc=new OfflineAudioContext(2,sr*3,sr),S={ctx:AU.ctx,out:AU.out,N:MIX.N,on:MS.on,fx:MIX.fxReady,col:MS.color,p:MS.param,c:MS.ch[1].color,f:MS.ch[1].fader};
+  async fx(type,color,param,cutAt){const sr=48000,oc=new OfflineAudioContext(2,sr*3,sr),S={ctx:AU.ctx,out:AU.out,N:MIX.N,bfx:MIX.bfx,on:MS.on,fx:MIX.fxReady,col:MS.color,p:MS.param,c:MS.ch[1].color,f:MS.ch[1].fader};
     AU.ctx=oc;AU.out=oc.createGain();AU.out.connect(oc.destination);MS.on=true;
     try{mixBuild();await loadFxWorklet();MS.color=type;MS.param=param;MS.ch[1].color=color;MS.ch[1].fader=1;mixApply();colorBuild();
       const s=oc.createBufferSource();s.buffer=this.music();s.connect(MIX.N.ch[1].in);s.start(0,1);
       if(cutAt!=null){const g=MIX.N.ch[1].fader.gain;g.cancelScheduledValues(0);g.setValueAtTime(1,0);g.setValueAtTime(1,cutAt);g.linearRampToValueAtTime(0,cutAt+.05);}}
-    finally{AU.ctx=S.ctx;AU.out=S.out;MIX.N=S.N;MS.on=S.on;MS.color=S.col;MS.param=S.p;MS.ch[1].color=S.c;MS.ch[1].fader=S.f;}
+    finally{AU.ctx=S.ctx;AU.out=S.out;MIX.N=S.N;MIX.bfx=S.bfx;MS.on=S.on;MS.color=S.col;MS.param=S.p;MS.ch[1].color=S.c;MS.ch[1].fader=S.f;}
     const d=(await oc.startRendering()).getChannelData(0);MIX.fxReady=S.fx;return d;},
+  /* a BEAT FX through channel 2 (or another FX channel) in an offline context, the effect on from the start; at 120 BPM (TAP mode) */
+  async bfx(o){const sr=48000,oc=new OfflineAudioContext(2,sr*(o.len||3),sr),keys=['fxType','fxCh','depth','fxOn','tap','pad','touch','quantize','on'],
+      S={ctx:AU.ctx,out:AU.out,N:MIX.N,bfx:MIX.bfx,fx:MIX.fxReady,ms:Object.fromEntries(keys.map(k=>[k,MS[k]])),fr:{...MS.freq},bf:{beat:BF.beat,timeMs:BF.timeMs,tapBpm:BF.tapBpm,pitch:BF.pitch,rev:BF.rev,revT:BF.revT},cue:MS.ch[1].cue,f:MS.ch[1].fader};
+    Object.assign(MS,{fxType:o.type,fxCh:o.ch||'2',depth:o.depth==null?.5:o.depth,fxOn:o.on!==false,tap:true,pad:null,touch:null,quantize:false,on:true});
+    Object.assign(MS.freq,{LOW:true,MID:true,HI:true},o.band||{});Object.assign(BF,{beat:bfxBeats().indexOf(o.beat||'1/2'),timeMs:null,tapBpm:120},o.bf||{});MS.ch[1].fader=1;MS.ch[1].cue=!!o.cue;
+    AU.ctx=oc;AU.out=oc.createGain();AU.out.connect(oc.destination);
+    try{mixBuild();await loadFxWorklet();bfxBuild();bfxSend(true);mixApply();
+      if(o.cue){AU.out.disconnect();MIX.N.cueSum.connect(oc.destination);}
+      const s=oc.createBufferSource();s.buffer=o.buf||this.music();s.connect(MIX.N.ch[1].in);s.start(0,o.buf?0:1);
+      if(o.cutAt!=null){const g=MIX.N.ch[1].fader.gain;g.cancelScheduledValues(0);g.setValueAtTime(1,0);g.setValueAtTime(1,o.cutAt);g.linearRampToValueAtTime(0,o.cutAt+.05);}}
+    finally{AU.ctx=S.ctx;AU.out=S.out;MIX.N=S.N;MIX.bfx=S.bfx;Object.assign(MS,S.ms);Object.assign(MS.freq,S.fr);Object.assign(BF,S.bf);MS.ch[1].cue=S.cue;MS.ch[1].fader=S.f;}
+    const d=(await oc.startRendering()).getChannelData(0);MIX.fxReady=S.fx;return d;},
+  sine(f,sec){const sr=48000,b=new AudioBuffer({numberOfChannels:2,length:sr*(sec||3),sampleRate:sr});for(let c=0;c<2;c++){const x=b.getChannelData(c);for(let i=0;i<x.length;i++)x[i]=.5*Math.sin(2*Math.PI*f*i/sr);}return b;},
+  /* level in dB of the samples whose time t (s) passes the test */
+  dbIf(d,a,b,f){let e=0,n=0;for(let i=Math.round(a*48000);i<b*48000;i++){if(!f(i/48000))continue;e+=d[i]*d[i];n++;}return 10*Math.log10(e/Math.max(1,n)+1e-12);},
+  hi(d){const x=new Float32Array(d.length);for(let i=1;i<d.length;i++)x[i]=d[i]-d[i-1];return x;},
   /* level in dB from a to b seconds; between = only the second half of each beat (what is left between the kicks) */
   db(d,a,b,between){let e=0,n=0;for(let i=Math.round(a*48000);i<b*48000;i++){if(between&&(i/48000)%.5<.3)continue;e+=d[i]*d[i];n++;}return 10*Math.log10(e/n+1e-12);}};
 """
@@ -115,6 +131,29 @@ SCEN=[
  ('BPM non détecté : 130 BPM',"""const d=await TT.fresh();const b=d.cur.beats,bp=d.cur.tr.bpm;d.cur.beats=[];d.cur.tr.bpm=0;const s=d.spb();d.cur.beats=b;d.cur.tr.bpm=bp;return TT.near(s,60/130,.001)||('spb '+s);"""),
  ('MEMORY : message sur l’écran de la platine, CUE/LOOPPOINT FULL au-delà de 10 points',"""const d=await TT.fresh();const m=d.cur.mem;d.cur.mem=[];d.seek(10);d.cue=10;addMemory(d);const a=d.lcdMsg&&d.lcdMsg.t;for(let i=0;i<9;i++)d.cur.mem.push({time:20+i,end:null});d.cue=40;addMemory(d);const b=d.lcdMsg&&d.lcdMsg.t,n=d.cur.mem.length;d.cur.mem=m;
   return a==='MEMORY'&&b==='CUE/LOOPPOINT FULL'&&n===10||(a+' / '+b+' / '+n);"""),
+ ('BEAT FX : DELAY répète une fois, ECHO plusieurs fois, et ils continuent après le fader baissé',"""const o={ch:'2',beat:'1/2',cutAt:1.5};const dry=await TT.bfx(Object.assign({type:'DELAY',on:false},o)),dl=await TT.bfx(Object.assign({type:'DELAY'},o)),ec=await TT.bfx(Object.assign({type:'ECHO'},o));
+  const a=TT.db(dl,1.6,1.74)-TT.db(dry,1.6,1.74),b=TT.db(dl,1.85,2.4),c=TT.db(ec,1.85,2.4);return a>20&&b<-60&&c>-40||('DELAY après fader +'+a.toFixed(1)+' dB, DELAY ensuite '+b.toFixed(1)+' dB, ECHO ensuite '+c.toFixed(1)+' dB');"""),
+ ('BEAT FX : REVERB et PING PONG continuent après le fader baissé',"""const o={ch:'2',beat:'1/2',cutAt:1.5};const dry=TT.db(await TT.bfx(Object.assign({type:'REVERB',on:false},o)),1.6,2),r=TT.db(await TT.bfx(Object.assign({type:'REVERB'},o)),1.6,2),pp=TT.db(await TT.bfx(Object.assign({type:'PING PONG'},o)),1.6,2);
+  return r-dry>20&&pp-dry>20||('REVERB +'+(r-dry).toFixed(1)+' dB, PING PONG +'+(pp-dry).toFixed(1)+' dB');"""),
+ ('BEAT FX : TRANS coupe le son toutes les fractions de temps (1/2 : 125 ms ouvert, 125 ms coupé)',"""const d=await TT.bfx({type:'TRANS',beat:'1/2',depth:1});const op=TT.dbIf(d,1,3,t=>t%.25>.01&&t%.25<.115),cl=TT.dbIf(d,1,3,t=>t%.25>.135&&t%.25<.24);return op-cl>30||('ouvert '+op.toFixed(1)+' coupé '+cl.toFixed(1));"""),
+ ('BEAT FX : FX FREQUENCY, avec LOW seul les aigus ne sont pas coupés par TRANS',"""const cl=t=>t%.25>.135&&t%.25<.24;const dry=TT.dbIf(TT.hi(await TT.bfx({type:'TRANS',on:false})),1,3,cl),all=TT.dbIf(TT.hi(await TT.bfx({type:'TRANS',beat:'1/2',depth:1})),1,3,cl),lo=TT.dbIf(TT.hi(await TT.bfx({type:'TRANS',beat:'1/2',depth:1,band:{MID:false,HI:false}})),1,3,cl);
+  return all-dry<-25&&lo-dry>-3||('aigus coupés : toutes bandes '+(all-dry).toFixed(1)+' dB, LOW seul '+(lo-dry).toFixed(1)+' dB');"""),
+ ('BEAT FX : au casque (CUE de la tranche), TRANS s’entend, DELAY non',"""const cl=t=>t%.25>.135&&t%.25<.24;const dry=await TT.bfx({type:'TRANS',on:false,cue:true}),tr=await TT.bfx({type:'TRANS',depth:1,cue:true}),dl=await TT.bfx({type:'DELAY',depth:1,cue:true});
+  let e=0;for(let i=48000;i<144000;i++)e+=(dl[i]-dry[i])**2;const diff=10*Math.log10(e/96000+1e-12)-TT.db(dry,1,3),cut=TT.dbIf(tr,1,3,cl)-TT.dbIf(dry,1,3,cl);return cut<-25&&diff<-50||('TRANS au casque '+cut.toFixed(1)+' dB, écart DELAY '+diff.toFixed(1)+' dB');"""),
+ ('BEAT FX : ROLL et SLIP ROLL répètent le son enregistré à l’appui (1/4 = 125 ms)',"""const per=async t=>{const d=await TT.bfx({type:t,beat:'1/4',depth:1});let e=0,s=0;for(let i=72000;i<120000;i++){e+=(d[i]-d[i+6000])**2;s+=d[i]*d[i];}return 10*Math.log10(e/s+1e-12);};const r=await per('ROLL'),sr=await per('SLIP ROLL');return r<-40&&sr<-40||('ROLL '+r.toFixed(1)+' dB, SLIP ROLL '+sr.toFixed(1)+' dB');"""),
+ ('BEAT FX : VINYL BRAKE à fond à droite arrête le son',"""const dry=TT.db(await TT.bfx({type:'VINYL BRAKE',on:false}),1.5,3),b=TT.db(await TT.bfx({type:'VINYL BRAKE',beat:'1',depth:1}),1.5,3);return b-dry<-30||('après le freinage '+(b-dry).toFixed(1)+' dB');"""),
+ ('BEAT FX : PITCH à +100 % double la hauteur',"""const d=await TT.bfx({type:'PITCH',depth:1,buf:TT.sine(220),bf:{pitch:100}});const gz=f=>{let re=0,im=0;for(let i=48000;i<144000;i++){const a=2*Math.PI*f*i/48000;re+=d[i]*Math.cos(a);im+=d[i]*Math.sin(a);}return re*re+im*im;},band=(a,b)=>{let e=0;for(let f=a;f<=b;f+=2)e+=gz(f);return e;};
+  const r=10*Math.log10(band(410,470)/band(190,250));return r>12||('autour de 440 Hz / autour de 220 Hz : '+r.toFixed(1)+' dB');"""),
+ ('BEAT FX : les 14 effets changent le son sans faire exploser le niveau',"""const dry=await TT.bfx({type:'DELAY',on:false}),L=TT.db(dry,1,3),bad=[];
+  for(const D of BFX){const d=await TT.bfx({type:D.n,beat:'1/2',depth:.8,bf:{pitch:50}});let e=0,nan=false;for(let i=48000;i<144000;i++){if(!isFinite(d[i]))nan=true;e+=(d[i]-dry[i])**2;}const ch=10*Math.log10(e/96000+1e-12)-L,lv=TT.db(d,1,3)-L;
+    if(nan||ch<-25||lv>7)bad.push(D.n+' (écart '+ch.toFixed(0)+' dB, niveau '+lv.toFixed(1)+')');}return !bad.length||bad.join(', ');"""),
+ ('BEAT FX : TAP à 120 BPM, fraction 1/1 ; BEAT 16 dépasse 4000 ms (écran clignote)',"""setBooth({p:[2],m:true});MS.fxType='DELAY';MS.tap=true;BF.taps.length=0;for(let i=0;i<4;i++){tapDown();tapUp();await TT.wait(500);}const b=BF.tapBpm,k=bfxBeats()[BF.beat];
+  BF.beat=BEATS16.indexOf('16');const t=bfxTime(),out=bfxOut();BF.beat=4;MS.tap=false;MS.fxType='REVERB';return Math.abs(b-120)<3&&k==='1'&&t===4000&&out||('bpm '+b+' fraction '+k+' temps '+t+' hors limite '+out);"""),
+ ('BEAT FX : X-PAD touché = effet le temps du toucher, ON/OFF pendant le toucher le garde',"""setBooth({p:[2],m:true});MS.fxOn=false;xpadDown({x:1849,y:1037});const a=bfxActive()&&MS.pad==='1/16';xpadUp();const b=bfxActive();xpadDown({x:2107,y:1146});fxOnOff();xpadUp();const c=bfxActive();fxOnOff();
+  return a&&!b&&c&&!bfxActive()||('touché '+a+' relâché '+b+' gardé '+c);"""),
+ ('BEAT FX : QUANTIZE allumé avec une grille, clignote sans (platine à l’arrêt)',"""setBooth({p:[2],m:true});MS.fxCh='MASTER';const d=await TT.fresh();MS.quantize=true;playBtn(d);await TT.wait(400);bfxTick();const a=BF.q;d.pause();await TT.wait(300);bfxTick();const b=BF.q;MS.quantize=false;bfxTick();return a===1&&b===2&&BF.q===0||('lecture '+a+' arrêt '+b+' coupé '+BF.q);"""),
+ ('Vumètres : CLIP du MASTER avant le limiteur, CLIP de tranche en clignotement rapide (TRIM à fond)',"""setBooth({p:[2],m:true});const d=await TT.fresh();const ch=MS.ch[d.ch-1],t0=ch.trim,m0=MS.master;ch.trim=1;MS.master=1;mixApply();MS.mClip=0;ch.clip=0;playBtn(d);await TT.wait(1200);
+  const mc=now()-MS.mClip<.6,lv=ch.clipLv,cl=now()-ch.clip<.6;d.pause();ch.trim=t0;MS.master=m0;mixApply();return mc&&cl&&lv===2||('master '+mc+' tranche '+cl+' niveau '+lv);"""),
  ('Double-clic : MASTER LEVEL ne bouge pas',"""const m=MS.master=.7;const r=mixReset('master');const ok=MS.master===.7&&!r;MS.master=.5;mixApply();return ok||('master '+MS.master);"""),
 ]
 async def main():

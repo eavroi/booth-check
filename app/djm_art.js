@@ -54,6 +54,10 @@ function dKnob(P,kind,cx,cy,r,v){
 }
 /* the angle of a selector position given as a clock direction in degrees (0 = up, clockwise) */
 const clk=d=>(d-90)*Math.PI/180;
+/* BEAT FX selectors: name, direction (degrees clockwise from the top), label position */
+const FXSEL_C=[1970,1711],FXSEL=[['DELAY',-146,1896.5,1777.5],['ECHO',-123.5,1881,1751],['PING PONG',-101,1847.5,1725],['SPIRAL',-77,1866.5,1696],['REVERB',-53,1871,1670],['TRANS',-30.5,1896.5,1643],['FILTER',-8,1929,1619],
+  ['FLANGER',12.5,2015,1619],['PHASER',34,2054,1643],['PITCH',56,2066.5,1670],['SLIP ROLL',78,2092.5,1696],['ROLL',100,2070,1725],['VINYL BRAKE',121,2085,1751],['HELIX',144,2042.5,1777.5]];
+const FXCH_C=[1972.5,1900],FXCH=[['B',-104,1888.5,1915],['A',-79,1887.5,1887.5],['MIC',-57,1889,1856],['1',-35,1925,1831.5],['2',-12,1955,1820],['3',11,1986,1820],['4',33,2014,1831.5],['MASTER',56,2074,1856]];
 /* rotary selectors, as on the real mixer: a smooth black knob crossed by a raised grey bar, a white line from the centre
    to the bar's tip, which passes the knob's edge on the pointing side */
 function selKnob(P,cx,cy,r,dirDeg){const g=P.g;
@@ -75,6 +79,8 @@ function kn(P,id,get,kind,cx,cy,r){dyn(P,()=>'kn|'+kind+'|'+Math.round(get()*100
 function sw(P,id,get,cx,cy,w,h){dyn(P,()=>'sw|'+w+'|'+get(),[cx-w/2-8,cy-h/2-8,cx+w/2+8,cy+h/2+8],P=>slideSwitch(P,cx,cy,w,h,get()));}
 const blinkOn=()=>Math.floor(performance.now()/400)%2===0;
 const clipOn=t=>!!t&&performance.now()/1000-t<.5;
+/* channel CLIP: blinks, or blinks fast when the sound is distorted (manual p. 11), for a second after the last peak */
+function chClipLit(ch){const t=performance.now()/1000;if(!ch.clip||t-ch.clip>1)return false;return Math.floor(t*(ch.clipLv===2?8:2.5)*2)%2===0;}
 /* lit parts */
 function glowBox(P,box,col,blur,strength){P.glow(q=>{q.fillRect(box[0],box[1],box[2]-box[0],box[3]-box[1]);},col,blur,strength==null?.9:strength);}
 function cueKey(P,cx,cy,lit,label){const b=[cx-70,cy-28,cx+70,cy+28],g=P.g;
@@ -84,6 +90,7 @@ function cueKey(P,cx,cy,lit,label){const b=[cx-70,cy-28,cx+70,cy+28],g=P.g;
   if(lit){lg.addColorStop(0,'#ffb27a');lg.addColorStop(.5,'#ff8a3c');lg.addColorStop(1,'#f0601c');}else{lg.addColorStop(0,'#7a4a2c');lg.addColorStop(1,'#4a2a16');}
   P.rr(b,9);g.fillStyle=lg;g.fill();P.rrect(b,9,null,lit?[255,200,160]:[130,90,60],2);
   dT(P,cx,cy+1,label||'CUE',30,'mm',lit?[40,16,4]:[24,12,4]);}
+function fxTagD(P,cx,cy,lit){dyn(P,()=>'fxtag|'+lit(),[cx-80,cy-26,cx+80,cy+26],P=>fxTag(P,cx,cy,lit()));}
 function fxTag(P,cx,cy,lit){const b=[cx-68,cy-15,cx+68,cy+15];if(lit)glowBox(P,b,[60,150,255],8,.8);
   P.rrect(b,3,lit?[70,160,255]:[22,48,90],lit?[170,215,255]:[40,80,140],2);dT(P,cx,cy+1,'BEAT FX',24,'mm',lit?[8,20,44]:[70,110,170]);}
 function clipTag(P,cx,cy,lit){const b=[cx-41,cy-15,cx+41,cy+15];P.rrect(b,3,[16,16,18],[60,60,64],2);if(lit)glowBox(P,[b[0]+6,b[1]+6,b[2]-6,b[3]-6],[255,40,40],6,.8);
@@ -143,10 +150,11 @@ function leftColumnD(P,st){
   P.line([[285,790],[298,790],[298,945],[285,945]],DPRINT,2.4);dT(P,300,888,'EQ',28,'lm');
   /* OFF / ON / TALK OVER */
   dT(P,155,1030,'OFF',24);dT(P,205,1030,'ON',24);dT(P,284,1030,'TALK OVER',22);
-  P.circle(350,1030,10,[230,20,40]);P.circle(350,1030,10,null,[120,10,20],2);
+  /* no microphone in Booth Check: the selector on OFF, so the indicator is off (lit on ON, blinking on TALK OVER: manual p. 12) */
+  P.circle(350,1030,10,[60,10,16]);P.circle(350,1030,10,null,[120,10,20],2);
   for(const x of [185,228])P.circle(x,1050,4,DPRINT);P.line([[185,1050],[228,1050]],DPRINT,2);
-  slideSwitch(P,205,1082,140,46,0);
-  fxTag(P,205,1162,st.fxCh==='MIC');
+  slideSwitch(P,205,1082,140,46,-1);
+  fxTagD(P,205,1162,()=>st.fxCh==='MIC');
   /* SOUND COLOR FX */
   dotField(P,[35,1240,380,1695],[50,51,55],[190,192,198,190],7.5,1.4);
   const scf=[['SPACE',90,1297],['DUB\nECHO',205,1297],['SWEEP',318,1297],['NOISE',90,1433],['CRUSH',205,1433],['FILTER',318,1433]];
@@ -181,7 +189,7 @@ function stripD(P,i,st){
   dyn(P,()=>'in|'+i+'|'+ch.input,[cx-80,318-80,cx+80,318+80],P=>selKnob(P,cx,318,53,pos[ch.input]));
   dT(P,cx+97,368,String(i+1),110,'mm',[244,245,248]);
   /* CLIP, TRIM */
-  dyn(P,()=>'clip|'+i+'|'+clipOn(ch.clip),[cx-90-50,433-24,cx-90+50,433+24],P=>clipTag(P,cx-90,433,clipOn(ch.clip)));dT(P,cx,433,'TRIM',30);dT(P,cx+83,431,['DECK 3/C','DECK 1/A','DECK 2/B','DECK 4/D'][i],22,'mm',DPRINT,'cond');
+  dyn(P,()=>'clip|'+i+'|'+chClipLit(ch),[cx-90-50,433-24,cx-90+50,433+24],P=>clipTag(P,cx-90,433,chClipLit(ch)));dT(P,cx,433,'TRIM',30);dT(P,cx+83,431,['DECK 3/C','DECK 1/A','DECK 2/B','DECK 4/D'][i],22,'mm',DPRINT,'cond');
   dScale(P,cx,510,46,{gap:16});kn(P,'trim'+i,()=>ch.trim,'grey',cx,510,46);dT(P,cx-48,571,'−∞',30,'rm');dT(P,cx+56,571,'+9',26);
   /* channel level indicator */
   const mx=cx-122;P.rrect([mx-15,500,mx+15,1178],8,[6,6,7],[46,46,50],2);
@@ -197,7 +205,7 @@ function stripD(P,i,st){
   dotField(P,[cx-140,1240,cx+140,1478],[34,34,37],[150,151,157,170],7.5,1.4);
   dT(P,cx,1268,'COLOR',30);P.arc(cx,1366,82,128,412,DPRINT,4);kn(P,'color'+i,()=>ch.color,'chrome',cx,1366,55);
   dT(P,cx-95,1448,'LOW',22);dT(P,cx+92,1448,'HI',22);
-  dyn(P,()=>'cue|'+ch.cue,[cx-90,1537-46,cx+90,1537+46],P=>cueKey(P,cx,1537,ch.cue));fxTag(P,cx,1637,st.fxCh===String(i+1));
+  dyn(P,()=>'cue|'+ch.cue,[cx-90,1537-46,cx+90,1537+46],P=>cueKey(P,cx,1537,ch.cue));fxTagD(P,cx,1637,()=>st.fxCh===String(i+1));
 }
 function faderSectionD(P,st){
   for(let i=0;i<4;i++){const cx=DM_STRIP[i],ch=st.ch[i];
@@ -222,14 +230,14 @@ function masterD(P,st){
   const x=DM_MX;
   band(P,1572,1750,201,'MASTER');dT(P,x,236,'LEVEL',30);dScale(P,x,316,52,{gap:16});kn(P,'master',()=>st.master,'std',x,316,52);
   dT(P,x-50,392,'−∞',30,'rm');dT(P,x+46,392,'0',24);P.arc(x,316,80,-50,10,DPRINT,4);
-  dyn(P,()=>'mclip|'+(st.mL>13||st.mR>13),[x-50,433-24,x+50,433+24],P=>clipTag(P,x,433,st.mL>13||st.mR>13));
+  dyn(P,()=>'mclip|'+clipOn(st.mClip),[x-50,433-24,x+50,433+24],P=>clipTag(P,x,433,clipOn(st.mClip)));
   const labels=['15','12','9','6','3','0','- 3','- 6','- 9','-12','-15','-18','-21','-24','-27'];
   for(const side of [-1,1]){const mx=x+side*48;P.rrect([mx-15,500,mx+15,1150],8,[6,6,7],[46,46,50],2);
     labels.forEach((l,k)=>{const y=528+k*43.3,col=k<2?[255,30,40]:k<6?[255,150,40]:[220,240,20],db=+l.replace(' ',''),lv=()=>side<0?st.mL:st.mR;dyn(P,()=>'led|'+k+'|'+(lv()>=db-1.5),[mx-20,y-20,mx+20,y+20],P=>meterLed(P,mx,y,col,lv()>=db-1.5));});}
   labels.forEach((l,k)=>dT(P,x+2,528+k*43.3,l,22));
   dT(P,x-48,1186,'L',22);dT(P,x,1186,'dB',22);dT(P,x+48,1186,'R',22);
   dT(P,x,1278,'BALANCE',30);dScale(P,x+4,1366,47,{gap:16});kn(P,'balance',()=>st.balance,'std',x+4,1366,47);dT(P,x-45,1440,'L',22);dT(P,x+52,1440,'R',22);
-  dyn(P,()=>'cue|'+st.cueMaster,[x-90,1537-46,x+90,1537+46],P=>cueKey(P,x,1537,st.cueMaster));fxTag(P,x,1637,st.fxCh==='MASTER');
+  dyn(P,()=>'cue|'+st.cueMaster,[x-90,1537-46,x+90,1537+46],P=>cueKey(P,x,1537,st.cueMaster));fxTagD(P,x,1637,()=>st.fxCh==='MASTER');
   dT(P,x,1726,'BOOTH MONITOR',29);dScale(P,x+2,1812,52,{gap:16});kn(P,'booth',()=>st.booth,'std',x+2,1812,52);dT(P,x-50,1882,'−∞',30,'rm');dT(P,x+46,1882,'0',24);
   P.line([[1575,1905],[1748,1905]],[120,120,126],2);
   dT(P,x,1936,'EQ CURVE',28);inverse(P,x-38,1961,'ISOLATOR',20);dT(P,x+28,1961,'EQ',22);for(const dx of [-26,-2])P.circle(x+dx,1978,4,DPRINT);
@@ -264,37 +272,35 @@ function fxD(P,st){
   band(P,1785,2160,625,'BEAT FX');
   const gp=[1784,646,2160,1464],g=P.g;P.rrect([gp[0]-3,gp[1]-3,gp[2]+3,gp[3]+3],12,[2,2,3]);P.rrect(gp,10,[10,10,12],[64,64,70],2);
   const lg=g.createLinearGradient(gp[0],gp[1],gp[2],gp[1]+260);lg.addColorStop(0,'rgba(255,255,255,.10)');lg.addColorStop(.5,'rgba(255,255,255,.02)');lg.addColorStop(.5001,'rgba(0,0,0,0)');g.fillStyle=lg;g.save();P.rr([gp[0],gp[1],gp[2],gp[1]+300],10);g.clip();g.fillRect(gp[0],gp[1],gp[2]-gp[0],300);g.restore();
-  dyn(P,()=>'oled|'+st.bpm+'|'+(st.bpmLost&&!blinkOn())+'|'+st.quantize,[1844,688,2102,894],P=>oledD(P,[1860,704,2086,878],st));
+  dyn(P,()=>'oled|'+oledKey(st),[1844,688,2102,894],P=>oledD(P,[1860,704,2086,878],st));
   dT(P,x,952,'X-PAD',30);
   xpadD(P,st);
+  dyn(P,()=>'xpads|'+st.pad,[1796,988,2150,1196],P=>xpadPads(P,st));
   for(const [bx,dir] of [[1855,-1],[2085,1]]){const b=[bx-56,1230,bx+56,1286];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);P.gradient(b,[56,56,60],[24,24,26],6);P.rrect(b,6,null,[96,96,102],1.5);
     P.polygon(dir<0?[[bx+14,1246],[bx+14,1270],[bx-16,1258]]:[[bx-14,1246],[bx-14,1270],[bx+16,1258]],[240,240,244]);}
   P.line([[1917,1232],[2023,1232]],DPRINT,2);P.line([[1917,1284],[2023,1284]],DPRINT,2);dT(P,x,1259,'BEAT',28);
   dT(P,1845,1316,'AUTO',22);dT(P,1845,1338,'/TAP',22);roundKey(P,1845,1392,26,null);
-  P.circle(1972,1372,52,[8,8,9],[70,70,76],2);if(st.tap)P.glow(q=>{q.lineWidth=10;q.beginPath();q.arc(1972,1372,39,0,7);q.stroke();},[40,255,110],8,.9);
-  P.circle(1972,1372,42,null,st.tap?[70,255,130]:[30,110,60],6);P.dome(1972,1372,36,[18,18,20]);dT(P,1972,1373,'TAP',26,'mm',st.tap?[80,255,140]:[40,130,70],true);
+  dyn(P,()=>'tap|'+st.tap,[1912,1312,2032,1432],P=>{P.circle(1972,1372,52,[8,8,9],[70,70,76],2);if(st.tap)P.glow(q=>{q.lineWidth=10;q.beginPath();q.arc(1972,1372,39,0,7);q.stroke();},[40,255,110],8,.9);
+    P.circle(1972,1372,42,null,st.tap?[70,255,130]:[30,110,60],6);P.dome(1972,1372,36,[18,18,20]);dT(P,1972,1373,'TAP',26,'mm',st.tap?[80,255,140]:[40,130,70],true);});
   P.g.beginPath();[[2048,1308],[2056,1302],[2064,1308],[2064,1318],[2056,1324],[2048,1318]].forEach((p,i)=>i?P.g.lineTo(p[0],p[1]):P.g.moveTo(p[0],p[1]));P.g.closePath();P.g.strokeStyle=css(DPRINT);P.g.lineWidth=2.4;P.g.stroke();P.circle(2056,1313,3,DPRINT);dT(P,2070,1314,'QUANTIZE',22,'lm');P.line([[2056,1338],[2072,1338]],DPRINT_DIM,2);dT(P,2078,1338,'UTILITY',22,'lm',DPRINT_DIM);
-  roundKey(P,2095,1392,26,st.quantize?[255,40,70]:[110,20,30]);inverse(P,2095,1438,'WAKE UP',16);
+  dyn(P,()=>'qkey|'+st.quantize,[2055,1352,2135,1432],P=>roundKey(P,2095,1392,26,st.quantize?[255,40,70]:[110,20,30]));inverse(P,2095,1438,'WAKE UP',16);
   /* FX FREQUENCY */
   dT(P,x,1486,'FX FREQUENCY',28);
-  for(const [t,bx] of [['LOW',1840],['MID',1970],['HI',2100]]){const on=st.freq[t],b=[bx-50,1508,bx+50,1566];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);
+  for(const [t,bx] of [['LOW',1840],['MID',1970],['HI',2100]])dyn(P,()=>'ffq|'+t+'|'+st.freq[t],[bx-64,1494,bx+64,1582],P=>{const on=st.freq[t],b=[bx-50,1508,bx+50,1566];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);
     if(on)glowBox(P,b,[60,150,255],10,.85);P.gradient(b,on?[60,120,220]:[18,30,60],on?[30,70,170]:[10,18,40],6);P.rrect(b,6,null,on?[150,205,255]:[40,70,130],4);P.rrect([b[0]+8,b[1]+8,b[2]-8,b[3]-8],3,on?[30,64,150]:[10,16,34]);
-    dT(P,bx,1538,t,26,'mm',on?[170,215,255]:[70,100,160],true);}
+    dT(P,bx,1538,t,26,'mm',on?[170,215,255]:[70,100,160],true);});
   /* FX type selector (positions and angles measured on the real mixer) */
-  const types=[['DELAY',-146,1896.5,1777.5],['ECHO',-123.5,1881,1751],['PING PONG',-101,1847.5,1725],['SPIRAL',-77,1866.5,1696],['REVERB',-53,1871,1670],['TRANS',-30.5,1896.5,1643],['FILTER',-8,1929,1619],
-    ['FLANGER',12.5,2015,1619],['PHASER',34,2054,1643],['PITCH',56,2066.5,1670],['SLIP ROLL',78,2092.5,1696],['ROLL',100,2070,1725],['VINYL BRAKE',121,2085,1751],['HELIX',144,2042.5,1777.5]];
-  const fx=[1970,1711],fr=50;
-  for(const [t,d,lx,ly] of types){const a=clk(d);P.line([[fx[0]+(fr+9)*Math.cos(a),fx[1]+(fr+9)*Math.sin(a)],[fx[0]+(fr+24)*Math.cos(a),fx[1]+(fr+24)*Math.sin(a)]],DPRINT,2.6);
+  const fx=FXSEL_C,fr=50;
+  for(const [t,d,lx,ly] of FXSEL){const a=clk(d);P.line([[fx[0]+(fr+9)*Math.cos(a),fx[1]+(fr+9)*Math.sin(a)],[fx[0]+(fr+24)*Math.cos(a),fx[1]+(fr+24)*Math.sin(a)]],DPRINT,2.6);
     dT(P,lx,ly,t,t==='VINYL BRAKE'?22:24,'mm',DPRINT,t==='HELIX');}
-  selKnob(P,fx[0],fx[1],fr,types.find(t=>t[0]===st.fxType)[1]);
+  dyn(P,()=>'fxsel|'+st.fxType,[fx[0]-fr-8,fx[1]-fr-8,fx[0]+fr+8,fx[1]+fr+8],P=>selKnob(P,fx[0],fx[1],fr,FXSEL.find(t=>t[0]===st.fxType)[1]));
   /* FX channel selector */
-  const chs=[['B',-104,1888.5,1915],['A',-79,1887.5,1887.5],['MIC',-57,1889,1856],['1',-35,1925,1831.5],['2',-12,1955,1820],['3',11,1986,1820],['4',33,2014,1831.5],['MASTER',56,2074,1856]];
-  const cs=[1972.5,1900],cr=52;dT(P,1844,1890,'CROSS',22,'mm',DPRINT,'cond');dT(P,1845,1910,'FADER',22,'mm',DPRINT,'cond');
-  for(const [t,d,lx,ly] of chs){const a=clk(d);P.line([[cs[0]+(cr+9)*Math.cos(a),cs[1]+(cr+9)*Math.sin(a)],[cs[0]+(cr+24)*Math.cos(a),cs[1]+(cr+24)*Math.sin(a)]],DPRINT,2.6);dT(P,lx,ly,t,26);}
-  selKnob(P,cs[0],cs[1],cr,chs.find(c=>c[0]===st.fxCh)[1]);
+  const cs=FXCH_C,cr=52;dT(P,1844,1890,'CROSS',22,'mm',DPRINT,'cond');dT(P,1845,1910,'FADER',22,'mm',DPRINT,'cond');
+  for(const [t,d,lx,ly] of FXCH){const a=clk(d);P.line([[cs[0]+(cr+9)*Math.cos(a),cs[1]+(cr+9)*Math.sin(a)],[cs[0]+(cr+24)*Math.cos(a),cs[1]+(cr+24)*Math.sin(a)]],DPRINT,2.6);dT(P,lx,ly,t,26);}
+  dyn(P,()=>'fxch|'+st.fxCh,[cs[0]-cr-8,cs[1]-cr-8,cs[0]+cr+8,cs[1]+cr+8],P=>selKnob(P,cs[0],cs[1],cr,FXCH.find(c=>c[0]===st.fxCh)[1]));
   dT(P,x,2018,'TIME',30);dKnob(P,'enc',1972,2098,53,0);
-  dT(P,x,2238,'LEVEL / DEPTH',30);dScale(P,1972,2326,53,{gap:16});dKnob(P,'std',1972,2326,53,st.depth);dT(P,1918,2400,'MIN',24);dT(P,2028,2400,'MAX',24);
-  dT(P,x,2444,'ON/OFF',30);bigBlue(P,1970,2540,62,st.fxOn);
+  dT(P,x,2238,'LEVEL / DEPTH',30);dScale(P,1972,2326,53,{gap:16});kn(P,'depth',()=>st.depth,'std',1972,2326,53);dT(P,1918,2400,'MIN',24);dT(P,2028,2400,'MAX',24);
+  dT(P,x,2444,'ON/OFF',30);dyn(P,()=>'fxon|'+(bfxActive()&&blinkOn()),[1890,2460,2050,2620],P=>bigBlue(P,1970,2540,62,bfxActive()&&blinkOn()));  /* ON/OFF blinks while the effect is on (manual p. 14) */
   /* model line: the mixer's own name replaced by the site's, as on the CDJ */
   dT(P,1830,2658,'PROFESSIONAL MIXER',24,'rm');dT(P,1846,2654,'BOOTH CHECK',40,'lm',[232,234,238]);
 }
@@ -304,30 +310,48 @@ function bigBlue(P,cx,cy,r,on){const g=P.g;P.circle(cx,cy,r+14,[6,6,7]);P.circle
   const rg=g.createRadialGradient(cx-r*.2,cy-r*.25,r*.1,cx,cy,r);
   if(on){rg.addColorStop(0,'#d8f0ff');rg.addColorStop(.55,'#7fc0ff');rg.addColorStop(1,'#3a78e0');}else{rg.addColorStop(0,'#5a6a84');rg.addColorStop(.6,'#34405a');rg.addColorStop(1,'#1c2436');}
   g.beginPath();g.arc(cx,cy,r,0,7);g.fillStyle=rg;g.fill();}
-/* OLED: same seven zones as the manual's drawing of the screen */
+/* OLED: same seven zones as the manual's drawing of the screen (p. 13) */
+function oledZone6(st){const D=bfxDef();
+  if(BF.show){const w=BF.showWhat;if(w==='ms')return [Math.round(bfxTime())+' ms'];if(w==='rev')return [BF.rev+' %'];if(w==='revT')return [BF.revT+' %'];if(w==='pitch')return [(BF.pitch>0?'+':'')+BF.pitch+' %'];if(w==='bpm')return [BF.tapBpm.toFixed(1)+' BPM'];}
+  if(D.pct)return [BF.rev+' %'];if(D.pitch)return [(BF.pitch>0?'+':'')+BF.pitch+' %'];
+  if(BF.timeMs!=null)return [Math.round(bfxTime())+' ms'];
+  const L=bfxBeats(),k=Math.min(BF.beat,L.length-1);return [L[k-1]||'',L[k],L[k+1]||''];}
+function oledKey(st){const blink=!blinkOn();
+  return [st.fxType,st.tap,BF.q,BF.q===2&&blink,st.tap?Math.round(BF.tapBpm):st.bpm,!st.tap&&st.bpmLost&&blink,oledZone6(st).join(','),bfxOut()&&blink,st.touch==null?'':Math.round(st.touch*200)].join('|');}
 function oledD(P,box,st){
-  const [x0,y0,x1,y1]=box,g=P.g,W=[236,240,246],w=x1-x0;P.rrect([x0-8,y0-8,x1+8,y1+8],3,[0,0,0],[70,72,78],2);
+  const [x0,y0,x1,y1]=box,g=P.g,W=[236,240,246],DIM=[70,72,76],w=x1-x0,blink=!blinkOn();P.rrect([x0-8,y0-8,x1+8,y1+8],3,[0,0,0],[70,72,78],2);
   const txt=(t,x,y,px,wt,al,col)=>{g.save();g.font=(wt||400)+' '+px+'px '+FACE_FONT;g.fillStyle=col?css(col):css(W);g.textAlign=al||'center';g.textBaseline='alphabetic';g.fillText(t,x,y);g.restore();};
+  /* 1 the effect's name */
   txt(st.fxType.replace(' ',''),(x0+x1)/2,y0+38,40);
-  P.rrect([x0+8,y0+52,x0+58,y0+66],2,null,W,1.4);txt('AUTO',x0+33,y0+63,11);txt('QUANTIZE',x0+33,y0+80,10,400,'center',st.quantize?W:[70,72,76]);
-  if(!(st.bpmLost&&!blinkOn()))txt(st.bpm==null?'---':String(st.bpm),x0+170,y0+86,42,300,'right');txt('BPM',x0+178,y0+84,17,400,'left');
-  const by=y0+98,cw=w/3;P.rrect([x0,by,x1,by+40],0,null,W,1.6);
-  for(let k=0;k<3;k++){const cx=x0+cw*(k+.5);if(k===1)P.rrect([x0+cw+3,by+3,x0+2*cw-3,by+37],0,W);if(k>0)P.line([[x0+cw*k,by+5],[x0+cw*k,by+35]],W,1.2);
-    txt(st.beat[k],cx,by+32,30,k===1?700:400,'center',k===1?[0,0,0]:W);}
+  /* 2 AUTO or TAP, 3 QUANTIZE (lit: grid received, blinking: not received) */
+  P.rrect([x0+8,y0+52,x0+58,y0+66],2,null,W,1.4);txt(st.tap?'TAP':'AUTO',x0+33,y0+63,11);
+  txt('QUANTIZE',x0+33,y0+80,10,400,'center',BF.q===1||(BF.q===2&&!blink)?W:DIM);
+  /* 4-5 the BPM, 3 digits; the last measured value blinks when nothing can be measured */
+  const bpm=st.tap?Math.round(BF.tapBpm):st.bpm;
+  if(st.tap||!(st.bpmLost&&blink))txt(bpm==null?'---':String(bpm),x0+170,y0+86,42,300,'right');txt('BPM',x0+178,y0+84,17,400,'left');
+  /* 6 beat / parameters: the chosen fraction in negative between its neighbours, or the value being set; blinks out of the limits */
+  const by=y0+98,cw=w/3,z=oledZone6(st);P.rrect([x0,by,x1,by+40],0,null,W,1.6);
+  if(!(bfxOut()&&blink)){
+    if(z.length===3)for(let k=0;k<3;k++){const cx=x0+cw*(k+.5);if(k===1)P.rrect([x0+cw+3,by+3,x0+2*cw-3,by+37],0,W);if(k>0)P.line([[x0+cw*k,by+5],[x0+cw*k,by+35]],W,1.2);
+      txt(z[k],cx,by+32,30,k===1?700:400,'center',k===1?[0,0,0]:W);}
+    else txt(z[0],(x0+x1)/2,by+31,28,500);}
   txt('BEAT',(x0+x1)/2,by+52,10);
+  /* 7 where the X-PAD is touched */
   const ty=by+66;P.line([[x0+4,ty],[x1-4,ty]],[90,92,96],1.4);for(let k=0;k<=8;k++){const tx=x0+4+(w-8)*k/8;P.line([[tx,ty-4],[tx,ty+2]],[90,92,96],1.2);}
-  if(st.touch!=null){const tx=x0+4+(w-8)*st.touch;P.rrect([x0+4,ty-4,tx,ty+3],1,W);}
+  if(st.touch!=null){const tx=x0+4+(w-8)*st.touch;P.rrect([x0+4,ty-4,Math.max(x0+8,tx),ty+3],1,W);}
 }
 function dotFrame(P,b,col){const [x0,y0,x1,y1]=b,g=P.g;g.fillStyle=css(col);const step=6.5;
   for(const inset of [3,8.5,14]){const a0=x0+inset,a1=x1-inset,c0=y0+inset,c1=y1-inset;
     for(let x=a0;x<=a1+.1;x+=step){g.beginPath();g.arc(x,c0,1.5,0,7);g.arc(x,c1,1.5,0,7);g.fill();}
     for(let y=c0+step;y<c1-.1;y+=step){g.beginPath();g.arc(a0,y,1.5,0,7);g.arc(a1,y,1.5,0,7);g.fill();}}}
+function xpadPads(P,st){const labels=[['1/16','1/8','1/4','1/2'],['3/4','1','2','4']];
+  labels.forEach((row,ri)=>row.forEach((t,k)=>{const cx=1849+k*86,cy=ri?1146:1037,c=[cx-38,cy-32,cx+38,cy+32];const on=st.pad===t;
+    P.rrect(c,4,on?[60,62,68]:[22,22,24]);dotFrame(P,c,on?[255,255,255]:[200,202,208]);
+    dT(P,cx,cy+1,t,38,'mm',[248,248,252]);}));}
 function xpadD(P,st){
   const b=[1796,988,2150,1196];P.rrect([b[0]-8,b[1]-8,b[2]+8,b[3]+8],10,[30,30,33],[90,90,96],2);P.gradient(b,[44,45,49],[20,20,22],8);P.rrect(b,8,null,[110,110,116],1.5);
   const labels=[['1/16','1/8','1/4','1/2'],['3/4','1','2','4']];
-  labels.forEach((row,ri)=>row.forEach((t,k)=>{const cx=1849+k*86,cy=ri?1146:1037,c=[cx-38,cy-32,cx+38,cy+32];const on=st.pad===t;
-    P.rrect(c,4,on?[60,62,68]:[22,22,24]);dotFrame(P,c,on?[255,255,255]:[200,202,208]);
-    dT(P,cx,cy+1,t,38,'mm',[248,248,252]);}));
+  if(!DYN)xpadPads(P,st);
   /* touch strip between the rows */
   const ty=1092;P.rrect([1812,ty-8,2134,ty+8],8,[60,62,66]);dotField(P,[1834,ty-5,2112,ty+5],[150,152,158],[230,232,238,200],5,1);
   P.polygon([[1812,ty],[1830,ty-12],[1830,ty+12]],[230,232,238]);P.polygon([[2134,ty],[2116,ty-12],[2116,ty+12]],[230,232,238]);

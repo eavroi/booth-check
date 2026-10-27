@@ -1237,6 +1237,10 @@ function dKnob(P,kind,cx,cy,r,v){
 }
 /* the angle of a selector position given as a clock direction in degrees (0 = up, clockwise) */
 const clk=d=>(d-90)*Math.PI/180;
+/* BEAT FX selectors: name, direction (degrees clockwise from the top), label position */
+const FXSEL_C=[1970,1711],FXSEL=[['DELAY',-146,1896.5,1777.5],['ECHO',-123.5,1881,1751],['PING PONG',-101,1847.5,1725],['SPIRAL',-77,1866.5,1696],['REVERB',-53,1871,1670],['TRANS',-30.5,1896.5,1643],['FILTER',-8,1929,1619],
+  ['FLANGER',12.5,2015,1619],['PHASER',34,2054,1643],['PITCH',56,2066.5,1670],['SLIP ROLL',78,2092.5,1696],['ROLL',100,2070,1725],['VINYL BRAKE',121,2085,1751],['HELIX',144,2042.5,1777.5]];
+const FXCH_C=[1972.5,1900],FXCH=[['B',-104,1888.5,1915],['A',-79,1887.5,1887.5],['MIC',-57,1889,1856],['1',-35,1925,1831.5],['2',-12,1955,1820],['3',11,1986,1820],['4',33,2014,1831.5],['MASTER',56,2074,1856]];
 /* rotary selectors, as on the real mixer: a smooth black knob crossed by a raised grey bar, a white line from the centre
    to the bar's tip, which passes the knob's edge on the pointing side */
 function selKnob(P,cx,cy,r,dirDeg){const g=P.g;
@@ -1258,6 +1262,8 @@ function kn(P,id,get,kind,cx,cy,r){dyn(P,()=>'kn|'+kind+'|'+Math.round(get()*100
 function sw(P,id,get,cx,cy,w,h){dyn(P,()=>'sw|'+w+'|'+get(),[cx-w/2-8,cy-h/2-8,cx+w/2+8,cy+h/2+8],P=>slideSwitch(P,cx,cy,w,h,get()));}
 const blinkOn=()=>Math.floor(performance.now()/400)%2===0;
 const clipOn=t=>!!t&&performance.now()/1000-t<.5;
+/* channel CLIP: blinks, or blinks fast when the sound is distorted (manual p. 11), for a second after the last peak */
+function chClipLit(ch){const t=performance.now()/1000;if(!ch.clip||t-ch.clip>1)return false;return Math.floor(t*(ch.clipLv===2?8:2.5)*2)%2===0;}
 /* lit parts */
 function glowBox(P,box,col,blur,strength){P.glow(q=>{q.fillRect(box[0],box[1],box[2]-box[0],box[3]-box[1]);},col,blur,strength==null?.9:strength);}
 function cueKey(P,cx,cy,lit,label){const b=[cx-70,cy-28,cx+70,cy+28],g=P.g;
@@ -1267,6 +1273,7 @@ function cueKey(P,cx,cy,lit,label){const b=[cx-70,cy-28,cx+70,cy+28],g=P.g;
   if(lit){lg.addColorStop(0,'#ffb27a');lg.addColorStop(.5,'#ff8a3c');lg.addColorStop(1,'#f0601c');}else{lg.addColorStop(0,'#7a4a2c');lg.addColorStop(1,'#4a2a16');}
   P.rr(b,9);g.fillStyle=lg;g.fill();P.rrect(b,9,null,lit?[255,200,160]:[130,90,60],2);
   dT(P,cx,cy+1,label||'CUE',30,'mm',lit?[40,16,4]:[24,12,4]);}
+function fxTagD(P,cx,cy,lit){dyn(P,()=>'fxtag|'+lit(),[cx-80,cy-26,cx+80,cy+26],P=>fxTag(P,cx,cy,lit()));}
 function fxTag(P,cx,cy,lit){const b=[cx-68,cy-15,cx+68,cy+15];if(lit)glowBox(P,b,[60,150,255],8,.8);
   P.rrect(b,3,lit?[70,160,255]:[22,48,90],lit?[170,215,255]:[40,80,140],2);dT(P,cx,cy+1,'BEAT FX',24,'mm',lit?[8,20,44]:[70,110,170]);}
 function clipTag(P,cx,cy,lit){const b=[cx-41,cy-15,cx+41,cy+15];P.rrect(b,3,[16,16,18],[60,60,64],2);if(lit)glowBox(P,[b[0]+6,b[1]+6,b[2]-6,b[3]-6],[255,40,40],6,.8);
@@ -1326,10 +1333,11 @@ function leftColumnD(P,st){
   P.line([[285,790],[298,790],[298,945],[285,945]],DPRINT,2.4);dT(P,300,888,'EQ',28,'lm');
   /* OFF / ON / TALK OVER */
   dT(P,155,1030,'OFF',24);dT(P,205,1030,'ON',24);dT(P,284,1030,'TALK OVER',22);
-  P.circle(350,1030,10,[230,20,40]);P.circle(350,1030,10,null,[120,10,20],2);
+  /* no microphone in Booth Check: the selector on OFF, so the indicator is off (lit on ON, blinking on TALK OVER: manual p. 12) */
+  P.circle(350,1030,10,[60,10,16]);P.circle(350,1030,10,null,[120,10,20],2);
   for(const x of [185,228])P.circle(x,1050,4,DPRINT);P.line([[185,1050],[228,1050]],DPRINT,2);
-  slideSwitch(P,205,1082,140,46,0);
-  fxTag(P,205,1162,st.fxCh==='MIC');
+  slideSwitch(P,205,1082,140,46,-1);
+  fxTagD(P,205,1162,()=>st.fxCh==='MIC');
   /* SOUND COLOR FX */
   dotField(P,[35,1240,380,1695],[50,51,55],[190,192,198,190],7.5,1.4);
   const scf=[['SPACE',90,1297],['DUB\nECHO',205,1297],['SWEEP',318,1297],['NOISE',90,1433],['CRUSH',205,1433],['FILTER',318,1433]];
@@ -1364,7 +1372,7 @@ function stripD(P,i,st){
   dyn(P,()=>'in|'+i+'|'+ch.input,[cx-80,318-80,cx+80,318+80],P=>selKnob(P,cx,318,53,pos[ch.input]));
   dT(P,cx+97,368,String(i+1),110,'mm',[244,245,248]);
   /* CLIP, TRIM */
-  dyn(P,()=>'clip|'+i+'|'+clipOn(ch.clip),[cx-90-50,433-24,cx-90+50,433+24],P=>clipTag(P,cx-90,433,clipOn(ch.clip)));dT(P,cx,433,'TRIM',30);dT(P,cx+83,431,['DECK 3/C','DECK 1/A','DECK 2/B','DECK 4/D'][i],22,'mm',DPRINT,'cond');
+  dyn(P,()=>'clip|'+i+'|'+chClipLit(ch),[cx-90-50,433-24,cx-90+50,433+24],P=>clipTag(P,cx-90,433,chClipLit(ch)));dT(P,cx,433,'TRIM',30);dT(P,cx+83,431,['DECK 3/C','DECK 1/A','DECK 2/B','DECK 4/D'][i],22,'mm',DPRINT,'cond');
   dScale(P,cx,510,46,{gap:16});kn(P,'trim'+i,()=>ch.trim,'grey',cx,510,46);dT(P,cx-48,571,'−∞',30,'rm');dT(P,cx+56,571,'+9',26);
   /* channel level indicator */
   const mx=cx-122;P.rrect([mx-15,500,mx+15,1178],8,[6,6,7],[46,46,50],2);
@@ -1380,7 +1388,7 @@ function stripD(P,i,st){
   dotField(P,[cx-140,1240,cx+140,1478],[34,34,37],[150,151,157,170],7.5,1.4);
   dT(P,cx,1268,'COLOR',30);P.arc(cx,1366,82,128,412,DPRINT,4);kn(P,'color'+i,()=>ch.color,'chrome',cx,1366,55);
   dT(P,cx-95,1448,'LOW',22);dT(P,cx+92,1448,'HI',22);
-  dyn(P,()=>'cue|'+ch.cue,[cx-90,1537-46,cx+90,1537+46],P=>cueKey(P,cx,1537,ch.cue));fxTag(P,cx,1637,st.fxCh===String(i+1));
+  dyn(P,()=>'cue|'+ch.cue,[cx-90,1537-46,cx+90,1537+46],P=>cueKey(P,cx,1537,ch.cue));fxTagD(P,cx,1637,()=>st.fxCh===String(i+1));
 }
 function faderSectionD(P,st){
   for(let i=0;i<4;i++){const cx=DM_STRIP[i],ch=st.ch[i];
@@ -1405,14 +1413,14 @@ function masterD(P,st){
   const x=DM_MX;
   band(P,1572,1750,201,'MASTER');dT(P,x,236,'LEVEL',30);dScale(P,x,316,52,{gap:16});kn(P,'master',()=>st.master,'std',x,316,52);
   dT(P,x-50,392,'−∞',30,'rm');dT(P,x+46,392,'0',24);P.arc(x,316,80,-50,10,DPRINT,4);
-  dyn(P,()=>'mclip|'+(st.mL>13||st.mR>13),[x-50,433-24,x+50,433+24],P=>clipTag(P,x,433,st.mL>13||st.mR>13));
+  dyn(P,()=>'mclip|'+clipOn(st.mClip),[x-50,433-24,x+50,433+24],P=>clipTag(P,x,433,clipOn(st.mClip)));
   const labels=['15','12','9','6','3','0','- 3','- 6','- 9','-12','-15','-18','-21','-24','-27'];
   for(const side of [-1,1]){const mx=x+side*48;P.rrect([mx-15,500,mx+15,1150],8,[6,6,7],[46,46,50],2);
     labels.forEach((l,k)=>{const y=528+k*43.3,col=k<2?[255,30,40]:k<6?[255,150,40]:[220,240,20],db=+l.replace(' ',''),lv=()=>side<0?st.mL:st.mR;dyn(P,()=>'led|'+k+'|'+(lv()>=db-1.5),[mx-20,y-20,mx+20,y+20],P=>meterLed(P,mx,y,col,lv()>=db-1.5));});}
   labels.forEach((l,k)=>dT(P,x+2,528+k*43.3,l,22));
   dT(P,x-48,1186,'L',22);dT(P,x,1186,'dB',22);dT(P,x+48,1186,'R',22);
   dT(P,x,1278,'BALANCE',30);dScale(P,x+4,1366,47,{gap:16});kn(P,'balance',()=>st.balance,'std',x+4,1366,47);dT(P,x-45,1440,'L',22);dT(P,x+52,1440,'R',22);
-  dyn(P,()=>'cue|'+st.cueMaster,[x-90,1537-46,x+90,1537+46],P=>cueKey(P,x,1537,st.cueMaster));fxTag(P,x,1637,st.fxCh==='MASTER');
+  dyn(P,()=>'cue|'+st.cueMaster,[x-90,1537-46,x+90,1537+46],P=>cueKey(P,x,1537,st.cueMaster));fxTagD(P,x,1637,()=>st.fxCh==='MASTER');
   dT(P,x,1726,'BOOTH MONITOR',29);dScale(P,x+2,1812,52,{gap:16});kn(P,'booth',()=>st.booth,'std',x+2,1812,52);dT(P,x-50,1882,'−∞',30,'rm');dT(P,x+46,1882,'0',24);
   P.line([[1575,1905],[1748,1905]],[120,120,126],2);
   dT(P,x,1936,'EQ CURVE',28);inverse(P,x-38,1961,'ISOLATOR',20);dT(P,x+28,1961,'EQ',22);for(const dx of [-26,-2])P.circle(x+dx,1978,4,DPRINT);
@@ -1447,37 +1455,35 @@ function fxD(P,st){
   band(P,1785,2160,625,'BEAT FX');
   const gp=[1784,646,2160,1464],g=P.g;P.rrect([gp[0]-3,gp[1]-3,gp[2]+3,gp[3]+3],12,[2,2,3]);P.rrect(gp,10,[10,10,12],[64,64,70],2);
   const lg=g.createLinearGradient(gp[0],gp[1],gp[2],gp[1]+260);lg.addColorStop(0,'rgba(255,255,255,.10)');lg.addColorStop(.5,'rgba(255,255,255,.02)');lg.addColorStop(.5001,'rgba(0,0,0,0)');g.fillStyle=lg;g.save();P.rr([gp[0],gp[1],gp[2],gp[1]+300],10);g.clip();g.fillRect(gp[0],gp[1],gp[2]-gp[0],300);g.restore();
-  dyn(P,()=>'oled|'+st.bpm+'|'+(st.bpmLost&&!blinkOn())+'|'+st.quantize,[1844,688,2102,894],P=>oledD(P,[1860,704,2086,878],st));
+  dyn(P,()=>'oled|'+oledKey(st),[1844,688,2102,894],P=>oledD(P,[1860,704,2086,878],st));
   dT(P,x,952,'X-PAD',30);
   xpadD(P,st);
+  dyn(P,()=>'xpads|'+st.pad,[1796,988,2150,1196],P=>xpadPads(P,st));
   for(const [bx,dir] of [[1855,-1],[2085,1]]){const b=[bx-56,1230,bx+56,1286];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);P.gradient(b,[56,56,60],[24,24,26],6);P.rrect(b,6,null,[96,96,102],1.5);
     P.polygon(dir<0?[[bx+14,1246],[bx+14,1270],[bx-16,1258]]:[[bx-14,1246],[bx-14,1270],[bx+16,1258]],[240,240,244]);}
   P.line([[1917,1232],[2023,1232]],DPRINT,2);P.line([[1917,1284],[2023,1284]],DPRINT,2);dT(P,x,1259,'BEAT',28);
   dT(P,1845,1316,'AUTO',22);dT(P,1845,1338,'/TAP',22);roundKey(P,1845,1392,26,null);
-  P.circle(1972,1372,52,[8,8,9],[70,70,76],2);if(st.tap)P.glow(q=>{q.lineWidth=10;q.beginPath();q.arc(1972,1372,39,0,7);q.stroke();},[40,255,110],8,.9);
-  P.circle(1972,1372,42,null,st.tap?[70,255,130]:[30,110,60],6);P.dome(1972,1372,36,[18,18,20]);dT(P,1972,1373,'TAP',26,'mm',st.tap?[80,255,140]:[40,130,70],true);
+  dyn(P,()=>'tap|'+st.tap,[1912,1312,2032,1432],P=>{P.circle(1972,1372,52,[8,8,9],[70,70,76],2);if(st.tap)P.glow(q=>{q.lineWidth=10;q.beginPath();q.arc(1972,1372,39,0,7);q.stroke();},[40,255,110],8,.9);
+    P.circle(1972,1372,42,null,st.tap?[70,255,130]:[30,110,60],6);P.dome(1972,1372,36,[18,18,20]);dT(P,1972,1373,'TAP',26,'mm',st.tap?[80,255,140]:[40,130,70],true);});
   P.g.beginPath();[[2048,1308],[2056,1302],[2064,1308],[2064,1318],[2056,1324],[2048,1318]].forEach((p,i)=>i?P.g.lineTo(p[0],p[1]):P.g.moveTo(p[0],p[1]));P.g.closePath();P.g.strokeStyle=css(DPRINT);P.g.lineWidth=2.4;P.g.stroke();P.circle(2056,1313,3,DPRINT);dT(P,2070,1314,'QUANTIZE',22,'lm');P.line([[2056,1338],[2072,1338]],DPRINT_DIM,2);dT(P,2078,1338,'UTILITY',22,'lm',DPRINT_DIM);
-  roundKey(P,2095,1392,26,st.quantize?[255,40,70]:[110,20,30]);inverse(P,2095,1438,'WAKE UP',16);
+  dyn(P,()=>'qkey|'+st.quantize,[2055,1352,2135,1432],P=>roundKey(P,2095,1392,26,st.quantize?[255,40,70]:[110,20,30]));inverse(P,2095,1438,'WAKE UP',16);
   /* FX FREQUENCY */
   dT(P,x,1486,'FX FREQUENCY',28);
-  for(const [t,bx] of [['LOW',1840],['MID',1970],['HI',2100]]){const on=st.freq[t],b=[bx-50,1508,bx+50,1566];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);
+  for(const [t,bx] of [['LOW',1840],['MID',1970],['HI',2100]])dyn(P,()=>'ffq|'+t+'|'+st.freq[t],[bx-64,1494,bx+64,1582],P=>{const on=st.freq[t],b=[bx-50,1508,bx+50,1566];P.rrect([b[0]-3,b[1]-3,b[2]+3,b[3]+4],8,[2,2,3]);
     if(on)glowBox(P,b,[60,150,255],10,.85);P.gradient(b,on?[60,120,220]:[18,30,60],on?[30,70,170]:[10,18,40],6);P.rrect(b,6,null,on?[150,205,255]:[40,70,130],4);P.rrect([b[0]+8,b[1]+8,b[2]-8,b[3]-8],3,on?[30,64,150]:[10,16,34]);
-    dT(P,bx,1538,t,26,'mm',on?[170,215,255]:[70,100,160],true);}
+    dT(P,bx,1538,t,26,'mm',on?[170,215,255]:[70,100,160],true);});
   /* FX type selector (positions and angles measured on the real mixer) */
-  const types=[['DELAY',-146,1896.5,1777.5],['ECHO',-123.5,1881,1751],['PING PONG',-101,1847.5,1725],['SPIRAL',-77,1866.5,1696],['REVERB',-53,1871,1670],['TRANS',-30.5,1896.5,1643],['FILTER',-8,1929,1619],
-    ['FLANGER',12.5,2015,1619],['PHASER',34,2054,1643],['PITCH',56,2066.5,1670],['SLIP ROLL',78,2092.5,1696],['ROLL',100,2070,1725],['VINYL BRAKE',121,2085,1751],['HELIX',144,2042.5,1777.5]];
-  const fx=[1970,1711],fr=50;
-  for(const [t,d,lx,ly] of types){const a=clk(d);P.line([[fx[0]+(fr+9)*Math.cos(a),fx[1]+(fr+9)*Math.sin(a)],[fx[0]+(fr+24)*Math.cos(a),fx[1]+(fr+24)*Math.sin(a)]],DPRINT,2.6);
+  const fx=FXSEL_C,fr=50;
+  for(const [t,d,lx,ly] of FXSEL){const a=clk(d);P.line([[fx[0]+(fr+9)*Math.cos(a),fx[1]+(fr+9)*Math.sin(a)],[fx[0]+(fr+24)*Math.cos(a),fx[1]+(fr+24)*Math.sin(a)]],DPRINT,2.6);
     dT(P,lx,ly,t,t==='VINYL BRAKE'?22:24,'mm',DPRINT,t==='HELIX');}
-  selKnob(P,fx[0],fx[1],fr,types.find(t=>t[0]===st.fxType)[1]);
+  dyn(P,()=>'fxsel|'+st.fxType,[fx[0]-fr-8,fx[1]-fr-8,fx[0]+fr+8,fx[1]+fr+8],P=>selKnob(P,fx[0],fx[1],fr,FXSEL.find(t=>t[0]===st.fxType)[1]));
   /* FX channel selector */
-  const chs=[['B',-104,1888.5,1915],['A',-79,1887.5,1887.5],['MIC',-57,1889,1856],['1',-35,1925,1831.5],['2',-12,1955,1820],['3',11,1986,1820],['4',33,2014,1831.5],['MASTER',56,2074,1856]];
-  const cs=[1972.5,1900],cr=52;dT(P,1844,1890,'CROSS',22,'mm',DPRINT,'cond');dT(P,1845,1910,'FADER',22,'mm',DPRINT,'cond');
-  for(const [t,d,lx,ly] of chs){const a=clk(d);P.line([[cs[0]+(cr+9)*Math.cos(a),cs[1]+(cr+9)*Math.sin(a)],[cs[0]+(cr+24)*Math.cos(a),cs[1]+(cr+24)*Math.sin(a)]],DPRINT,2.6);dT(P,lx,ly,t,26);}
-  selKnob(P,cs[0],cs[1],cr,chs.find(c=>c[0]===st.fxCh)[1]);
+  const cs=FXCH_C,cr=52;dT(P,1844,1890,'CROSS',22,'mm',DPRINT,'cond');dT(P,1845,1910,'FADER',22,'mm',DPRINT,'cond');
+  for(const [t,d,lx,ly] of FXCH){const a=clk(d);P.line([[cs[0]+(cr+9)*Math.cos(a),cs[1]+(cr+9)*Math.sin(a)],[cs[0]+(cr+24)*Math.cos(a),cs[1]+(cr+24)*Math.sin(a)]],DPRINT,2.6);dT(P,lx,ly,t,26);}
+  dyn(P,()=>'fxch|'+st.fxCh,[cs[0]-cr-8,cs[1]-cr-8,cs[0]+cr+8,cs[1]+cr+8],P=>selKnob(P,cs[0],cs[1],cr,FXCH.find(c=>c[0]===st.fxCh)[1]));
   dT(P,x,2018,'TIME',30);dKnob(P,'enc',1972,2098,53,0);
-  dT(P,x,2238,'LEVEL / DEPTH',30);dScale(P,1972,2326,53,{gap:16});dKnob(P,'std',1972,2326,53,st.depth);dT(P,1918,2400,'MIN',24);dT(P,2028,2400,'MAX',24);
-  dT(P,x,2444,'ON/OFF',30);bigBlue(P,1970,2540,62,st.fxOn);
+  dT(P,x,2238,'LEVEL / DEPTH',30);dScale(P,1972,2326,53,{gap:16});kn(P,'depth',()=>st.depth,'std',1972,2326,53);dT(P,1918,2400,'MIN',24);dT(P,2028,2400,'MAX',24);
+  dT(P,x,2444,'ON/OFF',30);dyn(P,()=>'fxon|'+(bfxActive()&&blinkOn()),[1890,2460,2050,2620],P=>bigBlue(P,1970,2540,62,bfxActive()&&blinkOn()));  /* ON/OFF blinks while the effect is on (manual p. 14) */
   /* model line: the mixer's own name replaced by the site's, as on the CDJ */
   dT(P,1830,2658,'PROFESSIONAL MIXER',24,'rm');dT(P,1846,2654,'BOOTH CHECK',40,'lm',[232,234,238]);
 }
@@ -1487,30 +1493,48 @@ function bigBlue(P,cx,cy,r,on){const g=P.g;P.circle(cx,cy,r+14,[6,6,7]);P.circle
   const rg=g.createRadialGradient(cx-r*.2,cy-r*.25,r*.1,cx,cy,r);
   if(on){rg.addColorStop(0,'#d8f0ff');rg.addColorStop(.55,'#7fc0ff');rg.addColorStop(1,'#3a78e0');}else{rg.addColorStop(0,'#5a6a84');rg.addColorStop(.6,'#34405a');rg.addColorStop(1,'#1c2436');}
   g.beginPath();g.arc(cx,cy,r,0,7);g.fillStyle=rg;g.fill();}
-/* OLED: same seven zones as the manual's drawing of the screen */
+/* OLED: same seven zones as the manual's drawing of the screen (p. 13) */
+function oledZone6(st){const D=bfxDef();
+  if(BF.show){const w=BF.showWhat;if(w==='ms')return [Math.round(bfxTime())+' ms'];if(w==='rev')return [BF.rev+' %'];if(w==='revT')return [BF.revT+' %'];if(w==='pitch')return [(BF.pitch>0?'+':'')+BF.pitch+' %'];if(w==='bpm')return [BF.tapBpm.toFixed(1)+' BPM'];}
+  if(D.pct)return [BF.rev+' %'];if(D.pitch)return [(BF.pitch>0?'+':'')+BF.pitch+' %'];
+  if(BF.timeMs!=null)return [Math.round(bfxTime())+' ms'];
+  const L=bfxBeats(),k=Math.min(BF.beat,L.length-1);return [L[k-1]||'',L[k],L[k+1]||''];}
+function oledKey(st){const blink=!blinkOn();
+  return [st.fxType,st.tap,BF.q,BF.q===2&&blink,st.tap?Math.round(BF.tapBpm):st.bpm,!st.tap&&st.bpmLost&&blink,oledZone6(st).join(','),bfxOut()&&blink,st.touch==null?'':Math.round(st.touch*200)].join('|');}
 function oledD(P,box,st){
-  const [x0,y0,x1,y1]=box,g=P.g,W=[236,240,246],w=x1-x0;P.rrect([x0-8,y0-8,x1+8,y1+8],3,[0,0,0],[70,72,78],2);
+  const [x0,y0,x1,y1]=box,g=P.g,W=[236,240,246],DIM=[70,72,76],w=x1-x0,blink=!blinkOn();P.rrect([x0-8,y0-8,x1+8,y1+8],3,[0,0,0],[70,72,78],2);
   const txt=(t,x,y,px,wt,al,col)=>{g.save();g.font=(wt||400)+' '+px+'px '+FACE_FONT;g.fillStyle=col?css(col):css(W);g.textAlign=al||'center';g.textBaseline='alphabetic';g.fillText(t,x,y);g.restore();};
+  /* 1 the effect's name */
   txt(st.fxType.replace(' ',''),(x0+x1)/2,y0+38,40);
-  P.rrect([x0+8,y0+52,x0+58,y0+66],2,null,W,1.4);txt('AUTO',x0+33,y0+63,11);txt('QUANTIZE',x0+33,y0+80,10,400,'center',st.quantize?W:[70,72,76]);
-  if(!(st.bpmLost&&!blinkOn()))txt(st.bpm==null?'---':String(st.bpm),x0+170,y0+86,42,300,'right');txt('BPM',x0+178,y0+84,17,400,'left');
-  const by=y0+98,cw=w/3;P.rrect([x0,by,x1,by+40],0,null,W,1.6);
-  for(let k=0;k<3;k++){const cx=x0+cw*(k+.5);if(k===1)P.rrect([x0+cw+3,by+3,x0+2*cw-3,by+37],0,W);if(k>0)P.line([[x0+cw*k,by+5],[x0+cw*k,by+35]],W,1.2);
-    txt(st.beat[k],cx,by+32,30,k===1?700:400,'center',k===1?[0,0,0]:W);}
+  /* 2 AUTO or TAP, 3 QUANTIZE (lit: grid received, blinking: not received) */
+  P.rrect([x0+8,y0+52,x0+58,y0+66],2,null,W,1.4);txt(st.tap?'TAP':'AUTO',x0+33,y0+63,11);
+  txt('QUANTIZE',x0+33,y0+80,10,400,'center',BF.q===1||(BF.q===2&&!blink)?W:DIM);
+  /* 4-5 the BPM, 3 digits; the last measured value blinks when nothing can be measured */
+  const bpm=st.tap?Math.round(BF.tapBpm):st.bpm;
+  if(st.tap||!(st.bpmLost&&blink))txt(bpm==null?'---':String(bpm),x0+170,y0+86,42,300,'right');txt('BPM',x0+178,y0+84,17,400,'left');
+  /* 6 beat / parameters: the chosen fraction in negative between its neighbours, or the value being set; blinks out of the limits */
+  const by=y0+98,cw=w/3,z=oledZone6(st);P.rrect([x0,by,x1,by+40],0,null,W,1.6);
+  if(!(bfxOut()&&blink)){
+    if(z.length===3)for(let k=0;k<3;k++){const cx=x0+cw*(k+.5);if(k===1)P.rrect([x0+cw+3,by+3,x0+2*cw-3,by+37],0,W);if(k>0)P.line([[x0+cw*k,by+5],[x0+cw*k,by+35]],W,1.2);
+      txt(z[k],cx,by+32,30,k===1?700:400,'center',k===1?[0,0,0]:W);}
+    else txt(z[0],(x0+x1)/2,by+31,28,500);}
   txt('BEAT',(x0+x1)/2,by+52,10);
+  /* 7 where the X-PAD is touched */
   const ty=by+66;P.line([[x0+4,ty],[x1-4,ty]],[90,92,96],1.4);for(let k=0;k<=8;k++){const tx=x0+4+(w-8)*k/8;P.line([[tx,ty-4],[tx,ty+2]],[90,92,96],1.2);}
-  if(st.touch!=null){const tx=x0+4+(w-8)*st.touch;P.rrect([x0+4,ty-4,tx,ty+3],1,W);}
+  if(st.touch!=null){const tx=x0+4+(w-8)*st.touch;P.rrect([x0+4,ty-4,Math.max(x0+8,tx),ty+3],1,W);}
 }
 function dotFrame(P,b,col){const [x0,y0,x1,y1]=b,g=P.g;g.fillStyle=css(col);const step=6.5;
   for(const inset of [3,8.5,14]){const a0=x0+inset,a1=x1-inset,c0=y0+inset,c1=y1-inset;
     for(let x=a0;x<=a1+.1;x+=step){g.beginPath();g.arc(x,c0,1.5,0,7);g.arc(x,c1,1.5,0,7);g.fill();}
     for(let y=c0+step;y<c1-.1;y+=step){g.beginPath();g.arc(a0,y,1.5,0,7);g.arc(a1,y,1.5,0,7);g.fill();}}}
+function xpadPads(P,st){const labels=[['1/16','1/8','1/4','1/2'],['3/4','1','2','4']];
+  labels.forEach((row,ri)=>row.forEach((t,k)=>{const cx=1849+k*86,cy=ri?1146:1037,c=[cx-38,cy-32,cx+38,cy+32];const on=st.pad===t;
+    P.rrect(c,4,on?[60,62,68]:[22,22,24]);dotFrame(P,c,on?[255,255,255]:[200,202,208]);
+    dT(P,cx,cy+1,t,38,'mm',[248,248,252]);}));}
 function xpadD(P,st){
   const b=[1796,988,2150,1196];P.rrect([b[0]-8,b[1]-8,b[2]+8,b[3]+8],10,[30,30,33],[90,90,96],2);P.gradient(b,[44,45,49],[20,20,22],8);P.rrect(b,8,null,[110,110,116],1.5);
   const labels=[['1/16','1/8','1/4','1/2'],['3/4','1','2','4']];
-  labels.forEach((row,ri)=>row.forEach((t,k)=>{const cx=1849+k*86,cy=ri?1146:1037,c=[cx-38,cy-32,cx+38,cy+32];const on=st.pad===t;
-    P.rrect(c,4,on?[60,62,68]:[22,22,24]);dotFrame(P,c,on?[255,255,255]:[200,202,208]);
-    dT(P,cx,cy+1,t,38,'mm',[248,248,252]);}));
+  if(!DYN)xpadPads(P,st);
   /* touch strip between the rows */
   const ty=1092;P.rrect([1812,ty-8,2134,ty+8],8,[60,62,66]);dotField(P,[1834,ty-5,2112,ty+5],[150,152,158],[230,232,238,200],5,1);
   P.polygon([[1812,ty],[1830,ty-12],[1830,ty+12]],[230,232,238]);P.polygon([[2134,ty],[2116,ty-12],[2116,ty+12]],[230,232,238]);
@@ -1735,12 +1759,13 @@ function getAnalysis(tr){
 
 /* ---------------- the mixer (after the DJM-900NXS2): state, audio routing, SOUND COLOR FX, level meters, headphones ----------------
    Signal path of one channel, as in the manual's block diagram: input selector, TRIM, SOUND COLOR FX, EQ/ISO, then the level meter
-   and the CUE send (before the fader), the channel fader and the crossfader assign. Then MASTER LEVEL, BALANCE and the peak limiter. */
+   and the CUE send (before the fader), the channel fader and the crossfader assign. Then MASTER LEVEL, BALANCE and the peak limiter.
+   BEAT FX (beatfx.js) goes into one of the "slots": before or after a channel fader, on a crossfader side, or before MASTER LEVEL. */
 const CH_OF=[2,3,1,4];                       /* the order players are added in: channel 2 first, then 3, 1, 4 */
 const MS={on:false,param:.5,color:null,master:.5,balance:.5,booth:.5,cueMaster:false,mixing:.5,phLevel:.6,mono:-1,eqCurve:1,chCurve:0,xfCurve:0,xfader:0,
-  midi:false,cueLink:false,fxType:'PING PONG',fxCh:'MASTER',bpm:null,beat:['1/2','3/4','1'],touch:null,quantize:false,tap:false,freq:{LOW:true,MID:true,HI:true},fxOn:false,sendOn:false,depth:.5,pad:null,
+  midi:false,cueLink:false,fxType:'REVERB',fxCh:'MASTER',bpm:null,touch:null,quantize:false,tap:false,freq:{LOW:true,MID:true,HI:true},fxOn:false,sendOn:false,depth:.5,pad:null,
   mL:-99,mR:-99,
-  ch:[0,1,2,3].map(()=>({input:'DIGITAL',trim:.5,hi:.5,mid:.5,low:.5,color:.5,cue:false,fader:1,xf:0,level:-99,clip:0})),
+  ch:[0,1,2,3].map(()=>({input:'DIGITAL',trim:.5,hi:.5,mid:.5,low:.5,color:.5,cue:false,fader:1,xf:0,level:-99,clip:0,clipLv:0})),mClip:0,
   phones:'',phonesName:'',dirty:true};
 const MIX={N:null,fxReady:false,ir:null,irP:-1,noise:null};
 /* ---------- value curves ---------- */
@@ -1756,16 +1781,20 @@ function xfGains(x,curve){const t=(x+1)/2;
 /* MASTER LEVEL at 12 o'clock gives the level the V2.5 gave at 80 %; turned fully up, 0 dB */
 const masterGain=v=>Math.pow(v,.8);
 /* ---------- the audio graph ---------- */
+/* a place where BEAT FX can be put: in -> out, or in -> effect -> out */
+function mkSlot(c){const s={in:c.createGain(),out:c.createGain(),fx:null};s.in.connect(s.out);return s;}
 function mixBuild(){
-  const c=AU.ctx,N={ch:[]};MIX.N=N;
+  const c=AU.ctx,N={ch:[]};MIX.N=N;MIX.bfx=null;
   N.bypass=c.createGain();N.bypass.connect(AU.out);
   N.mSum=c.createGain();N.mLevel=c.createGain();N.split=c.createChannelSplitter(2);N.bl=c.createGain();N.br=c.createGain();N.merge=c.createChannelMerger(2);
   N.lim=c.createDynamicsCompressor();N.lim.threshold.value=-1;N.lim.knee.value=0;N.lim.ratio.value=20;N.lim.attack.value=.002;N.lim.release.value=.12;
   N.mixOn=c.createGain();
-  N.mSum.connect(N.mLevel);N.mLevel.connect(N.split);N.split.connect(N.bl,0);N.split.connect(N.br,1);N.bl.connect(N.merge,0,0);N.br.connect(N.merge,0,1);
+  N.sM=mkSlot(c);N.sA=mkSlot(c);N.sB=mkSlot(c);N.sA.out.connect(N.mSum);N.sB.out.connect(N.mSum);
+  N.mSum.connect(N.sM.in);N.sM.out.connect(N.mLevel);N.mLevel.connect(N.split);N.split.connect(N.bl,0);N.split.connect(N.br,1);N.bl.connect(N.merge,0,0);N.br.connect(N.merge,0,1);
   N.merge.connect(N.lim);N.lim.connect(N.mixOn);N.mixOn.connect(AU.out);
   N.aL=c.createAnalyser();N.aR=c.createAnalyser();for(const a of [N.aL,N.aR])a.fftSize=1024;
-  const ms=c.createChannelSplitter(2);N.lim.connect(ms);ms.connect(N.aL,0);ms.connect(N.aR,1);
+  /* the master level meter and CLIP read the sound before the peak limiter (manual p. 8: CLIP lights when MASTER sends excessive levels) */
+  const ms=c.createChannelSplitter(2);N.merge.connect(ms);ms.connect(N.aL,0);ms.connect(N.aR,1);
   N.buf=new Float32Array(1024);
   /* headphones: the CUE mix and the master, blended by MIXING; MONO SPLIT puts the cue on the left and the master on the right */
   N.cueSum=c.createGain();N.cueMaster=c.createGain();N.lim.connect(N.cueMaster);N.cueMaster.connect(N.cueSum);
@@ -1790,9 +1819,13 @@ function mixBuild(){
     C.cOut.connect(lo[0]);lo[1].connect(ap);ap.connect(C.gLo);C.cOut.connect(hi1[0]);hi1[1].connect(mid[0]);hi1[1].connect(hi[0]);mid[1].connect(C.gMid);hi[1].connect(C.gHi);
     for(const g of [C.gLo,C.gMid,C.gHi])g.connect(C.eq);
     C.an=c.createAnalyser();C.an.fftSize=1024;C.eq.connect(C.an);
-    C.cue=c.createGain();C.eq.connect(C.cue);C.cue.connect(N.cueSum);
+    /* BEAT FX slot before the fader (heard with CUE), and after it (the echoes and reverbs that go on when the fader comes down) */
+    C.pre=mkSlot(c);C.post=mkSlot(c);C.eq.connect(C.pre.in);
+    C.cue=c.createGain();C.pre.out.connect(C.cue);C.cue.connect(N.cueSum);
     /* channel fader, then the crossfader assign (SPACE and DUB ECHO come back between the two) */
-    C.fader=c.createGain();C.xfg=c.createGain();C.eq.connect(C.fader);C.fader.connect(C.xfg);C.xfg.connect(N.mSum);
+    C.fader=c.createGain();C.xfg=c.createGain();C.pre.out.connect(C.fader);C.fader.connect(C.post.in);C.post.out.connect(C.xfg);
+    C.toA=c.createGain();C.toB=c.createGain();C.toT=c.createGain();C.xfg.connect(C.toA);C.xfg.connect(C.toB);C.xfg.connect(C.toT);
+    C.toA.connect(N.sA.in);C.toB.connect(N.sB.in);C.toT.connect(N.mSum);
   }
   mixApply();loadFxWorklet();
 }
@@ -1807,7 +1840,7 @@ function mixApply(){
     setP(C.sel.gain,ch.input==='DIGITAL'||ch.input==='LINE'?1:0);setP(C.trim.gain,trimGain(ch.trim));
     const iso=MS.eqCurve<0;setP(C.gLo.gain,eqGain(ch.low,iso));setP(C.gMid.gain,eqGain(ch.mid,iso));setP(C.gHi.gain,eqGain(ch.hi,iso));
     setP(C.cue.gain,ch.cue?1:0);
-    setP(C.fader.gain,chFaderGain(ch.fader,MS.chCurve));setP(C.xfg.gain,ch.xf<0?gA:ch.xf>0?gB:1);
+    setP(C.fader.gain,chFaderGain(ch.fader,MS.chCurve));setP(C.xfg.gain,ch.xf<0?gA:ch.xf>0?gB:1);setP(C.toA.gain,ch.xf<0?1:0);setP(C.toB.gain,ch.xf>0?1:0);setP(C.toT.gain,ch.xf===0?1:0);
     colorParams(i);});
   setP(N.mLevel.gain,masterGain(MS.master));setP(N.bl.gain,Math.min(1,2*(1-MS.balance)));setP(N.br.gain,Math.min(1,2*MS.balance));
   setP(N.cueMaster.gain,MS.cueMaster?1:0);
@@ -1836,7 +1869,8 @@ const FX_SRC=`class BcFx extends AudioWorkletProcessor{
       else for(let c=0;c<O.length;c++)O[c][i]=(I[c]||I[0])[i];}
     return true;}}
 registerProcessor('bc-fx',BcFx);`;
-async function loadFxWorklet(){try{const c=AU.ctx;if(!c.audioWorklet)return;const u=URL.createObjectURL(new Blob([FX_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);MIX.fxReady=true;if(MS.color)colorBuild();}catch(e){MIX.fxReady=false;}}
+/* one load per audio context (the same promise for every caller, so nothing is built late in another graph) */
+function loadFxWorklet(){const c=AU.ctx;if(!c.audioWorklet)return Promise.resolve();if(!c._bcFx)c._bcFx=(async()=>{try{const u=URL.createObjectURL(new Blob([FX_SRC,BFX_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);MIX.fxReady=true;if(MS.color)colorBuild();bfxBuild();}catch(e){MIX.fxReady=false;}})();return c._bcFx;}
 function noiseBuf(){if(MIX.noise&&MIX.noise.sampleRate===AU.ctx.sampleRate)return MIX.noise;const c=AU.ctx,b=c.createBuffer(2,c.sampleRate*2,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}return MIX.noise=b;}
 /* SPACE: a stereo reverb tail; PARAMETER ("feedback") makes it last longer, the high end dies out faster than the rest */
 function reverbIR(p){const c=AU.ctx,sr=c.sampleRate,rt=.6+p*4.4,len=Math.round(sr*Math.min(6,rt*1.1)),b=c.createBuffer(2,len,sr);
@@ -1911,26 +1945,22 @@ function colorParams(i){
 /* BEAT FX screen, AUTO mode: the BPM measured on the channel the FX channel selector picks (70 to 180 BPM, manual p. 13);
    when nothing can be measured the last value stays and blinks. Here the BPM comes from the players that are heard there. */
 function fxBpmTick(){
-  const c=MS.fxCh,heard=d=>d.loaded()&&d.playing&&MS.ch[d.ch-1].input==='DIGITAL'&&MS.ch[d.ch-1].level>-40;
-  let src=DECKS.filter(heard);
-  if(/^[1-4]$/.test(c))src=src.filter(d=>d.ch===+c);
-  else if(c==='A'||c==='B')src=src.filter(d=>MS.ch[d.ch-1].xf===(c==='A'?-1:1)&&MS.ch[d.ch-1].fader>0);
-  else if(c==='MASTER')src=src.filter(d=>MS.ch[d.ch-1].fader>0);
-  else src=[];
-  src.sort((a,b)=>MS.ch[b.ch-1].level-MS.ch[a.ch-1].level);
-  const bpm=src.length?src[0].bpmNow():0;
+  const d=fxSrcDeck(),bpm=d?d.bpmNow():0;
   if(bpm>=70&&bpm<=180){const v=Math.round(bpm);if(v!==MS.bpm||MS.bpmLost){MS.bpm=v;MS.bpmLost=false;}}
   else if(MS.bpm!=null)MS.bpmLost=true;
 }
 function setColor(t){MS.color=MS.color===t?null:t;ensureCtx();colorBuild();MS.dirty=true;}
-/* ---------- level meters: peak, fast attack, falling 20 dB a second; 0 on the meter = -9 dBFS ---------- */
+/* ---------- level meters: peak, fast attack, falling 20 dB a second; 0 on the meter = -9 dBFS ----------
+   Channel CLIP (manual p. 11): blinks when the level gets near distortion, blinks fast when the sound is distorted.
+   Thresholds (+6 and +9 on the meter, i.e. -3 and 0 dBFS) and the master CLIP at 0 dBFS before the limiter: first settings, to check on the real mixer. */
+const CLIP_SLOW=6,CLIP_FAST=9,CLIP_MASTER=9;
 function peakDb(an,buf){an.getFloatTimeDomainData(buf);let m=0;for(let i=0;i<buf.length;i++){const v=Math.abs(buf[i]);if(v>m)m=v;}return m>0?20*Math.log10(m)+9:-99;}
 let METER_T=0;
 function mixMeters(){
   const N=MIX.N;if(!N)return;const t=now(),dt=Math.min(.1,t-(METER_T||t));METER_T=t;const fall=20*dt;
   const upd=(old,v)=>v>=old?v:Math.max(v,old-fall);
-  MS.ch.forEach((ch,i)=>{const v=peakDb(N.ch[i].an,N.buf);const lv=upd(ch.level,v);if(Math.round(lv/3)!==Math.round(ch.level/3))MS.dirty=true;ch.level=lv;if(v>13){ch.clip=t;MS.dirty=true;}});
-  const l=upd(MS.mL,peakDb(N.aL,N.buf)),r=upd(MS.mR,peakDb(N.aR,N.buf));if(Math.round(l/3)!==Math.round(MS.mL/3)||Math.round(r/3)!==Math.round(MS.mR/3))MS.dirty=true;MS.mL=l;MS.mR=r;
+  MS.ch.forEach((ch,i)=>{const v=peakDb(N.ch[i].an,N.buf);const lv=upd(ch.level,v);if(Math.round(lv/3)!==Math.round(ch.level/3))MS.dirty=true;ch.level=lv;if(v>=CLIP_SLOW){if(v>=CLIP_FAST)ch.clipT=t;ch.clip=t;ch.clipLv=t-(ch.clipT||-9)<1?2:1;MS.dirty=true;}});
+  const l=upd(MS.mL,peakDb(N.aL,N.buf)),r=upd(MS.mR,peakDb(N.aR,N.buf));if(Math.round(l/3)!==Math.round(MS.mL/3)||Math.round(r/3)!==Math.round(MS.mR/3))MS.dirty=true;MS.mL=l;MS.mR=r;if(Math.max(l,r)>=CLIP_MASTER)MS.mClip=t;
 }
 /* ---------- headphones on a second audio output ---------- */
 const PH={ctx:null,el:null,dest:null};
@@ -1951,6 +1981,224 @@ async function setPhones(id,name){
     MS.phones=id;MS.phonesName=name||'';MS.dirty=true;return true;
   }catch(e){toast(say('Sortie casque impossible : ','Headphone output failed: ')+(e&&e.message||e),5000);return false;}
 }
+
+/* ---------------- BEAT FX of the DJM-900NXS2 (manual p. 13-18): 14 effects timed on the BPM ----------------
+   What every control does comes from the manual. The amounts the manual does not give (number and strength of the repeats,
+   reverb length, filter type and range, flanger / phaser depth, X-PAD response, FX FREQUENCY crossovers) are first settings,
+   marked "à caler": they are to be checked against a recording of the real mixer (kit tests/kit_djm.py). */
+/* the effects in the selector's order; post = fed after the channel fader, so the echo goes on when the fader comes down and
+   is not heard with the channel CUE (manual p. 16-18, note 1). The others sit before the fader (reading of note 1, to check). */
+const BFX=[
+  {n:'DELAY',post:1,tmin:1,tmax:4000},{n:'ECHO',post:1,tmin:1,tmax:4000},{n:'PING PONG',post:1,tmin:1,tmax:4000},{n:'SPIRAL',post:1,tmin:10,tmax:4000},
+  {n:'REVERB',post:1,pct:1},{n:'TRANS',tmin:10,tmax:16000},{n:'FILTER',tmin:10,tmax:32000,b64:1},{n:'FLANGER',tmin:10,tmax:32000,b64:1},
+  {n:'PHASER',tmin:10,tmax:32000,b64:1},{n:'PITCH',pitch:1},{n:'SLIP ROLL',tmin:10,tmax:4000},{n:'ROLL',tmin:10,tmax:4000},
+  {n:'VINYL BRAKE',tmin:10,tmax:4000},{n:'HELIX',tmin:10,tmax:4000}];
+const bfxDef=()=>BFX.find(x=>x.n===MS.fxType);
+/* the beat fractions of BEAT ◀ ▶: 1/16 to 16 (64 for FILTER, FLANGER, PHASER); the values between are not in the manual (à caler) */
+const BEATS16=['1/16','1/8','1/4','1/2','3/4','1','2','4','8','16'],BEATS64=BEATS16.concat(['32','64']);
+const XPADS=['1/16','1/8','1/4','1/2','3/4','1','2','4'];
+/* REVERB: BEAT = 1-100 %, PITCH: BEAT = -50 to +100 %; the steps are not in the manual (à caler) */
+const REV_STEPS=[1,10,20,30,40,50,60,70,80,90,100],PITCH_STEPS=[-50,-40,-30,-20,-10,0,10,20,30,40,50,60,70,80,90,100];
+const fracBeats=l=>{const m=/^(\d+)\/(\d+)$/.exec(l);return m?m[1]/m[2]:+l;};
+const BF={beat:4,timeMs:null,rev:50,revT:50,pitch:0,taps:[],tapHeld:false,atHeld:false,tapBpm:120,show:0,showWhat:'',start:0,sent:'',bpmExact:0,q:0,src:null,depthS:null};
+const bfxBeats=()=>bfxDef().b64?BEATS64:BEATS16;
+function bfxBpm(){return MS.tap?BF.tapBpm:(BF.bpmExact||MS.bpm||120);}
+/* the effect's time in ms: the beat fraction (1 = one beat, manual p. 14) at the BPM, or the TIME knob's own value; out of the limits it
+   stays at the limit and the screen blinks */
+function bfxTimeRaw(){const D=bfxDef();if(D.pct||D.pitch)return 0;if(BF.timeMs!=null)return BF.timeMs;
+  const L=bfxBeats(),b=fracBeats(L[Math.min(BF.beat,L.length-1)]);return b*60000/bfxBpm();}
+function bfxTime(){const D=bfxDef(),t=bfxTimeRaw();return D.tmin?clamp(t,D.tmin,D.tmax):0;}
+function bfxOut(){const D=bfxDef(),t=bfxTimeRaw();return !!D.tmin&&(t<D.tmin-.5||t>D.tmax+.5);}
+const bfxActive=()=>MS.fxOn||MS.pad!=null;
+/* the X-PAD: position 0..1 along the 8 pads (the strip between the two rows goes through them without steps) */
+function padBeats(pos){const k=clamp(pos,0,1)*7,i=Math.min(6,Math.floor(k)),f=k-i,a=fracBeats(XPADS[i]),b=fracBeats(XPADS[i+1]);return a*Math.pow(b/a,f);}
+/* ---------- the effect's place in the mixer ---------- */
+function bfxSlot(){const N=MIX.N;if(!N)return null;const c=MS.fxCh;
+  if(/^[1-4]$/.test(c)){const C=N.ch[c-1];return bfxDef().post?C.post:C.pre;}
+  if(c==='A')return N.sA;if(c==='B')return N.sB;if(c==='MASTER')return N.sM;return null;}   /* MIC: no microphone in Booth Check */
+function bfxBuild(){
+  const N=MIX.N;if(!N||!MIX.fxReady)return;const c=AU.ctx;
+  if(!MIX.bfx){try{MIX.bfx={node:new AudioWorkletNode(c,'bc-beat',{outputChannelCount:[2],processorOptions:{p:bfxParams()}}),slot:null};}catch(e){return;}}
+  const B=MIX.bfx,s=bfxSlot();if(B.slot===s)return;
+  if(B.slot){try{B.slot.in.disconnect(B.node);}catch(e){}try{B.node.disconnect();}catch(e){}try{B.slot.in.connect(B.slot.out);}catch(e){}B.slot=null;}
+  if(s){try{s.in.disconnect(s.out);}catch(e){}s.in.connect(B.node);B.node.connect(s.out);B.slot=s;}
+  BF.start++;BF.sent='';bfxSend();
+}
+/* ---------- the parameters sent to the effect ---------- */
+function bfxParams(){
+  const D=bfxDef(),i=BFX.indexOf(D);let T=bfxTime()/1000,x=-1;
+  const held=MS.pad!=null&&MS.touch!=null;if(held)x=MS.touch;
+  if(held&&D.tmin)T=clamp(padBeats(MS.touch)*60/bfxBpm(),D.tmin/1000,D.tmax/1000);
+  const q=MS.quantize&&BF.q===1&&BF.src?BF.src:null;
+  return {mode:i,on:bfxActive()&&!!bfxSlot(),T,depth:MS.depth,x,rev:BF.rev,revT:BF.revT,pitch:BF.pitch,
+    band:[MS.freq.LOW?1:0,MS.freq.MID?1:0,MS.freq.HI?1:0],start:BF.start,quant:q?1:0,qPh:q?q.ph:0,qT:q?q.t:0,qSpb:q?q.spb:.5};
+}
+function bfxSend(force){const B=MIX.bfx;if(!B)return;const p=bfxParams(),k=JSON.stringify(Object.assign({},p,{qPh:0,qT:0}));
+  if(!force&&k===BF.sent&&!p.quant)return;BF.sent=k;B.node.port.postMessage(p);}
+/* every frame: the BPM, the beat grid for QUANTIZE (from the player heard on the FX channel), then the parameters */
+function bfxTick(){
+  const d=fxSrcDeck();BF.bpmExact=d?d.bpmNow():0;
+  /* QUANTIZE on the screen: lit = the grid is received, blinking = not received (no analysed track playing forwards), off = OFF (manual p. 12) */
+  let q=0;if(MS.quantize){q=2;if(d&&d.beats().length>1&&d.playing&&d.dir>0&&!d.scratchOn&&!d.touching){q=1;const c=AU.ctx;BF.src={ph:d.beatPhase(d.pos()),t:c?c.currentTime:0,spb:d.spb()/Math.max(.05,d.rate)};}}
+  if(q!==BF.q){BF.q=q;MS.dirty=true;}
+  if(BF.show&&now()-BF.show>1.5){BF.show=0;MS.dirty=true;}
+  if(MS.pad!=null||MS.fxOn||BF.show||BF.q===2)MS.dirty=true;
+  bfxSend();
+}
+/* the player heard on the channel the FX channel selector picks (the loudest one) */
+function fxSrcDeck(){const c=MS.fxCh,heard=d=>d.loaded()&&d.playing&&MS.ch[d.ch-1].input==='DIGITAL'&&MS.ch[d.ch-1].level>-40;
+  let src=DECKS.filter(heard);
+  if(/^[1-4]$/.test(c))src=src.filter(d=>d.ch===+c);
+  else if(c==='A'||c==='B')src=src.filter(d=>MS.ch[d.ch-1].xf===(c==='A'?-1:1)&&MS.ch[d.ch-1].fader>0);
+  else if(c==='MASTER')src=src.filter(d=>MS.ch[d.ch-1].fader>0);
+  else src=[];
+  src.sort((a,b)=>MS.ch[b.ch-1].level-MS.ch[a.ch-1].level);return src[0]||null;}
+/* ---------- the controls ---------- */
+function bfxShow(w){BF.show=now();BF.showWhat=w;MS.dirty=true;}
+function setFxType(t){if(MS.fxType===t)return;MS.fxType=t;BF.timeMs=null;BF.beat=Math.min(BF.beat,bfxBeats().length-1);ensureCtx();bfxBuild();BF.start++;bfxSend(true);MS.dirty=true;}
+function setFxCh(c){if(MS.fxCh===c)return;MS.fxCh=c;ensureCtx();bfxBuild();MS.dirty=true;if(c==='MIC')mixToast(say('BEAT FX sur MIC : pas de micro dans Booth Check, l’effet ne s’entend pas','BEAT FX on MIC: no microphone in Booth Check, the effect is not heard'),2600);}
+function beatKey(dir){const D=bfxDef();
+  if(D.pct){const k=REV_STEPS.findIndex(v=>v>=BF.rev);BF.rev=REV_STEPS[clamp((dir>0?(REV_STEPS[k]>BF.rev?k:k+1):(k<0?REV_STEPS.length:k)-1),0,REV_STEPS.length-1)];bfxShow('rev');}
+  else if(D.pitch){const k=PITCH_STEPS.findIndex(v=>v>=BF.pitch);BF.pitch=PITCH_STEPS[clamp((dir>0?(PITCH_STEPS[k]>BF.pitch?k:k+1):(k<0?PITCH_STEPS.length:k)-1),0,PITCH_STEPS.length-1)];bfxShow('pitch');}
+  else{BF.beat=clamp(BF.beat+dir,0,bfxBeats().length-1);BF.timeMs=null;BF.show=0;}
+  MS.dirty=true;}
+/* TIME: an endless knob. Held TAP: the BPM by hand; AUTO/TAP + TAP held: by 0.1 BPM (manual p. 14) */
+function timeTurn(n){const D=bfxDef();
+  if(BF.tapHeld){if(BF.atHeld)BF.atUsed=true;if(!MS.tap)return;BF.tapBpm=clamp(Math.round((BF.tapBpm+n*(BF.atHeld?.1:1))*10)/10,40,300);bfxShow('bpm');return;}
+  if(D.pct){BF.revT=clamp(BF.revT+n,1,100);bfxShow('revT');return;}
+  if(D.pitch){BF.pitch=clamp(BF.pitch+n,-50,100);bfxShow('pitch');return;}
+  const t=bfxTime();BF.timeMs=clamp(Math.round(n>0?Math.max(t+1,t*Math.pow(1.02,n)):Math.min(t-1,t*Math.pow(1.02,n))),D.tmin,D.tmax);bfxShow('ms');}
+/* TAP: at least 2 taps on the beat give the mean BPM; the fraction goes to 1/1 (manual p. 14). Only in TAP mode (p. 8) */
+function tapDown(){BF.tapHeld=true;if(BF.atHeld){BF.atUsed=true;return;}
+  if(!MS.tap){mixToast(say('TAP : passe d’abord en mode TAP avec la touche AUTO/TAP','TAP: first switch to TAP mode with the AUTO/TAP key'),2400);return;}
+  const t=now(),T=BF.taps;if(T.length&&t-T[T.length-1]>2)T.length=0;T.push(t);if(T.length>8)T.shift();
+  if(T.length>=2){const bpm=60*(T.length-1)/(T[T.length-1]-T[0]);BF.tapBpm=clamp(Math.round(bpm*10)/10,40,300);BF.beat=bfxBeats().indexOf('1');BF.timeMs=null;MS.dirty=true;}}
+function tapUp(){BF.tapHeld=false;}
+/* AUTO/TAP switches the mode when it is let go, unless it was used with TAP (+ TIME) */
+function autoTapDown(){BF.atHeld=true;BF.atUsed=!!BF.tapHeld;}
+function autoTapUp(){BF.atHeld=false;if(BF.atUsed)return;MS.tap=!MS.tap;if(MS.tap&&MS.bpm)BF.tapBpm=MS.bpm;BF.taps.length=0;MS.dirty=true;}
+/* ON/OFF: on, blinking; again: off. Pressed while the X-PAD is touched: the effect stays on when the finger leaves (manual p. 14) */
+function fxOnOff(){ensureCtx();if(MS.fxOn){MS.fxOn=false;}else{MS.fxOn=true;if(MS.pad==null)BF.start++;}bfxSend(true);MS.dirty=true;}
+function xpadAt(p){if(Math.abs(p.y-1092)<=16&&p.x>=1812&&p.x<=2134)return {pad:'strip',pos:clamp((p.x-1834)/(2112-1834),0,1)};
+  for(let r=0;r<2;r++)for(let k=0;k<4;k++){const cx=1849+k*86,cy=r?1146:1037;if(Math.abs(p.x-cx)<=43&&Math.abs(p.y-cy)<=36)return {pad:XPADS[r*4+k],pos:(r*4+k)/7};}
+  return null;}
+function xpadDown(p){const h=xpadAt(p);if(!h)return;ensureCtx();const was=bfxActive();MS.pad=h.pad;MS.touch=h.pos;if(!was)BF.start++;bfxSend(true);MS.dirty=true;}
+function xpadMove(p){if(MS.pad==null)return;const h=xpadAt(p);if(!h)return;MS.pad=h.pad;MS.touch=h.pos;MS.dirty=true;}
+function xpadUp(){if(MS.pad==null)return;MS.pad=null;MS.touch=null;bfxSend(true);MS.dirty=true;}
+/* ---------- the effect itself, in an AudioWorklet ---------- */
+const BFX_SRC=`
+const TAU=2*Math.PI;
+/* a biquad (RBJ), state for 2 channels */
+class Bq{constructor(){this.b0=1;this.b1=this.b2=this.a1=this.a2=0;this.z1=[0,0];this.z2=[0,0];}
+  set(t,f,q){const w=TAU*Math.min(f,sampleRate*.45)/sampleRate,cs=Math.cos(w),al=Math.sin(w)/(2*q);let b0,b1,b2;const a0=1+al;
+    if(t==='lp'){b0=(1-cs)/2;b1=1-cs;b2=b0;}else if(t==='hp'){b0=(1+cs)/2;b1=-(1+cs);b2=b0;}else{b0=1-al;b1=-2*cs;b2=1+al;}
+    this.b0=b0/a0;this.b1=b1/a0;this.b2=b2/a0;this.a1=-2*cs/a0;this.a2=(1-al)/a0;return this;}
+  run(x,c){const y=this.b0*x+this.z1[c];this.z1[c]=this.b1*x-this.a1*y+this.z2[c];this.z2[c]=this.b2*x-this.a2*y;return y;}}
+const Q=Math.SQRT1_2;
+class BcBeat extends AudioWorkletProcessor{
+  constructor(o){super();const sr=sampleRate;this.N=1<<Math.ceil(Math.log2(sr*9));this.M=this.N-1;
+    this.R=[new Float32Array(this.N),new Float32Array(this.N)];this.D=[new Float32Array(this.N),new Float32Array(this.N)];
+    this.C=[new Float32Array(Math.ceil(sr*4.3)),new Float32Array(Math.ceil(sr*4.3))];
+    this.w=0;this.n=0;this.mix=0;this.p={mode:4,on:false,T:.375,depth:.5,x:-1,rev:50,revT:50,pitch:0,band:[1,1,1],start:0,quant:0,qPh:0,qT:0,qSpb:.5};
+    this.seen=-1;this.dep=.5;this.Ts=.375;this.Tsp=.375;this.lfo=0;this.gate=1;this.fq=0;
+    /* FX FREQUENCY: three bands split like the channel EQ (300 Hz, 4 kHz, Linkwitz-Riley); the real crossovers are not in the manual (à caler) */
+    this.xo={l1:new Bq().set('lp',300,Q),l2:new Bq().set('lp',300,Q),ap:new Bq().set('ap',4000,Q),h1:new Bq().set('hp',300,Q),h2:new Bq().set('hp',300,Q),
+      m1:new Bq().set('lp',4000,Q),m2:new Bq().set('lp',4000,Q),k1:new Bq().set('hp',4000,Q),k2:new Bq().set('hp',4000,Q)};
+    this.f1=new Bq();this.f2=new Bq();this.hpR=new Bq().set('hp',20,Q);
+    const cl=[1116,1188,1277,1356],al=[556,441],k=sr/44100;
+    this.cb=[0,1].map(c=>cl.map(l=>({b:new Float32Array(Math.round((l+c*23)*k)),i:0,f:0})));this.ab=[0,1].map(c=>al.map(l=>({b:new Float32Array(Math.round((l+c*23)*k)),i:0})));
+    this.sp=[0,1].map(c=>[389,617].map(l=>({b:new Float32Array(Math.round((l+c*17)*k)),i:0})));
+    this.ph=[0,1].map(()=>new Float32Array(6));this.phz=[0,0];
+    if(o&&o.processorOptions&&o.processorOptions.p)Object.assign(this.p,o.processorOptions.p);this.dc=[[0,0],[0,0]];
+    this.port.onmessage=e=>{Object.assign(this.p,e.data);};}
+  rd(B,c,d){const N=this.N,x=this.w-d,i=Math.floor(x),f=x-i,a=B[c][i&this.M],b=B[c][(i+1)&this.M];return a+(b-a)*f;}
+  begin(){const sr=sampleRate,p=this.p;this.D[0].fill(0);this.D[1].fill(0);for(const C of this.cb)for(const x of C){x.b.fill(0);x.f=0;}for(const C of this.ab)for(const x of C)x.b.fill(0);
+    this.t0=this.n;this.Ts=this.Tsp=p.T;this.speed=1;this.rp=this.n;this.bk=0;this.L=Math.round(p.T*sr);this.Lp=this.L;
+    /* the start of a recording (ROLL, SLIP ROLL, HELIX) and of a cycle falls on the beat grid with QUANTIZE: the nearest point, even a little late */
+    let c0=this.n;if(p.quant){const sb=this.beatAt(this.n),u=Math.min(p.T/p.qSpb,1),k=Math.round(sb/u)*u;c0=Math.round(this.n+(k-sb)*p.qSpb*sr);if(c0<this.n-sr*.5)c0=this.n;}
+    this.c0=c0;this.cn=0;this.hp=0;this.hl=0;
+    if(c0<this.n){const back=this.n-c0;for(let i=0;i<back;i++){const j=(this.w-back+i)&this.M;this.C[0][i]=this.R[0][j];this.C[1][i]=this.R[1][j];}this.cn=back;}}
+  beatAt(n){const p=this.p;return p.qPh+(currentTime+(n-this.n0)/sampleRate-p.qT)/p.qSpb;}
+  process(inp,out){const I=inp[0],O=out[0];if(!O||!O.length)return true;const L=O[0].length,sr=sampleRate,p=this.p;this.n0=this.n;
+    const has=I&&I.length,i0=has?I[0]:null,i1=has?(I[1]||I[0]):null;
+    if(p.on&&p.start!==this.seen){this.seen=p.start;this.begin();}
+    if(!p.on)this.seen=-1;
+    const mode=p.mode,ka=1-Math.exp(-1/(.02*sr)),km=1-Math.exp(-1/(.008*sr)),band=p.band,allB=band[0]&&band[1]&&band[2];
+    const T=Math.max(.001,p.T),Ls=Math.round(T*sr),x=this.xo,dl=(a,b)=>Math.min(1,2*(1-a)),wt=a=>Math.min(1,2*a);
+    for(let i=0;i<L;i++){const n=this.n;let xl=has?i0[i]:0,xr=has?i1[i]:0;
+      this.mix+=((p.on?1:0)-this.mix)*km;this.dep+=(p.depth-this.dep)*ka;const d=this.dep,m=this.mix;
+      /* the selected bands go into the effect, the others pass by */
+      let sl=xl,sr2=xr,ul=0,ur=0;
+      if(m>1e-4&&!allB){const sp=(v,c)=>{const lo=x.ap.run(x.l2.run(x.l1.run(v,c),c),c),h=x.h2.run(x.h1.run(v,c),c),md=x.m2.run(x.m1.run(h,c),c),hi=x.k2.run(x.k1.run(h,c),c);
+          return [band[0]*lo+band[1]*md+band[2]*hi,(1-band[0])*lo+(1-band[1])*md+(1-band[2])*hi];};
+        const a=sp(xl,0),b=sp(xr,1);sl=a[0];ul=a[1];sr2=b[0];ur=b[1];}
+      const w=this.w;this.R[0][w]=sl;this.R[1][w]=sr2;
+      let yl=sl,yr=sr2;
+      if(m>1e-4){
+        switch(mode){
+          case 0:case 1:{/* DELAY: one repeat; ECHO: repeats that fade (feedback à caler) */
+            this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),fb=mode===1?.6:0;
+            this.D[0][w]=sl+fb*a;this.D[1][w]=sr2+fb*b;yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
+          case 2:{/* PING PONG: left, then right, then left..., fading */
+            this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),g=Math.sqrt(.6);
+            this.D[0][w]=(sl+sr2)*.5+g*b;this.D[1][w]=g*a;yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
+          case 3:{/* SPIRAL: an echo that goes through a diffuser; the delay glides, so the pitch moves when it changes; LEVEL/DEPTH = feedback and balance */
+            this.Tsp+=(T-this.Tsp)*.00004;const ds=this.Tsp*sr,fb=.25+.55*d,o=[0,0];
+            for(let c=0;c<2;c++){let v=this.rd(this.D,c,ds);for(const A of this.sp[c]){const z=A.b[A.i];const y=-.6*v+z;A.b[A.i]=v+.6*y;A.i=(A.i+1)%A.b.length;v=y;}o[c]=v;}
+            this.D[0][w]=sl+fb*o[0];this.D[1][w]=sr2+fb*o[1];yl=sl*dl(d)+o[0]*wt(d);yr=sr2*dl(d)+o[1]*wt(d);break;}
+          case 4:{/* REVERB: BEAT = how far it spreads (tail length), TIME = how much reverb, X-PAD = a high-pass on the reverb (à caler) */
+            const fbk=.7+.28*p.rev/100,damp=.25,g=p.revT/100*.06,inp=(sl+sr2)*g,o=[0,0];
+            for(let c=0;c<2;c++){let s=0;for(const K of this.cb[c]){const z=K.b[K.i];K.f=z*(1-damp)+K.f*damp;K.b[K.i]=inp+K.f*fbk;K.i=(K.i+1)%K.b.length;s+=z;}
+              for(const A of this.ab[c]){const z=A.b[A.i];const y=-s+z;A.b[A.i]=s+z*.5;A.i=(A.i+1)%A.b.length;s=y;}o[c]=s;}
+            if(p.x>=0){if((n&31)===0)this.hpR.set('hp',20*Math.pow(200,p.x),Q);o[0]=this.hpR.run(o[0],0);o[1]=this.hpR.run(o[1],1);}
+            yl=sl*dl(d)+o[0]*wt(d);yr=sr2*dl(d)+o[1]*wt(d);break;}
+          case 5:{/* TRANS: the sound is cut every beat fraction (open for the first half); LEVEL/DEPTH = how much is cut */
+            const ph=this.phase(n,T),want=ph<.5?1:1-d;this.gate+=(want-this.gate)*(want>this.gate?.06:.03);yl=sl*this.gate;yr=sr2*this.gate;break;}
+          case 6:{/* FILTER: a resonant low-pass whose cut-off goes up and down once per cycle (shape and range à caler) */
+            const ph=this.phase(n,T);if((n&15)===0){const fc=200*Math.pow(60,.5-.5*Math.cos(TAU*ph));this.f1.set('lp',fc,2.5);}
+            const a=this.f1.run(sl,0),b=this.f1.run(sr2,1);yl=sl*(1-d)+a*d;yr=sr2*(1-d)+b*d;break;}
+          case 7:{/* FLANGER: a short delay (1-7 ms) swept once per cycle, with feedback */
+            const ph=this.phase(n,T),ds=(.001+.006*(.5-.5*Math.cos(TAU*ph)))*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds);
+            this.D[0][w]=sl+.55*a;this.D[1][w]=sr2+.55*b;yl=sl*(1-.5*d)+a*.5*d;yr=sr2*(1-.5*d)+b*.5*d;break;}
+          case 8:{/* PHASER: 6 all-pass stages swept once per cycle (300 Hz - 3 kHz), with feedback */
+            const ph=this.phase(n,T),fc=300*Math.pow(10,.5-.5*Math.cos(TAU*ph)),t=Math.tan(Math.PI*fc/sr),a1=(t-1)/(t+1),o=[0,0],s=[sl,sr2];
+            for(let c=0;c<2;c++){let v=s[c]+.4*this.phz[c];const st=this.ph[c];for(let k=0;k<6;k++){const y=a1*v+st[k];st[k]=v-a1*y;v=y;}this.phz[c]=v;o[c]=v;}
+            yl=sl*(1-.5*d)+o[0]*.5*d;yr=sr2*(1-.5*d)+o[1]*.5*d;break;}
+          case 9:{/* PITCH: two read heads sliding through a 60 ms window; LEVEL/DEPTH scales the shift, fully left = the original */
+            const pc=(p.x>=0?-50+150*p.x:p.pitch)*d,r=1+pc/100;if(Math.abs(pc)<.3){yl=sl;yr=sr2;break;}
+            const W=.06*sr;this.hp=((this.hp+(1-r)/W)%1+1)%1;const p2=(this.hp+.5)%1,g1=1-Math.abs(2*this.hp-1),g2=1-Math.abs(2*p2-1);
+            yl=this.rd(this.R,0,1+this.hp*W)*g1+this.rd(this.R,0,1+p2*W)*g2;yr=this.rd(this.R,1,1+this.hp*W)*g1+this.rd(this.R,1,1+p2*W)*g2;break;}
+          case 10:case 11:{/* SLIP ROLL / ROLL: the sound from ON is recorded and repeated every beat fraction. SLIP ROLL records again when the
+              length changes; ROLL keeps the first recording (manual p. 17-18) */
+            if(mode===10&&Math.abs(Ls-this.L)>sr*.002){this.L=Ls;this.begin();}else if(mode===11)this.L=Ls;
+            const k=n-this.c0,C=this.C,cap=C[0].length;let a=sl,b=sr2;
+            if(k>=0){if(this.cn<cap&&k===this.cn){C[0][k]=sl;C[1][k]=sr2;this.cn++;}
+              if(k>=this.L){const j=k%this.L;if(j<this.cn){a=C[0][j];b=C[1][j];}}}
+            yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
+          case 12:{/* VINYL BRAKE: the sound slows down; LEVEL/DEPTH = the speed (left = normal, right = stopped), reached in the effect's time */
+            const tg=1-d,st=1/Math.max(1,T*sr);this.speed=this.speed<tg?Math.min(tg,this.speed+st):Math.max(tg,this.speed-st);
+            this.rp+=this.speed;if(n-this.rp>this.N-sr)this.rp=n-this.N+sr;
+            /* back at normal speed: a short cross-fade to the live sound, then the delay is gone */
+            this.bk=this.speed>.999&&tg>.999?Math.min(1,this.bk+1/(.05*sr)):0;if(this.bk>=1)this.rp=n;
+            /* a stopped record gives no sound: the held sample is taken out (DC blocker) */
+            const back=n-this.rp,dc=this.dc,hp=(v,c)=>{const y=v-dc[c][0]+.997*dc[c][1];dc[c][0]=v;dc[c][1]=y;return y;};
+            const bl=hp(this.rd(this.R,0,back),0),br=hp(this.rd(this.R,1,back),1);yl=bl*(1-this.bk)+sl*this.bk;yr=br*(1-this.bk)+sr2*this.bk;break;}
+          case 13:{/* HELIX: the sound from ON is recorded and repeated; a new length changes the pitch of what was recorded;
+              LEVEL/DEPTH = how much new sound is laid over it (fully right: frozen) */
+            if(this.hl===0){this.hl=Math.max(1,this.L);}
+            const k=n-this.c0,C=this.C,H=this.hl;let a=sl,b=sr2;
+            if(k>=0){if(k<H){C[0][k]=sl;C[1][k]=sr2;}else{const r=H/Math.max(1,Ls);this.hp=(this.hp+r)%H;const j=Math.floor(this.hp),f=this.hp-j,j2=(j+1)%H;
+                a=C[0][j]+(C[0][j2]-C[0][j])*f;b=C[1][j]+(C[1][j2]-C[1][j])*f;const keep=d;C[0][j]=C[0][j]*keep+sl*(1-keep);C[1][j]=C[1][j]*keep+sr2*(1-keep);}}
+            const g=Math.min(1,d*4);yl=sl*(1-g)+a*g;yr=sr2*(1-g)+b*g;break;}
+        }
+      }
+      O[0][i]=xl*(1-m)+(yl+ul)*m;if(O[1])O[1][i]=xr*(1-m)+(yr+ur)*m;
+      this.w=(w+1)&this.M;this.n++;}
+    return true;}
+  /* where we are in the cycle: on the beat grid with QUANTIZE, else from the moment the effect started */
+  phase(n,T){const p=this.p;if(p.quant){const b=this.beatAt(n),tb=T/p.qSpb;return ((b/tb)%1+1)%1;}return (((n-this.t0)/(T*sampleRate))%1+1)%1;}
+}
+registerProcessor('bc-beat',BcBeat);`;
 
 /* ---------------- audio, one Deck per player, and the sync bus that links them ---------------- */
 const AU={ctx:null,out:null,engOk:false,engReady:null};
@@ -3469,7 +3717,7 @@ const MSG={
   midi:['MIDI ON/OFF : le contrôle MIDI n’est pas simulé','MIDI ON/OFF: MIDI control is not simulated'],
   mic:['MIC : pas de micro dans Booth Check','MIC: no microphone in Booth Check'],
   link:['LINK CUE : préécoute d’un morceau depuis rekordbox sur ordinateur, non simulée','LINK CUE: previewing a track from rekordbox on a computer, not simulated'],
-  beat:['BEAT FX : pas encore simulé, prévu dans une prochaine version (SOUND COLOR FX fonctionne)','BEAT FX: not simulated yet, planned for a later version (SOUND COLOR FX works)'],
+  utility:['UTILITY de la table (QUANTIZE maintenu) : pas encore simulé','Mixer UTILITY (QUANTIZE held): not simulated yet'],
   send:['SEND / RETURN : effets externes non simulés','SEND / RETURN: external effects are not simulated'],
   booth:['BOOTH MONITOR : pas de sortie cabine dans Booth Check','BOOTH MONITOR: no booth output in Booth Check'],
 };
@@ -3498,28 +3746,41 @@ const MXH=[];
     for(const [y,k] of [[706,'hi'],[908,'mid'],[1110,'low']])K(cx,y,53,()=>ch[k],v=>ch[k]=v,true,k+i);
     K(cx,1366,55,()=>ch.color,v=>ch.color=v,true,'color'+i);
     B([cx-72,1509,cx+72,1565],()=>{ch.cue=!ch.cue;});
-    M([cx-70,1620,cx+70,1654],'beat');
     MXH.push({t:'vf',cx,i,box:[cx-92,1800,cx+92,2165]});
     S(cx,2328,104,64,[-1,0,1],()=>ch.xf,v=>ch.xf=v);
   });
   MXH.push({t:'hf',box:[790,2490,1152,2660]});
   /* master */
   K(DM_MX,316,52,()=>MS.master,v=>MS.master=v,false,'master');K(DM_MX+4,1366,47,()=>MS.balance,v=>MS.balance=v,true,'balance');
-  B([DM_MX-72,1509,DM_MX+72,1565],()=>{MS.cueMaster=!MS.cueMaster;});M([DM_MX-70,1620,DM_MX+70,1654],'beat');
+  B([DM_MX-72,1509,DM_MX+72,1565],()=>{MS.cueMaster=!MS.cueMaster;});
   K(DM_MX+2,1812,52,()=>MS.booth,v=>{MS.booth=v;if(!MXF.boothSaid){MXF.boothSaid=true;mixToast(msg('booth'),3000);}});
   S(DM_MX,2022,104,64,[-1,1],()=>MS.eqCurve,v=>MS.eqCurve=v);S(DM_MX,2172,104,64,[-1,0,1],()=>MS.chCurve,v=>MS.chCurve=v);S(DM_MX,2326,104,64,[-1,0,1],()=>MS.xfCurve,v=>MS.xfCurve=v);
-  M([140,1146,270,1180],'beat');
   /* SEND / RETURN and BEAT FX */
-  M([1772,170,2172,612],'send');M([1772,612,2172,2620],'beat');
+  M([1772,170,2172,612],'send');
+  /* BEAT FX */
+  const H=(cx,cy,r,down,up)=>MXH.push({t:'hold',circle:[cx,cy,r],down,up});
+  MXH.push({t:'xpad',box:[1790,980,2156,1204]});
+  B([1799,1230,1911,1286],()=>beatKey(-1));B([2029,1230,2141,1286],()=>beatKey(1));
+  H(1845,1392,36,autoTapDown,autoTapUp);H(1972,1372,54,tapDown,tapUp);
+  H(2095,1392,36,()=>{MS.quantize=!MS.quantize;MS.dirty=true;MXF.qT=setTimeout(()=>mixToast(msg('utility'),2600),1000);},()=>clearTimeout(MXF.qT));
+  for(const [t,bx] of [['LOW',1840],['MID',1970],['HI',2100]])B([bx-52,1506,bx+52,1568],()=>{MS.freq[t]=!MS.freq[t];});
+  MXH.push({t:'rot',cx:FXSEL_C[0],cy:FXSEL_C[1],r:50,opts:FXSEL,get:()=>MS.fxType,set:setFxType});
+  MXH.push({t:'rot',cx:FXCH_C[0],cy:FXCH_C[1],r:52,opts:FXCH,get:()=>MS.fxCh,set:setFxCh});
+  MXH.push({t:'enc',circle:[1972,2098,60]});
+  K(1972,2326,53,()=>MS.depth,v=>MS.depth=v);
+  H(1970,2540,76,fxOnOff,()=>{});
 })();
 function mixPick(p){
-  for(let i=MXH.length-1;i>=0;i--){const h=MXH[i];
+  let rb=null,rd=1e9;for(const h of MXH)if(h.t==='rot'){const d=Math.hypot(p.x-h.cx,p.y-h.cy);if(d<=h.r+72&&d<rd){rd=d;rb=h;}}
+  for(let i=MXH.length-1;i>=0;i--){const h=MXH[i];if(h.t==='rot')continue;
     if(h.circle){const [cx,cy,r]=h.circle;if((p.x-cx)**2+(p.y-cy)**2<=r*r)return h;continue;}
     if(h.t==='knob'){if((p.x-h.cx)**2+(p.y-h.cy)**2<=(h.r+10)**2)return h;continue;}
     if(h.t==='sel'){if((p.x-h.cx)**2+(p.y-h.cy)**2<=(h.r+70)**2&&p.y<400)return h;continue;}
     const [x0,y0,x1,y1]=h.box;if(p.x>=x0&&p.x<=x1&&p.y>=y0&&p.y<=y1)return h;}
-  return null;
+  return rb;
 }
+function rotAt(h,p){const a=Math.atan2(p.x-h.cx,-(p.y-h.cy))*180/Math.PI;let best=null,bd=1e9;for(const o of h.opts){const d=Math.abs(a-o[1]);if(d<bd){bd=d;best=o[0];}}return best;}
+function rotStep(h,n){const k=h.opts.findIndex(o=>o[0]===h.get())+n;if(k>=0&&k<h.opts.length)h.set(h.opts[k][0]);}
 /* double click: back to the centre click, only on the knobs that have one (EQ, COLOR, TRIM, BALANCE, MIXING) and on the crossfader;
    never on a level (MASTER, HEADPHONES LEVEL, BOOTH MONITOR), a wrong double click there would be heard in the room */
 function resetCtl(h){if(h.t==='knob'&&h.center){h.set(.5);mixApply();return true;}if(h.t==='hf'){MS.xfader=0;mixApply();return true;}return false;}
@@ -3545,22 +3806,31 @@ function wireMixer(){
       case 'vf':MS.ch[h.i].fader=clamp((2127-p.y)/292,0,1);mixApply();break;
       case 'hf':{let v=clamp((p.x-970.5)/150,-1,1);if(Math.abs(v)<.03)v=0;MS.xfader=v;mixApply();break;}
       case 'ph':openPhones(e);break;
+      case 'hold':h.down();break;
+      case 'xpad':xpadDown(p);break;
+      case 'enc':st.acc=0;break;
+      case 'rot':{const d2=(p.x-h.cx)**2+(p.y-h.cy)**2;if(d2>h.r*h.r)h.set(rotAt(h,p));else{st.acc=0;st.a=Math.atan2(p.y-h.cy,p.x-h.cx);}break;}
     }
   });
   cv.addEventListener('pointermove',e=>{
     const p=toD(e),st=ptr.get(e.pointerId);
-    if(!st){const h=mixPick(p);cv.style.cursor=h?(h.t==='knob'||h.t==='vf'?'ns-resize':h.t==='hf'?'ew-resize':'pointer'):'default';return;}
+    if(!st){const h=mixPick(p);cv.style.cursor=h?(h.t==='knob'||h.t==='vf'||h.t==='enc'?'ns-resize':h.t==='hf'?'ew-resize':'pointer'):'default';return;}
     const h=st.h;
     switch(h.t){
       case 'knob':knobTo(h,h.get()+((st.last.y-p.y)+(p.x-st.last.x))/400);break;
       case 'vf':MS.ch[h.i].fader=clamp((2127-p.y)/292,0,1);mixApply();break;
       case 'hf':{let v=clamp((p.x-970.5)/150,-1,1);if(Math.abs(v)<.03)v=0;MS.xfader=v;mixApply();break;}
+      case 'xpad':xpadMove(p);break;
+      case 'enc':{st.acc+=(st.last.y-p.y)+(p.x-st.last.x);const n=Math.trunc(st.acc/8);if(n){timeTurn(n);st.acc-=n*8;}break;}
+      case 'rot':if(st.a!=null){const a=Math.atan2(p.y-h.cy,p.x-h.cx);let da=a-st.a;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;st.a=a;st.acc+=da*180/Math.PI;
+        while(Math.abs(st.acc)>=22){rotStep(h,st.acc>0?1:-1);st.acc-=Math.sign(st.acc)*22;}}break;
       case 'sel':if(st.a!=null){const a=Math.atan2(p.y-h.cy,p.x-h.cx);let da=a-st.a;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;st.a=a;st.acc+=da*180/Math.PI;
         while(Math.abs(st.acc)>=30){const k=INPUTS.indexOf(MS.ch[h.i].input)+(st.acc>0?1:-1);if(k>=0&&k<INPUTS.length)setInput(h.i,INPUTS[k]);st.acc-=Math.sign(st.acc)*30;}}break;
     }
     st.last=p;
   });
   const up=e=>{const st=ptr.get(e.pointerId);if(!st)return;ptr.delete(e.pointerId);
+    if(st.h.t==='hold')st.h.up();if(st.h.t==='xpad')xpadUp();
     if(st.h.t==='sel'&&st.a!=null&&Math.hypot(st.last.x-st.p0.x,st.last.y-st.p0.y)<4){const k=(INPUTS.indexOf(MS.ch[st.h.i].input)+1)%INPUTS.length;setInput(st.h.i,INPUTS[k]);}};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
   cv.addEventListener('wheel',e=>{
@@ -3570,6 +3840,8 @@ function wireMixer(){
       case 'vf':MS.ch[h.i].fader=clamp(MS.ch[h.i].fader-n*.05,0,1);mixApply();break;
       case 'hf':MS.xfader=clamp(MS.xfader+n*.05,-1,1);mixApply();break;
       case 'sel':{const k=clamp(INPUTS.indexOf(MS.ch[h.i].input)+Math.sign(n),0,INPUTS.length-1);setInput(h.i,INPUTS[k]);break;}
+      case 'rot':rotStep(h,Math.sign(n));break;
+      case 'enc':timeTurn(-n);break;
     }
   },{passive:false});
   new ResizeObserver(()=>mixResize()).observe(cv);
@@ -3832,7 +4104,7 @@ function midiTurn(A,b,n){
     if(MIDI.navHeld){MIDI.navUsed=true;if(ACTIVE)rotaryTurn(ACTIVE,Math.sign(n));return;}
     const d=midiDeck(b);if(!d)return;midiJog(d,n);return;}
   if(A.id==='selector'){const d=midiDeck(b);if(!d)return;midiActive(b.s);for(let i=0;i<Math.min(8,Math.abs(n));i++)rotaryTurn(d,Math.sign(n));d.dirty=true;return;}
-  if(A.id==='beatfx'){if(!MIDI.said.bfx||now()-MIDI.said.bfx>4){MIDI.said.bfx=now();toast(say('BEAT FX : pas encore simulé, prévu en V2.9','BEAT FX: not simulated yet, planned for V2.9'),2600);}return;}
+  if(A.id==='beatfx'){if(!MIDI.said.bfx||now()-MIDI.said.bfx>4){MIDI.said.bfx=now();toast(say('BEAT FX sur le contrôleur : prévu en V2.9.1 (sur la table, il marche)','BEAT FX on the controller: planned for V2.9.1 (it works on the mixer)'),2600);}return;}
   const tg=midiTarget(A,b);if(!tg)return;tg.set(clamp(tg.get()+n/64,0,1),true);
 }
 /* the controller's jog has no touch sensor: turning it is the hand on the platter; when it stops, the hand is lifted */
@@ -4788,7 +5060,7 @@ function tick(){
   }
   BUS.tick();
   for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}
-  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();mixRender();}}catch(e){console.error(e);}
+  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();bfxTick();mixRender();}}catch(e){console.error(e);}
   renderStatus();midiTick();
   requestAnimationFrame(tick);
 }

@@ -1,5 +1,19 @@
 # Booth Check — versions
 
+## V2.9 — 27 octobre 2026
+BEAT FX de la table, d'après le mode d'emploi (p. 8, 12-18) :
+- Les 14 effets s'entendent : DELAY (une répétition), ECHO (des répétitions qui s'éteignent), PING PONG (gauche, droite…), SPIRAL (écho diffus dont la hauteur glisse quand le temps change), REVERB, TRANS (coupures), FILTER, FLANGER, PHASER (un cycle par fraction), PITCH (−50 à +100 %), SLIP ROLL et ROLL (le son de l'appui répété ; SLIP ROLL réenregistre quand la durée change), VINYL BRAKE (ralenti jusqu'à l'arrêt), HELIX (son enregistré répété, sa hauteur change avec la durée).
+- Commandes : sélecteur d'effet et sélecteur de canal (1-4, MIC, CROSS FADER A / B, MASTER ; la balise BEAT FX de la tranche choisie s'allume), BEAT ◀ ▶ (1/16 à 16, jusqu'à 64 pour FILTER, FLANGER, PHASER ; en % pour REVERB et PITCH), TIME (durée en ms, ou % pour REVERB et PITCH), LEVEL/DEPTH, ON/OFF qui clignote, FX FREQUENCY HI / MID / LOW, X-PAD (toucher = effet tant qu'on touche, glisser = autre durée, ON/OFF pendant le toucher = l'effet reste), TAP (au moins 2 appuis, la fraction passe à 1/1 ; TAP + TIME = BPM à la main, AUTO/TAP + TAP + TIME = par 0,1), AUTO/TAP, QUANTIZE (les débuts et les cycles tombent sur la grille de la platine qui joue).
+- « 1 » = un temps (manuel p. 14) ; au-delà des limites de TIME (ex. 16 temps à 120 BPM = 8 s > 4000 ms), l'effet reste à la limite et l'écran clignote.
+- Écran vivant : nom de l'effet, AUTO ou TAP, QUANTIZE (allumé = grille reçue, clignote = pas de grille), BPM, la fraction choisie en négatif entre ses voisines (ou la valeur en cours de réglage), position touchée sur l'X-PAD.
+- Où l'effet est pris : DELAY, ECHO, PING PONG, SPIRAL et REVERB après le fader de la tranche (ils continuent quand on baisse le fader et ne s'entendent pas au casque avec CUE, note 1 p. 18) ; les 9 autres avant le fader (ils s'entendent au casque) : c'est ma lecture de la note 1, à vérifier. MASTER : avant MASTER LEVEL ; A / B : le côté du crossfader. MIC : rien (pas de micro).
+- Au démarrage : REVERB sur MASTER (demande de Victor).
+- Valeurs que le mode d'emploi ne donne pas, à caler sur l'enregistrement de la vraie table : nombre et force des répétitions, longueur de la réverbération, forme et plage des filtres, profondeur du flanger et du phaser, réponse de l'X-PAD, fréquences de FX FREQUENCY (300 Hz / 4 kHz comme l'EQ), liste des fractions entre 1/16 et 16, pas de BEAT pour REVERB et PITCH. ON/OFF coupe l'effet net (queue à vérifier). PITCH utilise un traitement simple : un léger grain peut s'entendre.
+- Table : vumètre et CLIP du MASTER mesurés avant le limiteur (le CLIP s'allume enfin quand le master sature) ; CLIP de tranche : clignote, puis clignote vite quand le son est déformé (p. 11 ; seuils à caler) ; voyant MIC éteint, sélecteur sur OFF (pas de micro).
+- Le contrôleur (Steel) n'a pas encore les BEAT FX : prévu en V2.9.1.
+- Kit de test de la vraie table complété : 38 passages BEAT FX en plus des 57 SOUND COLOR FX (fichier son de 20 min et fiche dans `BOOTH CHECK/V2.9/kit-test-DJM/`), et des questions à noter sur l'écran.
+- Tests : 13 nouveaux (DELAY / ECHO / REVERB / PING PONG après le fader, TRANS, FX FREQUENCY, CUE, ROLL, VINYL BRAKE, PITCH, les 14 effets, TAP et limites, X-PAD, QUANTIZE, CLIP).
+
 ## V2.8.2 — 27 octobre 2026
 Corrections de la CDJ d'après le mode d'emploi (audit du 27 octobre) :
 - Slip en pause (p. 28) : en VINYL avec SLIP, PLAY/PAUSE met en pause mais le morceau continue en fond ; un nouvel appui reprend au point du fond. CUE ou SLIP annulent la pause en slip.

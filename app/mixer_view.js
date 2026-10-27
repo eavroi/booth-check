@@ -21,7 +21,7 @@ const MSG={
   midi:['MIDI ON/OFF : le contrôle MIDI n’est pas simulé','MIDI ON/OFF: MIDI control is not simulated'],
   mic:['MIC : pas de micro dans Booth Check','MIC: no microphone in Booth Check'],
   link:['LINK CUE : préécoute d’un morceau depuis rekordbox sur ordinateur, non simulée','LINK CUE: previewing a track from rekordbox on a computer, not simulated'],
-  beat:['BEAT FX : pas encore simulé, prévu dans une prochaine version (SOUND COLOR FX fonctionne)','BEAT FX: not simulated yet, planned for a later version (SOUND COLOR FX works)'],
+  utility:['UTILITY de la table (QUANTIZE maintenu) : pas encore simulé','Mixer UTILITY (QUANTIZE held): not simulated yet'],
   send:['SEND / RETURN : effets externes non simulés','SEND / RETURN: external effects are not simulated'],
   booth:['BOOTH MONITOR : pas de sortie cabine dans Booth Check','BOOTH MONITOR: no booth output in Booth Check'],
 };
@@ -50,28 +50,41 @@ const MXH=[];
     for(const [y,k] of [[706,'hi'],[908,'mid'],[1110,'low']])K(cx,y,53,()=>ch[k],v=>ch[k]=v,true,k+i);
     K(cx,1366,55,()=>ch.color,v=>ch.color=v,true,'color'+i);
     B([cx-72,1509,cx+72,1565],()=>{ch.cue=!ch.cue;});
-    M([cx-70,1620,cx+70,1654],'beat');
     MXH.push({t:'vf',cx,i,box:[cx-92,1800,cx+92,2165]});
     S(cx,2328,104,64,[-1,0,1],()=>ch.xf,v=>ch.xf=v);
   });
   MXH.push({t:'hf',box:[790,2490,1152,2660]});
   /* master */
   K(DM_MX,316,52,()=>MS.master,v=>MS.master=v,false,'master');K(DM_MX+4,1366,47,()=>MS.balance,v=>MS.balance=v,true,'balance');
-  B([DM_MX-72,1509,DM_MX+72,1565],()=>{MS.cueMaster=!MS.cueMaster;});M([DM_MX-70,1620,DM_MX+70,1654],'beat');
+  B([DM_MX-72,1509,DM_MX+72,1565],()=>{MS.cueMaster=!MS.cueMaster;});
   K(DM_MX+2,1812,52,()=>MS.booth,v=>{MS.booth=v;if(!MXF.boothSaid){MXF.boothSaid=true;mixToast(msg('booth'),3000);}});
   S(DM_MX,2022,104,64,[-1,1],()=>MS.eqCurve,v=>MS.eqCurve=v);S(DM_MX,2172,104,64,[-1,0,1],()=>MS.chCurve,v=>MS.chCurve=v);S(DM_MX,2326,104,64,[-1,0,1],()=>MS.xfCurve,v=>MS.xfCurve=v);
-  M([140,1146,270,1180],'beat');
   /* SEND / RETURN and BEAT FX */
-  M([1772,170,2172,612],'send');M([1772,612,2172,2620],'beat');
+  M([1772,170,2172,612],'send');
+  /* BEAT FX */
+  const H=(cx,cy,r,down,up)=>MXH.push({t:'hold',circle:[cx,cy,r],down,up});
+  MXH.push({t:'xpad',box:[1790,980,2156,1204]});
+  B([1799,1230,1911,1286],()=>beatKey(-1));B([2029,1230,2141,1286],()=>beatKey(1));
+  H(1845,1392,36,autoTapDown,autoTapUp);H(1972,1372,54,tapDown,tapUp);
+  H(2095,1392,36,()=>{MS.quantize=!MS.quantize;MS.dirty=true;MXF.qT=setTimeout(()=>mixToast(msg('utility'),2600),1000);},()=>clearTimeout(MXF.qT));
+  for(const [t,bx] of [['LOW',1840],['MID',1970],['HI',2100]])B([bx-52,1506,bx+52,1568],()=>{MS.freq[t]=!MS.freq[t];});
+  MXH.push({t:'rot',cx:FXSEL_C[0],cy:FXSEL_C[1],r:50,opts:FXSEL,get:()=>MS.fxType,set:setFxType});
+  MXH.push({t:'rot',cx:FXCH_C[0],cy:FXCH_C[1],r:52,opts:FXCH,get:()=>MS.fxCh,set:setFxCh});
+  MXH.push({t:'enc',circle:[1972,2098,60]});
+  K(1972,2326,53,()=>MS.depth,v=>MS.depth=v);
+  H(1970,2540,76,fxOnOff,()=>{});
 })();
 function mixPick(p){
-  for(let i=MXH.length-1;i>=0;i--){const h=MXH[i];
+  let rb=null,rd=1e9;for(const h of MXH)if(h.t==='rot'){const d=Math.hypot(p.x-h.cx,p.y-h.cy);if(d<=h.r+72&&d<rd){rd=d;rb=h;}}
+  for(let i=MXH.length-1;i>=0;i--){const h=MXH[i];if(h.t==='rot')continue;
     if(h.circle){const [cx,cy,r]=h.circle;if((p.x-cx)**2+(p.y-cy)**2<=r*r)return h;continue;}
     if(h.t==='knob'){if((p.x-h.cx)**2+(p.y-h.cy)**2<=(h.r+10)**2)return h;continue;}
     if(h.t==='sel'){if((p.x-h.cx)**2+(p.y-h.cy)**2<=(h.r+70)**2&&p.y<400)return h;continue;}
     const [x0,y0,x1,y1]=h.box;if(p.x>=x0&&p.x<=x1&&p.y>=y0&&p.y<=y1)return h;}
-  return null;
+  return rb;
 }
+function rotAt(h,p){const a=Math.atan2(p.x-h.cx,-(p.y-h.cy))*180/Math.PI;let best=null,bd=1e9;for(const o of h.opts){const d=Math.abs(a-o[1]);if(d<bd){bd=d;best=o[0];}}return best;}
+function rotStep(h,n){const k=h.opts.findIndex(o=>o[0]===h.get())+n;if(k>=0&&k<h.opts.length)h.set(h.opts[k][0]);}
 /* double click: back to the centre click, only on the knobs that have one (EQ, COLOR, TRIM, BALANCE, MIXING) and on the crossfader;
    never on a level (MASTER, HEADPHONES LEVEL, BOOTH MONITOR), a wrong double click there would be heard in the room */
 function resetCtl(h){if(h.t==='knob'&&h.center){h.set(.5);mixApply();return true;}if(h.t==='hf'){MS.xfader=0;mixApply();return true;}return false;}
@@ -97,22 +110,31 @@ function wireMixer(){
       case 'vf':MS.ch[h.i].fader=clamp((2127-p.y)/292,0,1);mixApply();break;
       case 'hf':{let v=clamp((p.x-970.5)/150,-1,1);if(Math.abs(v)<.03)v=0;MS.xfader=v;mixApply();break;}
       case 'ph':openPhones(e);break;
+      case 'hold':h.down();break;
+      case 'xpad':xpadDown(p);break;
+      case 'enc':st.acc=0;break;
+      case 'rot':{const d2=(p.x-h.cx)**2+(p.y-h.cy)**2;if(d2>h.r*h.r)h.set(rotAt(h,p));else{st.acc=0;st.a=Math.atan2(p.y-h.cy,p.x-h.cx);}break;}
     }
   });
   cv.addEventListener('pointermove',e=>{
     const p=toD(e),st=ptr.get(e.pointerId);
-    if(!st){const h=mixPick(p);cv.style.cursor=h?(h.t==='knob'||h.t==='vf'?'ns-resize':h.t==='hf'?'ew-resize':'pointer'):'default';return;}
+    if(!st){const h=mixPick(p);cv.style.cursor=h?(h.t==='knob'||h.t==='vf'||h.t==='enc'?'ns-resize':h.t==='hf'?'ew-resize':'pointer'):'default';return;}
     const h=st.h;
     switch(h.t){
       case 'knob':knobTo(h,h.get()+((st.last.y-p.y)+(p.x-st.last.x))/400);break;
       case 'vf':MS.ch[h.i].fader=clamp((2127-p.y)/292,0,1);mixApply();break;
       case 'hf':{let v=clamp((p.x-970.5)/150,-1,1);if(Math.abs(v)<.03)v=0;MS.xfader=v;mixApply();break;}
+      case 'xpad':xpadMove(p);break;
+      case 'enc':{st.acc+=(st.last.y-p.y)+(p.x-st.last.x);const n=Math.trunc(st.acc/8);if(n){timeTurn(n);st.acc-=n*8;}break;}
+      case 'rot':if(st.a!=null){const a=Math.atan2(p.y-h.cy,p.x-h.cx);let da=a-st.a;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;st.a=a;st.acc+=da*180/Math.PI;
+        while(Math.abs(st.acc)>=22){rotStep(h,st.acc>0?1:-1);st.acc-=Math.sign(st.acc)*22;}}break;
       case 'sel':if(st.a!=null){const a=Math.atan2(p.y-h.cy,p.x-h.cx);let da=a-st.a;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;st.a=a;st.acc+=da*180/Math.PI;
         while(Math.abs(st.acc)>=30){const k=INPUTS.indexOf(MS.ch[h.i].input)+(st.acc>0?1:-1);if(k>=0&&k<INPUTS.length)setInput(h.i,INPUTS[k]);st.acc-=Math.sign(st.acc)*30;}}break;
     }
     st.last=p;
   });
   const up=e=>{const st=ptr.get(e.pointerId);if(!st)return;ptr.delete(e.pointerId);
+    if(st.h.t==='hold')st.h.up();if(st.h.t==='xpad')xpadUp();
     if(st.h.t==='sel'&&st.a!=null&&Math.hypot(st.last.x-st.p0.x,st.last.y-st.p0.y)<4){const k=(INPUTS.indexOf(MS.ch[st.h.i].input)+1)%INPUTS.length;setInput(st.h.i,INPUTS[k]);}};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
   cv.addEventListener('wheel',e=>{
@@ -122,6 +144,8 @@ function wireMixer(){
       case 'vf':MS.ch[h.i].fader=clamp(MS.ch[h.i].fader-n*.05,0,1);mixApply();break;
       case 'hf':MS.xfader=clamp(MS.xfader+n*.05,-1,1);mixApply();break;
       case 'sel':{const k=clamp(INPUTS.indexOf(MS.ch[h.i].input)+Math.sign(n),0,INPUTS.length-1);setInput(h.i,INPUTS[k]);break;}
+      case 'rot':rotStep(h,Math.sign(n));break;
+      case 'enc':timeTurn(-n);break;
     }
   },{passive:false});
   new ResizeObserver(()=>mixResize()).observe(cv);

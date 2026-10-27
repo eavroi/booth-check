@@ -1,11 +1,12 @@
 /* ---------------- the mixer (after the DJM-900NXS2): state, audio routing, SOUND COLOR FX, level meters, headphones ----------------
    Signal path of one channel, as in the manual's block diagram: input selector, TRIM, SOUND COLOR FX, EQ/ISO, then the level meter
-   and the CUE send (before the fader), the channel fader and the crossfader assign. Then MASTER LEVEL, BALANCE and the peak limiter. */
+   and the CUE send (before the fader), the channel fader and the crossfader assign. Then MASTER LEVEL, BALANCE and the peak limiter.
+   BEAT FX (beatfx.js) goes into one of the "slots": before or after a channel fader, on a crossfader side, or before MASTER LEVEL. */
 const CH_OF=[2,3,1,4];                       /* the order players are added in: channel 2 first, then 3, 1, 4 */
 const MS={on:false,param:.5,color:null,master:.5,balance:.5,booth:.5,cueMaster:false,mixing:.5,phLevel:.6,mono:-1,eqCurve:1,chCurve:0,xfCurve:0,xfader:0,
-  midi:false,cueLink:false,fxType:'PING PONG',fxCh:'MASTER',bpm:null,beat:['1/2','3/4','1'],touch:null,quantize:false,tap:false,freq:{LOW:true,MID:true,HI:true},fxOn:false,sendOn:false,depth:.5,pad:null,
+  midi:false,cueLink:false,fxType:'REVERB',fxCh:'MASTER',bpm:null,touch:null,quantize:false,tap:false,freq:{LOW:true,MID:true,HI:true},fxOn:false,sendOn:false,depth:.5,pad:null,
   mL:-99,mR:-99,
-  ch:[0,1,2,3].map(()=>({input:'DIGITAL',trim:.5,hi:.5,mid:.5,low:.5,color:.5,cue:false,fader:1,xf:0,level:-99,clip:0})),
+  ch:[0,1,2,3].map(()=>({input:'DIGITAL',trim:.5,hi:.5,mid:.5,low:.5,color:.5,cue:false,fader:1,xf:0,level:-99,clip:0,clipLv:0})),mClip:0,
   phones:'',phonesName:'',dirty:true};
 const MIX={N:null,fxReady:false,ir:null,irP:-1,noise:null};
 /* ---------- value curves ---------- */
@@ -21,16 +22,20 @@ function xfGains(x,curve){const t=(x+1)/2;
 /* MASTER LEVEL at 12 o'clock gives the level the V2.5 gave at 80 %; turned fully up, 0 dB */
 const masterGain=v=>Math.pow(v,.8);
 /* ---------- the audio graph ---------- */
+/* a place where BEAT FX can be put: in -> out, or in -> effect -> out */
+function mkSlot(c){const s={in:c.createGain(),out:c.createGain(),fx:null};s.in.connect(s.out);return s;}
 function mixBuild(){
-  const c=AU.ctx,N={ch:[]};MIX.N=N;
+  const c=AU.ctx,N={ch:[]};MIX.N=N;MIX.bfx=null;
   N.bypass=c.createGain();N.bypass.connect(AU.out);
   N.mSum=c.createGain();N.mLevel=c.createGain();N.split=c.createChannelSplitter(2);N.bl=c.createGain();N.br=c.createGain();N.merge=c.createChannelMerger(2);
   N.lim=c.createDynamicsCompressor();N.lim.threshold.value=-1;N.lim.knee.value=0;N.lim.ratio.value=20;N.lim.attack.value=.002;N.lim.release.value=.12;
   N.mixOn=c.createGain();
-  N.mSum.connect(N.mLevel);N.mLevel.connect(N.split);N.split.connect(N.bl,0);N.split.connect(N.br,1);N.bl.connect(N.merge,0,0);N.br.connect(N.merge,0,1);
+  N.sM=mkSlot(c);N.sA=mkSlot(c);N.sB=mkSlot(c);N.sA.out.connect(N.mSum);N.sB.out.connect(N.mSum);
+  N.mSum.connect(N.sM.in);N.sM.out.connect(N.mLevel);N.mLevel.connect(N.split);N.split.connect(N.bl,0);N.split.connect(N.br,1);N.bl.connect(N.merge,0,0);N.br.connect(N.merge,0,1);
   N.merge.connect(N.lim);N.lim.connect(N.mixOn);N.mixOn.connect(AU.out);
   N.aL=c.createAnalyser();N.aR=c.createAnalyser();for(const a of [N.aL,N.aR])a.fftSize=1024;
-  const ms=c.createChannelSplitter(2);N.lim.connect(ms);ms.connect(N.aL,0);ms.connect(N.aR,1);
+  /* the master level meter and CLIP read the sound before the peak limiter (manual p. 8: CLIP lights when MASTER sends excessive levels) */
+  const ms=c.createChannelSplitter(2);N.merge.connect(ms);ms.connect(N.aL,0);ms.connect(N.aR,1);
   N.buf=new Float32Array(1024);
   /* headphones: the CUE mix and the master, blended by MIXING; MONO SPLIT puts the cue on the left and the master on the right */
   N.cueSum=c.createGain();N.cueMaster=c.createGain();N.lim.connect(N.cueMaster);N.cueMaster.connect(N.cueSum);
@@ -55,9 +60,13 @@ function mixBuild(){
     C.cOut.connect(lo[0]);lo[1].connect(ap);ap.connect(C.gLo);C.cOut.connect(hi1[0]);hi1[1].connect(mid[0]);hi1[1].connect(hi[0]);mid[1].connect(C.gMid);hi[1].connect(C.gHi);
     for(const g of [C.gLo,C.gMid,C.gHi])g.connect(C.eq);
     C.an=c.createAnalyser();C.an.fftSize=1024;C.eq.connect(C.an);
-    C.cue=c.createGain();C.eq.connect(C.cue);C.cue.connect(N.cueSum);
+    /* BEAT FX slot before the fader (heard with CUE), and after it (the echoes and reverbs that go on when the fader comes down) */
+    C.pre=mkSlot(c);C.post=mkSlot(c);C.eq.connect(C.pre.in);
+    C.cue=c.createGain();C.pre.out.connect(C.cue);C.cue.connect(N.cueSum);
     /* channel fader, then the crossfader assign (SPACE and DUB ECHO come back between the two) */
-    C.fader=c.createGain();C.xfg=c.createGain();C.eq.connect(C.fader);C.fader.connect(C.xfg);C.xfg.connect(N.mSum);
+    C.fader=c.createGain();C.xfg=c.createGain();C.pre.out.connect(C.fader);C.fader.connect(C.post.in);C.post.out.connect(C.xfg);
+    C.toA=c.createGain();C.toB=c.createGain();C.toT=c.createGain();C.xfg.connect(C.toA);C.xfg.connect(C.toB);C.xfg.connect(C.toT);
+    C.toA.connect(N.sA.in);C.toB.connect(N.sB.in);C.toT.connect(N.mSum);
   }
   mixApply();loadFxWorklet();
 }
@@ -72,7 +81,7 @@ function mixApply(){
     setP(C.sel.gain,ch.input==='DIGITAL'||ch.input==='LINE'?1:0);setP(C.trim.gain,trimGain(ch.trim));
     const iso=MS.eqCurve<0;setP(C.gLo.gain,eqGain(ch.low,iso));setP(C.gMid.gain,eqGain(ch.mid,iso));setP(C.gHi.gain,eqGain(ch.hi,iso));
     setP(C.cue.gain,ch.cue?1:0);
-    setP(C.fader.gain,chFaderGain(ch.fader,MS.chCurve));setP(C.xfg.gain,ch.xf<0?gA:ch.xf>0?gB:1);
+    setP(C.fader.gain,chFaderGain(ch.fader,MS.chCurve));setP(C.xfg.gain,ch.xf<0?gA:ch.xf>0?gB:1);setP(C.toA.gain,ch.xf<0?1:0);setP(C.toB.gain,ch.xf>0?1:0);setP(C.toT.gain,ch.xf===0?1:0);
     colorParams(i);});
   setP(N.mLevel.gain,masterGain(MS.master));setP(N.bl.gain,Math.min(1,2*(1-MS.balance)));setP(N.br.gain,Math.min(1,2*MS.balance));
   setP(N.cueMaster.gain,MS.cueMaster?1:0);
@@ -101,7 +110,8 @@ const FX_SRC=`class BcFx extends AudioWorkletProcessor{
       else for(let c=0;c<O.length;c++)O[c][i]=(I[c]||I[0])[i];}
     return true;}}
 registerProcessor('bc-fx',BcFx);`;
-async function loadFxWorklet(){try{const c=AU.ctx;if(!c.audioWorklet)return;const u=URL.createObjectURL(new Blob([FX_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);MIX.fxReady=true;if(MS.color)colorBuild();}catch(e){MIX.fxReady=false;}}
+/* one load per audio context (the same promise for every caller, so nothing is built late in another graph) */
+function loadFxWorklet(){const c=AU.ctx;if(!c.audioWorklet)return Promise.resolve();if(!c._bcFx)c._bcFx=(async()=>{try{const u=URL.createObjectURL(new Blob([FX_SRC,BFX_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);MIX.fxReady=true;if(MS.color)colorBuild();bfxBuild();}catch(e){MIX.fxReady=false;}})();return c._bcFx;}
 function noiseBuf(){if(MIX.noise&&MIX.noise.sampleRate===AU.ctx.sampleRate)return MIX.noise;const c=AU.ctx,b=c.createBuffer(2,c.sampleRate*2,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}return MIX.noise=b;}
 /* SPACE: a stereo reverb tail; PARAMETER ("feedback") makes it last longer, the high end dies out faster than the rest */
 function reverbIR(p){const c=AU.ctx,sr=c.sampleRate,rt=.6+p*4.4,len=Math.round(sr*Math.min(6,rt*1.1)),b=c.createBuffer(2,len,sr);
@@ -176,26 +186,22 @@ function colorParams(i){
 /* BEAT FX screen, AUTO mode: the BPM measured on the channel the FX channel selector picks (70 to 180 BPM, manual p. 13);
    when nothing can be measured the last value stays and blinks. Here the BPM comes from the players that are heard there. */
 function fxBpmTick(){
-  const c=MS.fxCh,heard=d=>d.loaded()&&d.playing&&MS.ch[d.ch-1].input==='DIGITAL'&&MS.ch[d.ch-1].level>-40;
-  let src=DECKS.filter(heard);
-  if(/^[1-4]$/.test(c))src=src.filter(d=>d.ch===+c);
-  else if(c==='A'||c==='B')src=src.filter(d=>MS.ch[d.ch-1].xf===(c==='A'?-1:1)&&MS.ch[d.ch-1].fader>0);
-  else if(c==='MASTER')src=src.filter(d=>MS.ch[d.ch-1].fader>0);
-  else src=[];
-  src.sort((a,b)=>MS.ch[b.ch-1].level-MS.ch[a.ch-1].level);
-  const bpm=src.length?src[0].bpmNow():0;
+  const d=fxSrcDeck(),bpm=d?d.bpmNow():0;
   if(bpm>=70&&bpm<=180){const v=Math.round(bpm);if(v!==MS.bpm||MS.bpmLost){MS.bpm=v;MS.bpmLost=false;}}
   else if(MS.bpm!=null)MS.bpmLost=true;
 }
 function setColor(t){MS.color=MS.color===t?null:t;ensureCtx();colorBuild();MS.dirty=true;}
-/* ---------- level meters: peak, fast attack, falling 20 dB a second; 0 on the meter = -9 dBFS ---------- */
+/* ---------- level meters: peak, fast attack, falling 20 dB a second; 0 on the meter = -9 dBFS ----------
+   Channel CLIP (manual p. 11): blinks when the level gets near distortion, blinks fast when the sound is distorted.
+   Thresholds (+6 and +9 on the meter, i.e. -3 and 0 dBFS) and the master CLIP at 0 dBFS before the limiter: first settings, to check on the real mixer. */
+const CLIP_SLOW=6,CLIP_FAST=9,CLIP_MASTER=9;
 function peakDb(an,buf){an.getFloatTimeDomainData(buf);let m=0;for(let i=0;i<buf.length;i++){const v=Math.abs(buf[i]);if(v>m)m=v;}return m>0?20*Math.log10(m)+9:-99;}
 let METER_T=0;
 function mixMeters(){
   const N=MIX.N;if(!N)return;const t=now(),dt=Math.min(.1,t-(METER_T||t));METER_T=t;const fall=20*dt;
   const upd=(old,v)=>v>=old?v:Math.max(v,old-fall);
-  MS.ch.forEach((ch,i)=>{const v=peakDb(N.ch[i].an,N.buf);const lv=upd(ch.level,v);if(Math.round(lv/3)!==Math.round(ch.level/3))MS.dirty=true;ch.level=lv;if(v>13){ch.clip=t;MS.dirty=true;}});
-  const l=upd(MS.mL,peakDb(N.aL,N.buf)),r=upd(MS.mR,peakDb(N.aR,N.buf));if(Math.round(l/3)!==Math.round(MS.mL/3)||Math.round(r/3)!==Math.round(MS.mR/3))MS.dirty=true;MS.mL=l;MS.mR=r;
+  MS.ch.forEach((ch,i)=>{const v=peakDb(N.ch[i].an,N.buf);const lv=upd(ch.level,v);if(Math.round(lv/3)!==Math.round(ch.level/3))MS.dirty=true;ch.level=lv;if(v>=CLIP_SLOW){if(v>=CLIP_FAST)ch.clipT=t;ch.clip=t;ch.clipLv=t-(ch.clipT||-9)<1?2:1;MS.dirty=true;}});
+  const l=upd(MS.mL,peakDb(N.aL,N.buf)),r=upd(MS.mR,peakDb(N.aR,N.buf));if(Math.round(l/3)!==Math.round(MS.mL/3)||Math.round(r/3)!==Math.round(MS.mR/3))MS.dirty=true;MS.mL=l;MS.mR=r;if(Math.max(l,r)>=CLIP_MASTER)MS.mClip=t;
 }
 /* ---------- headphones on a second audio output ---------- */
 const PH={ctx:null,el:null,dest:null};

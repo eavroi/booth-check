@@ -6,7 +6,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 ## Façon de travailler
 - Répondre en français, de façon concise. Victor dicte souvent à la voix : lire le contexte attentivement.
 - Avant chaque version : faire un « point » (liste de ce qui va changer, questions s'il y en a) et attendre son « GO ».
-- À la livraison, toujours dire le numéro de version (V2.8.2 est la dernière livrée ; la suivante est V2.9).
+- À la livraison, toujours dire le numéro de version (V2.9 est la dernière livrée ; la suivante est V2.9.1).
 - Ne jamais inventer de fonction ni d'élément d'interface : tout vient de la vraie machine (mode d'emploi, photos, vidéos, captures). En cas de doute, le dire.
 - Vérifier chaque version : `python build.py`, `python tests/scenarios.py` (comportements du mode d'emploi), `python tests/smoke.py` (captures), comparer avec les photos de la vraie machine.
 - Références hors dépôt, dans `BOOTH CHECK/references/` : modes d'emploi FR de la CDJ-2000NXS2 et de la DJM-900NXS2 (PDF + texte extrait), photos de Victor.
@@ -18,7 +18,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Design du site sobre : pas de page d'accueil marketing, la machine est le seul « wow », marque « BC », vocabulaire technique, FR / EN.
 
 ## Structure
-- `app/` : modules de l'application, assemblés dans l'ordre de `build.py` (core, face_layout, cap_img, face_art, djm_art, lcd_kit, library, mixer, deck, browse, lcd, controls, face_view, mixer_view, midi, midi_plan, report, ui, main).
+- `app/` : modules de l'application, assemblés dans l'ordre de `build.py` (core, face_layout, cap_img, face_art, djm_art, lcd_kit, library, mixer, beatfx, deck, browse, lcd, controls, face_view, mixer_view, midi, midi_plan, report, ui, main).
 - `lib/` : lecture d'export.pdb et des fichiers ANLZ. `data/demo.json` : l'exemple intégré.
 - `index.html` (racine) est GÉNÉRÉ par `build.py` : ne pas l'éditer à la main.
 - `tests/scenarios.py` : scénarios de comportement ; `tests/smoke.py` : test rapide avec captures (Playwright) ; `tests/out/` ne doit pas être commité.
@@ -30,14 +30,15 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Table masquée : les platines sortent en direct.
 - Raccourcis clavier par position physique (KeyboardEvent.code), aucun Shift ; AZERTY BE par défaut.
 - Moteur de lecture : un AudioWorklet par platine (`DECK_SRC` dans deck.js) qui reçoit les échantillons une fois ; la page lui envoie vitesse, boucle, MASTER TEMPO, et la position seulement aux sauts (numérotés) ; il renvoie sa position et l'écran le suit. MASTER TEMPO = étirement WSOLA (grains de 43 ms). Sans AudioWorklet, l'ancien lecteur (AudioBufferSourceNode) reste en secours.
-- SOUND COLOR FX (mixer.js) : sens des potards d'après le mode d'emploi p. 16 ; valeurs chiffrées = réglages de départ, à caler sur l'enregistrement de la vraie table (kit : `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.8/kit-test-DJM/`). SPACE et DUB ECHO pris après le fader et rendus avant le crossfader (queue quand on baisse le fader).
+- SOUND COLOR FX (mixer.js) : sens des potards d'après le mode d'emploi p. 16 ; valeurs chiffrées = réglages de départ, à caler sur l'enregistrement de la vraie table (kit : `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.9/kit-test-DJM/`). SPACE et DUB ECHO pris après le fader et rendus avant le crossfader (queue quand on baisse le fader).
+- BEAT FX (`beatfx.js`, mode d'emploi p. 12-18) : un seul AudioWorklet `bc-beat` (14 effets, découpe FX FREQUENCY) placé dans un « slot » de la table (`mkSlot` dans mixer.js) : avant ou après le fader d'une tranche (DELAY, ECHO, PING PONG, SPIRAL, REVERB après : queue au fader baissé, pas au casque), côté A / B du crossfader, ou avant MASTER LEVEL. État dans `MS` (fxType, fxCh, fxOn, depth, pad, touch, quantize, tap, freq) et `BF` (fraction, TIME, TAP, grille). Valeurs non données par le manuel marquées « à caler ». Vumètre et CLIP du master avant le limiteur.
 - Casque : clic sur la prise PHONES, sortie choisie avec setSinkId (Chrome / Edge).
 - Contrôleurs MIDI (`midi.js`, Web MIDI, Chrome / Edge) : actions `MACT`, modèles `MTPL` (Hercules DJ Control Steel d'après la table MIDI de son mode d'emploi, dans `references/manuels/`), reprise douce des potards, voyants, apprentissage. Plan dessiné du Steel dans `midi_plan.js`. Voyants du Steel vérifiés un par un (résultats dans `references/`) : codes « Mode » = SHIFT, « Folders » / « Files » = flèches ◀ ▶. Le navigateur intégré de l'app Claude refuse Web MIDI : tester dans Chrome ou Edge.
 
 ## Feuille de route (validée par Victor le 27 octobre 2026, susceptible de changer)
 1. Audit complet des modes d'emploi CDJ-2000NXS2 et DJM-900NXS2, page par page : chaque fonction, chaque comportement d'écran et de la platine classé « simulé / partiel / absent / différent du réel », avec la liste d'écarts que Victor a constatés. Résultat = base des versions suivantes.
-2. V2.9 : BEAT FX de la table (14 effets, X-PAD, écran OLED, TAP, QUANTIZE, queues après le fader, mode d'emploi p. 16-17) + BEAT FX sur le Steel (Apply Ctrl en « Select », Controls 2).
-3. Calage des SOUND COLOR FX et des BEAT FX sur un enregistrement de la vraie table (kit `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.8/kit-test-DJM/`, à compléter pour les BEAT FX) : Victor fera un seul passage sur la vraie DJM pour les deux.
+2. V2.9 (faite) : BEAT FX de la table. V2.9.1 : BEAT FX sur le Steel (Apply Ctrl en « Select », Controls 2), puis retours d'écoute de Victor. Ensuite V2.8.3 (écran et voyants CDJ) et V2.8.4 (fonctions CDJ manquantes), voir `references/audit/SYNTHESE.md`.
+3. Calage des SOUND COLOR FX et des BEAT FX sur un enregistrement de la vraie table (kit `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.9/kit-test-DJM/`, COLOR et BEAT FX) : Victor fera un seul passage sur la vraie DJM pour les deux.
 4. V2.10 : LINK entre platines, fente SD de la CDJ (2e clé, ex. clé de secours), site utilisable sans internet.
 5. V2.11 : contrôle de clé enrichi : rapport à garder ou envoyer (texte / PDF), comparaison de deux clés, nouveaux contrôles (doublons, morceaux sans tonalité, playlists vides, fichiers trop gros ; chaque limite vérifiée dans le mode d'emploi), export de l'HISTORY.
 6. V3 : nouvelles machines (CDJ-3000, DJM-A9…) ; versions blanches (-W) possibles plus tôt.
