@@ -157,6 +157,19 @@ function buildMap(){
   const LEG=[['hot','Hot cues','Hot cues'],['loop','Loop et beat jump','Loop and beat jump'],['cue','Call, memory, delete','Call, memory, delete'],['play','Lecture, jog, sync','Playback, jog, sync'],['scr','Écran et navigation','Screen and navigation'],['page','Page (taille, plein écran…)','Page (size, full screen…)']];
   $('mapLeg').innerHTML=LEG.map(l=>'<span class="g-'+l[0]+'"><i></i>'+esc(LANG==='en'?l[2]:l[1])+'</span>').join('');
 }
+/* a floating window resized by its corner grip, between a smallest and a largest width; the width is kept */
+function sizeWin(id,key,def,min,max,apply){
+  const p=$(id),g=p.querySelector('.fw-grip');let w=def;try{w=+localStorage.getItem(key)||def;}catch(e){}
+  /* w is the width asked for; a narrow window only shows it smaller, without forgetting it */
+  const show=()=>{const v=clamp(w,min,Math.max(min,Math.min(max,window.innerWidth-16)));p.style.width=v+'px';if(apply)apply(v);return v;};
+  const set=v=>{w=clamp(v,min,max);show();};show();
+  let st=null;
+  g.addEventListener('pointerdown',e=>{st={x:e.clientX,w:show()};g.setPointerCapture(e.pointerId);e.preventDefault();e.stopPropagation();});
+  g.addEventListener('pointermove',e=>{if(st)set(st.w+e.clientX-st.x);});
+  const up=()=>{if(!st)return;st=null;try{localStorage.setItem(key,String(Math.round(w)));}catch(_){}};
+  g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up);
+  window.addEventListener('resize',show);
+}
 /* the keyboard map floats over the booth: it can be moved by its title bar and stays open while playing */
 function showMap(on){const p=$('mapPanel');if(on===!p.hidden)return;p.hidden=!on;if(on){buildMap();placeMap();}}
 function placeMap(x,y){const p=$('mapPanel');let pos=null;try{pos=JSON.parse(localStorage.getItem('bc.mapPos')||'null');}catch(e){}
@@ -197,6 +210,8 @@ function wireChrome(){
   $('bKeys').onclick=()=>showKeys();$('kClose').onclick=()=>showKeys(false);
   $('kMap').onclick=()=>showMap(true);$('mClose').onclick=()=>showMap(false);
   wireMapDrag();
+  /* the keyboard map is drawn for 1000 px: smaller or larger, everything in it follows */
+  sizeWin('mapPanel','bc.mapW',1000,560,1500,w=>{const z=w/1000;for(const id of ['mapKeys','mapLeg'])$(id).style.zoom=z;});
   $('phClose').onclick=()=>closePhones();
   document.addEventListener('pointerdown',e=>{if(!$('phMenu').hidden&&!e.target.closest('#phMenu')&&!e.target.closest('#faceM'))closePhones();});
   for(const id of ['kbdSeg','mapSeg'])$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(b)setKbd(b.dataset.k,true);});

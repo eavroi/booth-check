@@ -1,5 +1,13 @@
 # Booth Check — versions
 
+## V2.7.1 — 27 octobre 2026
+- Steel : COLOR de la tranche = Stop + Gain (le TRIM ne bouge pas), PARAMETER = Stop + Balance ; les deux Stop choisissent les 6 SOUND COLOR FX avec les Kill ; Controls 1 = sélecteur rotatif de la platine choisie par Apply Ctrl, Controls 2 et Select gardés pour les BEAT FX (V2.9).
+- Steel, voyants : un bouton maintenu est allumé tant qu'on appuie (Stop, BANK, CALL/DELETE, Pitch bend), un bouton qui bascule est allumé tant que sa fonction est active ; avec SHIFT, seuls les hot cues existants sont allumés.
+- CDJ, d'après le mode d'emploi : LOOP OUT sans IN pose la boucle depuis le point CUE ; IN / OUT ADJUST : la touche clignote vite, l'autre s'éteint, l'écran affiche le temps du point ; jog à l'arrêt : le son suit la platine (recherche de trame en mode CDJ, scratch en VINYL).
+- TRACK FILTER EDIT : le sélecteur atteint aussi MASTER PLAYER, les onglets BPM/KEY et MY TAG et RESET (cadre orange).
+- Plans du contrôleur et du clavier redimensionnables par la poignée du coin (taille mini et maxi, taille retenue) ; plan du contrôleur plus petit à l'ouverture.
+- Panneau Contrôleur : la liste des correspondances ne chevauche plus les derniers messages.
+
 ## V2.7 — 26 octobre 2026
 - Contrôleurs MIDI (Chrome, Edge) : icône « contrôleur » dans la barre du haut, avec un point vert quand un contrôleur est branché. Son panneau : choix du contrôleur et du modèle, platine pilotée par chaque côté, derniers messages reçus, mode apprentissage, export / import des correspondances, sensibilité du jog, test des voyants.
 - Modèle Hercules DJ Control Steel, d'après sa table MIDI officielle (mode d'emploi), essayé sur le vrai contrôleur (voyants encore à vérifier) :

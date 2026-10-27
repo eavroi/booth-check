@@ -6,7 +6,7 @@ const PSH={play:'PLAY',cue:'CUE',loop_in:'LOOP IN',loop_out:'LOOP OUT',reloop:'R
   sync:'SYNC',player_master:'MASTER',tempo_reset:'T.RESET',tempo_range:'T.RANGE',master_tempo:'M.TEMPO',fn:'M.TEMPO',reverse:'REVERSE',slip:'SLIP',quantize:'QUANTIZE',jog_mode:'JOG MODE',
   nudge_rev:'BEND −',nudge_fwd:'BEND +',load:'LOAD',tempo:'TEMPO',jog:'JOG',trim:'TRIM',hi:'HI',mid:'MID',low:'LOW',fader:'FADER',color:'COLOR',ph_cue:'CUE',
   kill_hi:'KILL HI',kill_mid:'KILL MID',kill_low:'KILL LOW',xfader:'CROSSFADER',master:'MASTER',balance:'BALANCE',mixing:'MIXING',ph_level:'LEVEL',param:'PARAMETER',fx_color:'COLOR',
-  beatfx:'BEAT FX',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
+  beatfx:'BEAT FX',selector:'SÉLECTEUR',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
   browse:'BROWSE',tag_list:'TAG LIST',info:'INFO',menu:'MENU',tag_track:'TAG',track_filter:'FILTER',short_cut:'SHORT CUT'};
 const pshort=a=>a?(PSH[a]||(a.startsWith('fx:')?a.slice(3):MACT[a]?tl(MACT[a].l):a)):'';
 /* colour of a function: CDJ transport, loops, hot cues, the function key, the mixer, browsing, SOUND COLOR FX */
@@ -68,7 +68,7 @@ function planSvg(){
     const codes=Array.isArray(g.c)?g.c:g.c!=null?[g.c]:[],keys=codes.map(pkey),b=keys.length?map[keys[0]]:null,bs=g.s!=null?map[pkey(g.s)]:null;
     const dk=keys.concat(g.s!=null?[pkey(g.s)]:[]).join(' ');
     const cat=g.shift||g.apply?'hw':pcat(b&&b.a);
-    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls sur la tranche gauche, Deck B = tranche droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls on the left channel, Deck B = right channel, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : tranche gauche ; Deck B : tranche droite','Apply Ctrl Deck A: left channel; Deck B: right channel'):tip(b,bs))+'</title>';
+    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : platine gauche ; Deck B : platine droite ; Select : BEAT FX (V2.9)','Apply Ctrl Deck A: left player; Deck B: right player; Select: BEAT FX (V2.9)'):tip(b,bs))+'</title>';
     if(g.t==='b'){
       h+='<rect x="'+g.x+'" y="'+g.y+'" width="'+g.w+'" height="'+g.h+'" rx="1.2" class="p-key"/>';
       const cx=g.x+g.w/2;
@@ -79,6 +79,7 @@ function planSvg(){
       h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-knob"/><line x1="'+g.cx+'" y1="'+(g.cy-g.r+1)+'" x2="'+g.cx+'" y2="'+(g.cy-1.5)+'" class="p-tick"/>';
       /* the two Controls: label above (Apply Ctrl and its lights sit just below) */
       h+=g.ctl?T(g.cx,g.cy-g.r-1.3,pshort(b&&b.a),'p-t p-lab',2.2,'middle'):T(g.cx,g.cy+g.r+3,lab(b),'p-t p-lab',2.3,'middle');
+      if(!g.ctl&&b&&b.f)h+=T(g.cx,g.cy+g.r+5.6,'■ '+pshort(b.f),'p-t c-fn',1.9,'middle');
     }else if(g.t==='f'){
       if(g.h){h+='<line x1="'+g.y0+'" x2="'+g.y1+'" y1="'+g.ty+'" y2="'+g.ty+'" class="p-slot"/><rect x="'+(g.x-2.4)+'" y="'+(g.ty-4.5)+'" width="4.8" height="9" rx=".8" class="p-key"/>'+T(g.x,g.ty+8,lab(b),'p-t p-lab',2.3,'middle');}
       else{h+='<line x1="'+g.x+'" x2="'+g.x+'" y1="'+g.y0+'" y2="'+g.y1+'" class="p-slot"/><rect x="'+(g.x-g.w/2)+'" y="'+(g.ty-3.6)+'" width="'+g.w+'" height="7.2" rx="1" class="p-key"/>'+T(g.x,g.ty+.9,lab(b),'p-t',2.3,'middle');}
@@ -110,6 +111,7 @@ function placePlan(x,y){const p=$('planPanel');let pos=null;try{pos=JSON.parse(l
   x=clamp(x,8-p.offsetWidth+120,window.innerWidth-120);y=clamp(y,8,window.innerHeight-48);p.style.left=x+'px';p.style.top=y+'px';return [x,y];}
 function wirePlan(){
   const h=$('planHead');let st=null;
+  sizeWin('planPanel','bc.planW',860,480,1500);
   $('pClose').onclick=()=>showPlan(false);
   h.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const p=$('planPanel'),r=p.getBoundingClientRect();st={dx:e.clientX-r.left,dy:e.clientY-r.top};h.setPointerCapture(e.pointerId);e.preventDefault();});
   h.addEventListener('pointermove',e=>{if(st)placePlan(e.clientX-st.dx,e.clientY-st.dy);});

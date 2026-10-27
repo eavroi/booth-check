@@ -45,7 +45,7 @@ class Deck{
       autoLen:4,loopMode:false,jumpMode:false,zi:2,grid:false,gridHold:false,brakeT:.05,startT:.05,jogWeight:.5,touchPrev:null,called:null,hist:[],
       cueHold:false,kTouch:0,kRel:0,rimAngle:0,spin:0,spinning:false,face:null});
     this.ui={scr:'play',nav:[{k:'media',sel:0,top:0}],tl:{sel:0,top:0},menu:{sel:0},util:{sel:0,top:0,edit:false},info:false,sort:null,
-      search:{q:'',sel:0,top:0,kb:0},sc:{sel:0},filt:{tab:0,sel:0,pad:null,padTxt:'',tcol:0,tsel:0},iplay:{sel:0},hits:[],items:[]};
+      search:{q:'',sel:0,top:0,kb:0},sc:{sel:0},filt:{tab:0,sel:0,pad:null,padTxt:'',tcol:0,tsel:0,side:null},iplay:{sel:0},hits:[],items:[]};
     BUS.add(this);DECKS.push(this);
   }
   loaded(){return !!(this.cur&&!this.cur.loading);}

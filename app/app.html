@@ -175,7 +175,10 @@ footer .pop .ic{text-decoration:none;color:#b4b8bf;width:34px;height:34px}
 .lnk:hover{color:#fff}
 .floatwin.map{width:min(1000px,calc(100vw - 16px))}
 /* ---------- the controller map ---------- */
-.floatwin.plan{width:min(1180px,calc(100vw - 16px))}
+.floatwin.plan{width:min(860px,calc(100vw - 16px))}
+.fw-grip{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 0 55%,#6f757e 55% 62%,transparent 62% 72%,#6f757e 72% 79%,transparent 79%)}
+/* the controller panel: nothing in it is squeezed when the mapping list is opened */
+.gear.midi>*{flex-shrink:0}
 .pbody svg{display:block;width:100%;height:auto;font-family:Arimo,Arial,sans-serif}
 .p-body{fill:#2b2e33;stroke:#4a4f57;stroke-width:.5}.p-mix{fill:#3a3e45;stroke:#555b63;stroke-width:.4}
 .p-brand{fill:#8b9099;font-weight:700}
@@ -374,6 +377,7 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
     <div class="mleg pleg" id="planLeg"></div>
     <p class="note" data-i18n="planNote"></p>
   </div>
+  <div class="fw-grip" aria-hidden="true"></div>
 </div>
 <div class="floatwin map" id="mapPanel" role="dialog" aria-labelledby="mTitle" hidden>
   <div class="fw-h" id="mapHead" data-i18n-aria="mapMove"><h2 id="mTitle"><span data-i18n="mapTitle"></span> · <span id="mapKbd"></span></h2>
@@ -385,6 +389,7 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
     <div class="mleg" id="mapLeg"></div>
     <p class="note" data-i18n="mapNote"></p>
   </div>
+  <div class="fw-grip" aria-hidden="true"></div>
 </div>
 <div class="phmenu" id="phMenu" role="dialog" aria-labelledby="phT" hidden>
   <div class="dlg-h"><h2 id="phT" data-i18n="phTitle"></h2><button class="ic" id="phClose" type="button" data-i18n-aria="close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>

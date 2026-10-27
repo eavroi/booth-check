@@ -41,7 +41,9 @@ function lower(d,g){
   if(SET.hcAuto!==0){const col=SET.hcAuto===2?'#ffffff':'#ff1a1a';chip(g,183,318,70,16,'A.HOT CUE',col);}
   if(d.autoCueOn){const col=SET.autoCueLevel===8?'#ffffff':'#ff1a1a';chip(g,183,339,70,16,'A.CUE',col);}
   T(g,d.remain?'REMAIN':'ELAPSED',290,315,13,'#fff',LA,700,'left');
-  const tv=ld?(d.remain?d.dur-pos:pos):0,[mm,ss,ms]=fmtMs(tv);
+  /* IN / OUT ADJUST: the time of the loop point being set is shown (manual p. 24-25) */
+  const adj=ld&&d.adjust&&d.loop?(d.adjust==='in'?d.loop.a:d.loop.b):null;
+  const tv=adj!=null?adj:ld?(d.remain?d.dur-pos:pos):0,[mm,ss,ms]=fmtMs(tv);
   const warn=ld&&d.playing&&d.dur-pos<30&&Math.floor(now()*(d.dur-pos<15?4:2))%2;const tc=warn?'#242424':'#fff';
   let x=286;g.fillStyle=tc;g.textAlign='left';g.font='300 55px '+LN;for(const ch of mm){g.fillText(ch,x,361);x+=g.measureText(ch).width+1;}
   g.font='300 44px '+LN;g.fillText(':',x+1,356);x+=g.measureText(':').width+3;g.font='300 55px '+LN;for(const ch of ss){g.fillText(ch,x,361);x+=g.measureText(ch).width+1;}
@@ -449,11 +451,13 @@ function drawFilter(d,g){
   g.fillStyle=FB.head;g.fillRect(18,12,764,30);T(g,'TRACK FILTER',28,35,22,'#fff');T(g,'USB@PLAYER'+d.pn,200,35,22,'#fff');
   if(filterActive(M)){funnel(g,700,19,15,'#fff');T(g,'[ '+(filterHasCond(M)?M.tracks.filter(passFilter).length:M.tracks.length)+']',776,36,22,'#fff',LF,400,'right');}
   const tabs=[['BPM\nKEY',0],['MY TAG',1]];
-  tabs.forEach(([t,i],k)=>{const y=48+k*52,on=u.tab===i;box(g,22,y,60,46,on?FB.btnOn:FB.btn,FB.edge,1);if(on){g.fillStyle='#f2f4f8';g.fillRect(25,y+5,3,36);}
-    t.split('\n').forEach((ln,j,a)=>T(g,ln,53,y+27+(j-(a.length-1)/2)*13,12,'#f2f4f8',LA,700,'center'));hit(d,22,y,60,46,()=>{u.tab=i;u.sel=0;u.pad=null;});});
+  /* the selector also reaches the tabs, MASTER PLAYER and RESET (orange frame) */
+  const cur=w=>u.pad==null&&(u.tab===0?u.sel===w.a:u.side===w.b);
+  tabs.forEach(([t,i],k)=>{const y=48+k*52,on=u.tab===i,c=k===1?cur({a:5}):cur({b:'tab'});box(g,22,y,60,46,on?FB.btnOn:FB.btn,c?FB.sel:FB.edge,c?2:1);if(on){g.fillStyle='#f2f4f8';g.fillRect(25,y+5,3,36);}
+    t.split('\n').forEach((ln,j,a)=>T(g,ln,53,y+27+(j-(a.length-1)/2)*13,12,'#f2f4f8',LA,700,'center'));hit(d,22,y,60,46,()=>{u.tab=i;u.sel=0;u.pad=null;u.side=null;});});
   if(u.tab===1){g.fillStyle='#5fd8cc';g.beginPath();g.arc(52,170,15,0,7);g.fill();g.strokeStyle='#0e3b37';g.lineWidth=1;g.stroke();T(g,'i',52,177,19,'#0e3b37','Georgia,serif',700,'center');}
-  box(g,22,214,60,34,FB.btn,FB.edge,1);T(g,'–RESET',52,236,12,'#f2f4f8',LA,700,'center');
-  hit(d,22,214,60,34,()=>{Object.assign(f,{bpm:false,key:false,rating:false,color:false,on:false});f.colors.clear();f.tags.clear();f.catOn.clear();u.pad=null;});
+  {const c=cur({a:6,b:'reset'});box(g,22,214,60,34,FB.btn,c?FB.sel:FB.edge,c?2:1);}T(g,'–RESET',52,236,12,'#f2f4f8',LA,700,'center');
+  hit(d,22,214,60,34,()=>filterReset(d));
   g.fillStyle=FB.edge;g.fillRect(88,46,1,240);
   if(u.tab===0)filterBpmKey(d,g);else filterTags(d,g);
   if(u.pad!=null)numPad(d,g);
@@ -476,9 +480,11 @@ function filterBpmKey(d,g){
     if(k==='color'){for(let i=0;i<8;i++){const x=232+i*56,on=f.colors.has(i+1);fbtn(g,x,y+5,50,30,on,false);g.fillStyle=MEMC[i+1];g.beginPath();g.arc(x+25,y+20,on?8:7,0,7);g.fill();if(on){g.strokeStyle='#fff';g.lineWidth=2;g.stroke();}
       hit(d,x,y+5,50,30,()=>{if(f.colors.has(i+1))f.colors.delete(i+1);else f.colors.add(i+1);f.color=f.colors.size>0;});}}
   });
-  const on=!!f.useMaster;box(g,684,50,90,92,on?FB.on:FB.btn,on?'#e6fffb':FB.edge,on?1.6:1);T(g,'MASTER',729,92,14,on?FB.onTxt:'#fff',LA,700,'center');T(g,'PLAYER',729,108,14,on?FB.onTxt:'#fff',LA,700,'center');
-  hit(d,684,50,90,92,()=>{f.useMaster=!f.useMaster;if(f.useMaster){if(!masterRef(d))toast(say('MASTER PLAYER : aucun morceau chargé sur la platine MASTER','MASTER PLAYER: no track loaded on the MASTER player'));else{f.bpm=true;f.key=true;}}followMaster(d);});
+  const on=!!f.useMaster,cm=u.sel===4&&u.pad==null;box(g,684,50,90,92,on?FB.on:FB.btn,cm?FB.sel:on?'#e6fffb':FB.edge,cm?2:on?1.6:1);T(g,'MASTER',729,92,14,on?FB.onTxt:'#fff',LA,700,'center');T(g,'PLAYER',729,108,14,on?FB.onTxt:'#fff',LA,700,'center');
+  hit(d,684,50,90,92,()=>filterMaster(d));
 }
+function filterMaster(d){const f=fm(d).filter;f.useMaster=!f.useMaster;if(f.useMaster){if(!masterRef(d))toast(say('MASTER PLAYER : aucun morceau chargé sur la platine MASTER','MASTER PLAYER: no track loaded on the MASTER player'));else{f.bpm=true;f.key=true;}}followMaster(d);}
+function filterReset(d){const f=fm(d).filter,u=d.ui.filt;Object.assign(f,{bpm:false,key:false,rating:false,color:false,on:false});f.colors.clear();f.tags.clear();f.catOn.clear();u.pad=null;}
 /* the player whose BPM and KEY the filter uses with MASTER PLAYER: the sync master, else this deck */
 function masterRef(d){const m=BUS.master&&BUS.master.loaded()?BUS.master:(d.loaded()?d:null);return m;}
 function followMaster(d){const f=fm(d).filter;if(!f.useMaster)return;const m=masterRef(d);if(!m)return;f.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)f.keyVal=m.cur.tr.key;}
@@ -507,8 +513,8 @@ function filterTags(d,g){
   const c=cats[u.tcol],tags=catTags(M,c);u.tsel=clamp(u.tsel,0,Math.max(0,tags.length-1));
   const rowTop=clamp(Math.floor(u.tsel/2)-2,0,Math.max(0,Math.ceil(tags.length/2)-3)),cw=(782-226-8)/2;
   for(let r=0;r<3;r++)for(let k=0;k<2;k++){const i=(rowTop+r)*2+k,t=tags[i];if(!t)continue;const x=226+k*(cw+8),y=86+r*66,on=f.tags.has(t.id),cur=i===u.tsel;
-    box(g,x,y,cw,56,on?FB.on:FB.btn,cur?FB.sel:FB.edge,cur?2:1);TC(g,t.name,x+12,y+36,22,on?FB.onTxt:'#fff',cw-20);
-    hit(d,x,y,cw,56,()=>{u.tsel=i;toggleTag(M,c,t);});}
+    const cs=cur&&!u.side;box(g,x,y,cw,56,on?FB.on:FB.btn,cs?FB.sel:FB.edge,cs?2:1);TC(g,t.name,x+12,y+36,22,on?FB.onTxt:'#fff',cw-20);
+    hit(d,x,y,cw,56,()=>{u.tsel=i;u.side=null;toggleTag(M,c,t);});}
   const rows=Math.ceil(tags.length/2);if(rows>3){const h=196,th=h*3/rows,ty=86+(h-th)*rowTop/(rows-3);g.fillStyle='#d8dbe0';g.fillRect(219,ty,3,th);}
 }
 function toggleTag(M,c,t){const f=M.filter;if(f.tags.has(t.id))f.tags.delete(t.id);else{f.tags.add(t.id);f.catOn.add(c.id);}}

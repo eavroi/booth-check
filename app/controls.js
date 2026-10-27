@@ -96,7 +96,9 @@ function inUp(d){if(d._inT){clearTimeout(d._inT);d._inT=null;}cueUp(d);}
 function outDown(d){
   if(!d.loaded())return;
   if(d.loop){startAdjust(d,'out');return;}
-  if(d.loopIn!=null&&d.playing){const b=d.snap(d.pos());if(!d.setLoop(d.loopIn,b,true))d.loopIn=null;}
+  if(!d.playing)return;const b=d.snap(d.pos());
+  /* no IN point set: the current CUE point is the loop in (manual p. 24) */
+  const a=d.loopIn!=null?d.loopIn:(d.cue<b-.05?d.cue:null);if(a!=null&&!d.setLoop(a,b,true))d.loopIn=null;
 }
 function startAdjust(d,w){if(d.adjust===w){d.adjust=null;d.dirty=true;return;}d.adjust=w;d.adjOrig={a:d.loop.a,b:d.loop.b};d.adjT=now();toast(say((w==='in'?'IN':'OUT')+' ADJUST : jog ou SEARCH ◀◀ ▶▶',(w==='in'?'IN':'OUT')+' ADJUST: jog or SEARCH ◀◀ ▶▶'));d.dirty=true;}
 function reloopBtn(d){
@@ -180,10 +182,13 @@ function rotaryTurn(d,dir){
     case 'taglist':u.tl.sel=Math.max(0,u.tl.sel+dir);return;
     case 'iplay':u.iplay.sel=Math.max(0,u.iplay.sel+dir);return;
     case 'utility':utilStep(d,dir);return;
-    case 'filter':{const f=u.filt;if(f.tab===1){const E=fm(d).ext;if(!E)return;const cats=E.cats.length?E.cats:[{id:null}];const tags=E.tags.filter(t=>cats[f.tcol].id==null||t.parent===cats[f.tcol].id);
+    case 'filter':{const f=u.filt;
+      /* MY TAG: before the first tag come RESET and the BPM / KEY tab */
+      if(f.tab===1&&(f.side||(dir<0&&f.tcol===0&&f.tsel===0))){const S=['tab','reset',null];let i=S.indexOf(f.side||null);i=f.side?clamp(i+dir,0,2):1;f.side=S[i];return;}
+      if(f.tab===1){const E=fm(d).ext;if(!E)return;const cats=E.cats.length?E.cats:[{id:null}];const tags=E.tags.filter(t=>cats[f.tcol].id==null||t.parent===cats[f.tcol].id);
         f.tsel+=dir;if(f.tsel<0){if(f.tcol>0){f.tcol--;f.tsel=1e9;}else f.tsel=0;}else if(f.tsel>=tags.length){if(f.tcol<cats.length-1){f.tcol++;f.tsel=0;}else f.tsel=tags.length-1;}
         const t2=E.tags.filter(t=>cats[f.tcol].id==null||t.parent===cats[f.tcol].id);f.tsel=clamp(f.tsel,0,Math.max(0,t2.length-1));}
-      else f.sel=clamp(f.sel+dir,0,3);return;}
+      else f.sel=clamp(f.sel+dir,0,6);return;}
     case 'shortcut':return;
   }
 }
@@ -204,7 +209,10 @@ function rotaryPush(d){
     case 'menu':menuLoad(d);return;
     case 'iplay':infoJump(d);return;
     case 'utility':utilEnter(d);return;
-    case 'filter':{const f=u.filt,F=fm(d).filter;if(f.tab===1){const E=fm(d).ext;if(!E)return;const cats=E.cats.length?E.cats:[{id:null}];const M=fm(d),c=cats[f.tcol];const tags=catTags(M,c);const t=tags[f.tsel];if(t)toggleTag(M,c,t);}
+    case 'filter':{const f=u.filt,F=fm(d).filter;
+      if(f.tab===1&&f.side){if(f.side==='tab'){f.tab=0;f.sel=0;}else filterReset(d);f.side=null;return;}
+      if(f.tab===0&&f.sel>=4){if(f.sel===4)filterMaster(d);else if(f.sel===5){f.tab=1;f.side=null;}else filterReset(d);return;}
+      if(f.tab===1){const E=fm(d).ext;if(!E)return;const cats=E.cats.length?E.cats:[{id:null}];const M=fm(d),c=cats[f.tcol];const tags=catTags(M,c);const t=tags[f.tsel];if(t)toggleTag(M,c,t);}
       else{const k=['bpm','key','rating','color'][f.sel];F[k]=!F[k];if(k==='color'&&F.color&&!F.colors.size)toast(say('COLOR : touche les couleurs à garder','COLOR: touch the colours to keep'));}return;}
     case 'play':if(d.grid){d.gridOff=0;toast('GRID RESET');}return;
   }
@@ -268,8 +276,9 @@ function keyLight(d,name){
   switch(name){
     case 'play':return ld&&(d.playing&&d.touchTarget>0?true:blink(1));
     case 'cue':if(!ld)return false;if(d.playing)return true;return Math.abs(d._pos-d.cue)<.02?true:blink(1);
-    case 'loop_in':if(d.adjust==='in')return blink(2);return !!d.loop||d.loopIn!=null;
-    case 'loop_out':if(d.adjust==='out')return blink(2);return !!d.loop;
+    /* IN / OUT ADJUST: that key blinks fast, the other one is off */
+    case 'loop_in':if(d.adjust==='in')return blink(4);if(d.adjust==='out')return false;return !!d.loop||d.loopIn!=null;
+    case 'loop_out':if(d.adjust==='out')return blink(4);if(d.adjust==='in')return false;return !!d.loop;
     case 'reloop':return !!d.loop||!!d.lastLoop;
     case 'four_beat':return !!d.loop;
     case 'slip':return d.slip&&(!SET.slipFlash||!d.ghost||blink(2));
