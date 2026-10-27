@@ -308,7 +308,37 @@ function midiTempoGuide(s){
 /* sent only when a light changes, spaced a few ms apart (the Hercules driver loses messages sent in a burst);
    blinking is done by the controller itself (its own "blink" code) */
 function midiSend(list){const o=MIDI.out;if(!o)return;let t=Math.max(performance.now(),MIDI.sendT||0);for(const m of list){try{o.send(m,t);}catch(e){}t+=4;}MIDI.sendT=t;}
+/* ---------- light check, one code at a time: what the manual announces, and what the person sees on the controller ---------- */
+const STEEL_LEDS=[[0x01,'pad 1 gauche'],[0x02,'pad 2 gauche'],[0x03,'pad 3 gauche'],[0x04,'pad 4 gauche'],[0x05,'pad 5 gauche'],[0x06,'pad 6 gauche'],[0x07,'Sync gauche'],[0x08,'Pitch bend + gauche'],[0x0B,'Play gauche'],[0x0C,'Cue gauche'],[0x0D,'Stop gauche'],[0x0E,'Kill aigus gauche'],[0x0F,'Kill médiums gauche'],[0x10,'Kill basses gauche'],[0x11,'Pitch bend − gauche'],[0x12,'Load gauche (« Folders »)'],[0x13,'« Mode » gauche'],[0x14,'Cue casque gauche'],[0x15,'Pitch bend + droit'],[0x16,'Load droit (« Files »)'],[0x17,'« Mode » droit'],[0x18,'Cue casque droit'],[0x19,'pad 1 droit'],[0x1A,'pad 2 droit'],[0x1B,'pad 3 droit'],[0x1C,'pad 4 droit'],[0x1D,'pad 5 droit'],[0x1E,'pad 6 droit'],[0x1F,'Sync droit'],[0x20,'Pitch bend − droit (le manuel écrit « + »)'],[0x23,'Play droit'],[0x24,'Cue droit'],[0x25,'Stop droit'],[0x26,'Kill aigus droit'],[0x27,'Kill médiums droit'],[0x28,'Kill basses droit'],[0x29,'Scratch'],[0x31,'pad 1 gauche, clignotant'],[0x32,'pad 2 gauche, clignotant'],[0x33,'pad 3 gauche, clignotant'],[0x34,'pad 4 gauche, clignotant'],[0x35,'pad 5 gauche, clignotant'],[0x36,'pad 6 gauche, clignotant'],[0x37,'Sync gauche, clignotant'],[0x38,'Pitch bend + gauche, clignotant'],[0x3B,'Play gauche, clignotant'],[0x3C,'Cue gauche, clignotant'],[0x3D,'Stop gauche, clignotant'],[0x3E,'Kill aigus gauche, clignotant'],[0x3F,'Kill médiums gauche, clignotant'],[0x40,'Kill basses gauche, clignotant'],[0x41,'Pitch bend − gauche, clignotant'],[0x42,'Load gauche, clignotant'],[0x43,'« Mode » gauche, clignotant'],[0x44,'Cue casque gauche, clignotant'],[0x46,'Stop droit, clignotant'],[0x47,'Load droit, clignotant'],[0x4A,'pad 1 droit, clignotant'],[0x4B,'pad 2 droit, clignotant'],[0x4C,'pad 3 droit, clignotant'],[0x4D,'pad 4 droit, clignotant'],[0x4E,'pad 5 droit, clignotant'],[0x50,'pad 6 droit, clignotant'],[0x53,'Play droit, clignotant'],[0x54,'Cue droit, clignotant'],[0x55,'Pitch bend − droit, clignotant'],[0x57,'« Mode » droit, clignotant'],[0x58,'Cue casque droit, clignotant'],[0x59,'Scratch, clignotant'],[0x5A,'Kill aigus droit, clignotant'],[0x5B,'Kill médiums droit, clignotant'],[0x5C,'Kill basses droit, clignotant'],[0x5F,'Sync droit, clignotant'],[0x60,'Pitch bend + droit, clignotant'],[0x64,'pad 7 gauche (SHIFT)'],[0x65,'pad 8 gauche (SHIFT)'],[0x66,'pad 9 gauche (SHIFT)'],[0x67,'pad 10 gauche (SHIFT)'],[0x68,'pad 11 gauche (SHIFT)'],[0x69,'pad 12 gauche (SHIFT)'],[0x6A,'pad 7 droit (SHIFT)'],[0x6B,'pad 8 droit (SHIFT)'],[0x6C,'pad 9 droit (SHIFT)'],[0x6D,'pad 10 droit (SHIFT)'],[0x6E,'pad 11 droit (SHIFT)'],[0x6F,'pad 12 droit (SHIFT)'],[0x74,'pad 7 gauche (SHIFT), clignotant'],[0x75,'pad 8 gauche (SHIFT), clignotant'],[0x76,'pad 9 gauche (SHIFT), clignotant'],[0x77,'pad 10 gauche (SHIFT), clignotant'],[0x78,'pad 11 gauche (SHIFT), clignotant'],[0x79,'pad 12 gauche (SHIFT), clignotant'],[0x7A,'pad 7 droit (SHIFT), clignotant'],[0x7B,'pad 8 droit (SHIFT), clignotant'],[0x7C,'pad 9 droit (SHIFT), clignotant'],[0x7D,'pad 10 droit (SHIFT), clignotant'],[0x7E,'pad 11 droit (SHIFT), clignotant'],[0x7F,'pad 12 droit (SHIFT), clignotant']];
+function diagOn(){return MIDI.diag&&MIDI.diag.on;}
+function diagShow(){const D=MIDI.diag,L=STEEL_LEDS;if(!D||!MIDI.out)return;const prev=D.lit;if(prev!=null)midiSend([[0xB0,prev,0]]);D.lit=D.i<L.length?L[D.i][0]:null;if(D.lit!=null)midiSend([[0xB0,D.lit,0x7F]]);mstore.set('diag',{i:D.i,res:D.res});renderMidi();}
+function diagStart(){const old=mstore.get('diag',null);MIDI.diag={on:true,i:old&&old.i<STEEL_LEDS.length?old.i:0,res:old?old.res:{},lit:null};
+  /* everything off first, so only the code being checked is lit */
+  const off=[];for(let n=1;n<=0x7F;n++)if(n!==0x70)off.push([0xB0,n,0]);midiSend(off);diagShow();}
+function diagStop(){const D=MIDI.diag;if(D&&D.lit!=null)midiSend([[0xB0,D.lit,0]]);if(D)D.on=false;MIDI.leds.clear();renderMidi();}
+function diagAnswer(a){const D=MIDI.diag;if(!D||D.i>=STEEL_LEDS.length)return;const L=STEEL_LEDS[D.i];
+  if(a==='other'){const t=($('diagTxt')||{}).value||'';if(!t.trim()){toast(say('Écris d’abord quel voyant s’allume','First write which light comes on'),2400);return;}D.res[L[0]]='autre : '+t.trim();}
+  else D.res[L[0]]=a==='ok'?'ok':'rien';D.i++;diagShow();}
+function diagExport(){const D=MIDI.diag||{res:mstore.get('diag',{res:{}}).res};
+  const rows=STEEL_LEDS.map(([c,n])=>({code:'0x'+c.toString(16).toUpperCase().padStart(2,'0'),manuel:n,vu:D.res[c]||null}));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({booth_check_led_check:1,device:MIDI.port,date:new Date().toISOString(),codes:rows},null,1)],{type:'application/json'}));
+  a.download='booth-check-voyants-steel.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
+function diagHtml(){
+  const D=MIDI.diag,N=STEEL_LEDS.length;
+  let h='<details class="maps diag"'+(MIDI.diagOpen?' open':'')+'><summary>'+esc(say('Diagnostic des voyants','Light check'))+'</summary>';
+  if(!D||!D.on){const old=mstore.get('diag',null),done=old?Object.keys(old.res).length:0;
+    h+='<p class="note">'+esc(say('Booth Check allume les voyants un par un, d’après le mode d’emploi. Pour chacun, dis ce que tu vois sur le Steel.','Booth Check lights the lights one by one, after the manual. For each one, say what you see on the Steel.'))+(done?' '+esc(say('Déjà fait : ','Done: ')+done+' / '+N):'')+'</p>';
+    h+='<div class="cols"><button type="button" class="opt" data-act="diag-start"><span>'+esc(done?say('Reprendre','Resume'):say('Commencer','Start'))+'</span></button>'+(done?'<button type="button" class="opt" data-act="diag-export"><span>'+esc(say('Exporter le résultat','Export the result'))+'</span></button>':'')+'</div>';}
+  else if(D.i>=N){h+='<p class="note">'+esc(say('Terminé : ','Done: ')+Object.keys(D.res).length+' / '+N+say('. Exporte le résultat et donne-le à Claude.','. Export the result and give it to Claude.'))+'</p><div class="cols"><button type="button" class="opt" data-act="diag-export"><span>'+esc(say('Exporter le résultat','Export the result'))+'</span></button><button type="button" class="opt" data-act="diag-stop"><span>'+esc(say('Fermer','Close'))+'</span></button></div>';}
+  else{const [c,n]=STEEL_LEDS[D.i],r=D.res[c];
+    h+='<div class="last"><div>'+esc((D.i+1)+' / '+N+' · code 0x'+c.toString(16).toUpperCase().padStart(2,'0'))+'</div><div>'+esc(say('Le manuel annonce : ','The manual says: ')+n)+'</div>'+(r?'<div class="old">'+esc(say('Ta réponse : ','Your answer: ')+r)+'</div>':'')+'</div>';
+    h+='<div class="cols"><button type="button" class="opt" data-act="diag-ans" data-a="ok"><span>'+esc(say('C’est bien ça','That’s right'))+'</span></button><button type="button" class="opt" data-act="diag-ans" data-a="none"><span>'+esc(say('Rien ne s’allume','Nothing lights'))+'</span></button></div>';
+    h+='<div class="side"><input type="text" id="diagTxt" placeholder="'+esc(say('Un autre voyant : lequel ?','Another light: which one?'))+'"><button type="button" class="mini" data-act="diag-ans" data-a="other">OK</button></div>';
+    h+='<div class="cols"><button type="button" class="opt" data-act="diag-prev"><span>◀ '+esc(say('Précédent','Previous'))+'</span></button><button type="button" class="opt" data-act="diag-next"><span>'+esc(say('Suivant','Next'))+' ▶</span></button><button type="button" class="opt" data-act="diag-stop"><span>'+esc(say('Pause','Pause'))+'</span></button></div>';}
+  return h+'</details>';
+}
 function midiTick(){
+  if(diagOn())return;
   const t=MIDI.out&&MIDI.cfg&&MTPL[MIDI.cfg.tpl];if(!t||!t.blink)return;
   for(const [k,b] of Object.entries(MIDI.cfg.map)){
     if(k[0]!=='c')continue;const st=midiLedState(b,k);if(st==null)continue;
@@ -353,6 +383,7 @@ function renderMidi(){
     h+='<div class="cols"><button type="button" class="opt" data-act="plan"><span>'+esc(say('Plan du contrôleur','Controller map'))+'</span></button><button type="button" class="opt" data-act="ledtest"><span>'+esc(say('Tester les voyants','Test the lights'))+'</span></button></div>';
     h+='<div class="last" id="midiLast"></div><p class="note"><button type="button" class="link" data-act="jog0">'+esc(say('Remettre les totaux du jog à zéro','Reset the jog totals'))+'</button></p>';
     if(MIDI.learn)h+='<p class="learn">'+esc(say('Touche maintenant le bouton du contrôleur pour : ','Now touch the controller’s control for: ')+midiBindLabel(MIDI.learn))+' <button type="button" class="link" data-act="learn-stop">'+esc(say('Annuler','Cancel'))+'</button></p>';
+    if(c.tpl==='steel'&&MIDI.out)h+=diagHtml();
     h+='<details class="maps"'+(MIDI.open?' open':'')+'><summary>'+esc(say('Correspondances et mode apprentissage','Mapping and learn mode'))+'</summary>';
     const keyOf=(a,s)=>Object.keys(c.map).find(k=>c.map[k].a===a&&(c.map[k].s||null)===(s||null));
     for(const [g,gl] of MGROUPS){
@@ -375,7 +406,7 @@ function placeMidi(){const m=$('midiPanel'),b=$('bMidi'),r=(b.offsetParent?b:$('
   m.style.left=Math.round(Math.max(8,Math.min(window.innerWidth-w-8,r.right-w)))+'px';m.style.top=Math.round(r.bottom+6)+'px';
   m.style.maxHeight=Math.round(window.innerHeight-r.bottom-18)+'px';}
 function midiOpen(on){const m=$('midiPanel');if(on===undefined)on=m.hidden;m.hidden=!on;$('bMidi').setAttribute('aria-expanded',on);
-  if(on){gearOpen(false);menu(false);ensureCtx();renderMidi();placeMidi();}else if(MIDI.learn){MIDI.learn=null;}}
+  if(on){gearOpen(false);menu(false);ensureCtx();renderMidi();placeMidi();}else{if(MIDI.learn)MIDI.learn=null;if(diagOn())diagStop();}}
 function midiAct(b){
   const a=b.dataset.act;
   switch(a){
@@ -389,6 +420,12 @@ function midiAct(b){
     case 'full':{const p=BOOTH.p.slice();for(const c of CH_OF){if(p.length>=2)break;if(!p.includes(c))p.push(c);}setBooth({p,m:true});MIDI.said={};renderMidi();return;}
     case 'ledtest':if(!midiLedTest())toast(say('Pas de voyants pilotables pour ce contrôleur (ou sortie MIDI absente)','No lights to drive on this controller (or no MIDI output)'),3000);return;
     case 'plan':midiOpen(false);showPlan(true);return;
+    case 'diag-start':MIDI.diagOpen=true;diagStart();return;
+    case 'diag-stop':diagStop();return;
+    case 'diag-ans':diagAnswer(b.dataset.a);return;
+    case 'diag-prev':if(MIDI.diag&&MIDI.diag.i>0){MIDI.diag.i--;diagShow();}return;
+    case 'diag-next':if(MIDI.diag&&MIDI.diag.i<STEEL_LEDS.length){MIDI.diag.i++;diagShow();}return;
+    case 'diag-export':diagExport();return;
     case 'jog0':MIDI.jogSum={};MIDI.hist=[];midiLastShow();return;
     case 'unbind':midiUnbind(b.dataset.a,b.dataset.s||null);return;
     case 'export':midiExport();return;
@@ -399,7 +436,8 @@ function wireMidi(){
   const b=$('bMidi');if(!b)return;
   b.onclick=()=>midiOpen();
   $('midiPanel').addEventListener('click',e=>{const x=e.target.closest('button');if(x&&x.dataset.act)midiAct(x);});
-  $('midiPanel').addEventListener('toggle',e=>{if(e.target.matches('details.maps'))MIDI.open=e.target.open;},true);
+  $('midiPanel').addEventListener('toggle',e=>{if(e.target.matches('details.diag'))MIDI.diagOpen=e.target.open;else if(e.target.matches('details.maps'))MIDI.open=e.target.open;},true);
+  $('midiPanel').addEventListener('keydown',e=>{if(e.target.id==='diagTxt'&&e.key==='Enter')diagAnswer('other');});
   $('midiPanel').addEventListener('input',e=>{if(e.target.id==='midiJog'){const v=+e.target.value;mstore.set('jogSens',v);$('midiJogV').textContent=Math.round(v*100)+' %';}});
   window.addEventListener('focus',()=>{if(MIDI.out){MIDI.leds.clear();midiInit();}});
   $('midiFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)midiImport(f);};
