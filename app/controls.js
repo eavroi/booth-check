@@ -1,12 +1,15 @@
 let LASTOFF=null;
 /* ---------------- what each control does (CDJ-2000NXS2 manual behaviour) ---------------- */
 const blink=hz=>Math.floor(now()*hz*2)%2===0;
+/* SLIP blinks in time with the track playing in the background (manual p. 28): on for the first half of each beat */
+const slipBlink=d=>{const p=d.beatPhase(d.ghost.pos);return p-Math.floor(p)<.5;};
 function needMedia(){if(!anyMedia()){toast(say('Pas de média : charge le dossier de ta clé (bouton en haut) ou clique sur le port USB','No media: load your USB folder (top bar) or click the USB port'));return false;}return true;}
 function goScr(d,s){const u=d.ui;u.scr=s;u.info=false;u.sort=null;d.dirty=true;}
 function toggleScr(d,s,init){if(d.ui.scr===s){goScr(d,'play');return;}if(init)init();goScr(d,s);}
 /* ---------- transport ---------- */
 function cueDown(d){
   if(!d.loaded())return;
+  if(d.slipHold){d.slipHold=false;d.ghost=null;}
   if(d.playing){d.pause();if(d.loop){d.lastLoop=d.loop;d.loop=null;d.adjust=null;}d.ghost=null;d.seek(d.cue);return;}   /* back cue */
   const p=d.pos();
   if(Math.abs(p-d.cue)<.02){d.cueHold=true;d.play();}                                                  /* cue point sampler */
@@ -14,14 +17,17 @@ function cueDown(d){
   d.dirty=true;
 }
 function cueUp(d){if(d.cueHold){d.cueHold=false;if(d.playing){d.pause();d.seek(d.cue);}d.dirty=true;}}
-/* the CDJ-2000NXS2 has its own TOUCH/BRAKE and RELEASE/START knobs: they act on PLAY/PAUSE and on the jog touch */
+/* the CDJ-2000NXS2 has its own TOUCH/BRAKE and RELEASE/START knobs: they act on PLAY/PAUSE and on the jog touch, in VINYL mode only (manual p. 23) */
 function tBrake(d){return .04+d.kTouch*2.96;}
 function tStart(d){return .04+d.kRel*2.96;}
 function playBtn(d){
   if(!d.loaded())return;
   if(d.cueHold){d.cueHold=false;d.dirty=true;return;}
-  if(d.playing&&d.touchTarget>0){const tb=tBrake(d);if(tb>.08){d.brakeT=tb;d.braking=true;d.touchTarget=0;}else d.pause();}
-  else{const ts=tStart(d);d.braking=false;if(d.playing){d.startT=Math.max(.04,ts);d.touchTarget=1;}else{d.play();if(ts>.08){d.startT=ts;d.touch=0;d.touchTarget=1;}}}
+  /* slip pause (VINYL + SLIP, manual p. 28): the track goes on in the background; PLAY/PAUSE again goes on from there */
+  if((!d.playing||d.touchTarget===0)&&d.slipHold&&d.ghost){const g=d.ghost.pos;d.slipHold=false;d.ghost=null;d.braking=false;d.seek(g);d.play();d.dirty=true;return;}
+  if(d.playing&&d.touchTarget>0){if(d.vinyl&&d.slip){d.slipBegin();d.slipHold=!!d.ghost;}
+    const tb=tBrake(d);if(d.vinyl&&tb>.08){d.brakeT=tb;d.braking=true;d.touchTarget=0;}else d.pause();}
+  else{const ts=tStart(d);d.braking=false;if(d.playing){d.startT=Math.max(.04,d.vinyl?ts:.04);d.touchTarget=1;}else{d.play();if(d.vinyl&&ts>.08){d.startT=ts;d.touch=0;d.touchTarget=1;}}}
   d.dirty=true;
 }
 /* ---------- hot cues: A-D on bank 1, E-H on bank 2; CALL/DELETE ---------- */
@@ -51,16 +57,20 @@ function callUp(d){d.callHeld=false;if(d.callUsed||!d.loaded())return;
   if(!pending.length&&!d.callMode){toast(Object.keys(d.cur.store).length?say('CALL : les hot cues de ce morceau sont déjà chargés','CALL: this track’s hot cues are already loaded'):say('CALL : aucun hot cue enregistré pour ce morceau','CALL: no hot cue stored for this track'));return;}
   d.callMode=!d.callMode;d.dirty=true;}
 /* ---------- memory cues ---------- */
+/* a message on the player's own screen for a few seconds (MEMORY, DELETE, CUE/LOOPPOINT FULL: manual p. 27, 45) */
+function lcdMsg(d,t,icon){d.lcdMsg={t,icon,until:now()+2.5};d.dirty=true;}
 function addMemory(d){
   if(!d.loaded())return;
   const m=d.loop?{hot:0,time:d.loop.a,end:d.loop.b,name:'',color:null,tmp:true}:{hot:0,time:d.cue,end:null,name:'',color:null,tmp:true};
   if(d.cur.mem.some(x=>Math.abs(x.time-m.time)<.01&&!!x.end===!!m.end)){toast(say('Ce point est déjà en mémoire','This point is already in memory'));return;}
-  d.cur.mem.push(m);d.cur.mem.sort((a,b)=>a.time-b.time);toast(say('Memory '+(m.end?'loop':'cue')+' ajouté (ici seulement, la clé n’est pas modifiée)','Memory '+(m.end?'loop':'cue')+' added (here only, the USB is not changed)'));d.dirty=true;
+  /* a USB stick keeps 10 points per track at most */
+  if(d.cur.mem.length>=10){lcdMsg(d,'CUE/LOOPPOINT FULL');toast(say('10 points par morceau au plus sur une clé USB : efface-en un avec DELETE','10 points per track at most on a USB stick: delete one with DELETE'));return;}
+  d.cur.mem.push(m);d.cur.mem.sort((a,b)=>a.time-b.time);lcdMsg(d,'MEMORY',m.end?'loop':'cue');toast(say('Memory '+(m.end?'loop':'cue')+' ajouté (ici seulement, la clé n’est pas modifiée)','Memory '+(m.end?'loop':'cue')+' added (here only, the USB is not changed)'));d.dirty=true;
 }
 function deleteMem(d){
   if(!d.loaded())return;
   if(!d.called||d.playing||Math.abs(d.pos()-d.called.time)>.02){toast(say('DELETE : rappelle d’abord un memory cue avec CUE/LOOP CALL, à l’arrêt','DELETE: first recall a memory cue with CUE/LOOP CALL, while paused'));return;}
-  const i=d.cur.mem.indexOf(d.called);if(i>=0)d.cur.mem.splice(i,1);d.called=null;toast(say('Memory cue effacé (ici seulement)','Memory cue deleted (here only)'));d.dirty=true;
+  const i=d.cur.mem.indexOf(d.called);if(i>=0)d.cur.mem.splice(i,1);lcdMsg(d,'DELETE',d.called.end?'loop':'cue');d.called=null;toast(say('Memory cue effacé (ici seulement)','Memory cue deleted (here only)'));d.dirty=true;
 }
 function cueCall(d,dir){
   if(!d.loaded())return;
@@ -70,7 +80,7 @@ function cueCall(d,dir){
   if(!c)return;
   d.pause();d.cue=c.time;d.called=c;d.ghost=null;
   if(c.end){d.loop={a:c.time,b:c.end};d.lastLoop=d.loop;}else d.loop=null;
-  d.seek(c.time);if(c.name)toast(c.name);d.dirty=true;
+  d.seek(c.time);d.dirty=true;
 }
 /* ---------- search ---------- */
 function beatJump(d,dir,nb){
@@ -235,7 +245,7 @@ function keyActions(d){return {
   scan_rev:{down:()=>scanStart(d,-1),up:()=>scanStop(d)},scan_fwd:{down:()=>scanStart(d,1),up:()=>scanStop(d)},
   loop_in:{down:()=>inDown(d),up:()=>inUp(d)},loop_out:{down:()=>outDown(d)},reloop:{down:()=>reloopBtn(d)},
   four_beat:{down:()=>fourDown(d),up:()=>fourUp(d)},
-  slip:{down:()=>{d.slip=!d.slip;if(!d.slip)d.ghost=null;d.dirty=true;}},
+  slip:{down:()=>{d.slip=!d.slip;if(!d.slip){d.ghost=null;d.slipHold=false;}d.dirty=true;}},
   call_rev:{down:()=>cueCall(d,-1)},call_fwd:{down:()=>cueCall(d,1)},
   delete:{down:()=>deleteMem(d)},memory:{down:()=>addMemory(d)},
   quantize:{down:()=>{d.quant=!d.quant;d.dirty=true;}},
@@ -254,7 +264,7 @@ function keyActions(d){return {
   link:{press:()=>toast(say('LINK : aucune autre platine sur le réseau PRO DJ LINK','LINK: no other player on the PRO DJ LINK network'))},
   sd:{press:()=>toast(say('SD : aucune carte insérée','SD: no card inserted'))},disc:{press:()=>toast(say('DISC : aucun disque','DISC: no disc'))},
   eject:{press:()=>toast(say('DISC EJECT : aucun disque','DISC EJECT: no disc'))},
-  usb_stop:{press:()=>toast(say('USB STOP : maintiens le bouton pour démonter la clé','USB STOP: hold the button to unmount the USB')),long:()=>{const M=navMedium(d)||(d.cur&&d.cur.tr.m)||mounted().slice(-1)[0];if(!M||!M.mounted)return;if(DECKS.some(x=>x.playing&&x.cur&&x.cur.tr.m===M)){toast(say('USB STOP : arrête d’abord la lecture','USB STOP: stop playback first'));return;}
+  usb_stop:{press:()=>toast(say('USB STOP : maintiens le bouton au moins 2 secondes pour démonter la clé','USB STOP: hold the button for at least 2 seconds to unmount the USB')),long:()=>{const M=navMedium(d)||(d.cur&&d.cur.tr.m)||mounted().slice(-1)[0];if(!M||!M.mounted)return;if(DECKS.some(x=>x.playing&&x.cur&&x.cur.tr.m===M)){toast(say('USB STOP : arrête d’abord la lecture','USB STOP: stop playback first'));return;}
     unmount(M);LASTOFF=M;toast(say('Clé « '+M.name+' » démontée. Clique sur le port USB pour la remettre.','USB “'+M.name+'” unmounted. Click the USB port to plug it back.'),4000);}},
   usb_indicator:{press:()=>{const M=LASTOFF||MEDIA.find(m=>!m.mounted);if(!M){if(!MEDIA.length)toast(say('Charge d’abord le dossier de la clé','Load the USB folder first'));return;}M.mounted=true;LASTOFF=null;RM=M;applyMediumSettings(M);toast(say('Clé « '+M.name+' » connectée','USB “'+M.name+'” connected'));}},
   jog_mode:{down:()=>{d.vinyl=!d.vinyl;d.dirty=true;}},
@@ -281,7 +291,7 @@ function keyLight(d,name){
     case 'loop_out':if(d.adjust==='out')return blink(4);if(d.adjust==='in')return false;return !!d.loop;
     case 'reloop':return !!d.loop||!!d.lastLoop;
     case 'four_beat':return !!d.loop;
-    case 'slip':return d.slip&&(!SET.slipFlash||!d.ghost||blink(2));
+    case 'slip':return d.slip&&(!SET.slipFlash||!d.ghost||slipBlink(d));
     case 'quantize':return d.quant;
     case 'master_tempo':return d.mt;
     case 'sync':return d.sync;

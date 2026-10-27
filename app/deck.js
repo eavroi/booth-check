@@ -159,9 +159,9 @@ class Deck{
     if(this.scratchOn&&t-this.scratchT>.06)this.scratchV=0;
     if(this.touch!==this.touchTarget){const d=Math.max(.04,this.touchTarget<this.touch?this.brakeT:this.startT),st=dt/d;this.touch=this.touch<this.touchTarget?Math.min(this.touchTarget,this.touch+st):Math.max(this.touchTarget,this.touch-st);}
     if(this.playing&&this.cur&&!this.cur.loading&&!this.cur.tr.played){const tr=this.cur.tr;tr.playT=(tr.playT||0)+dt;if(tr.playT>=60){tr.played=true;tr.m.session.push(tr);}}
+    if(this.ghost&&(this.playing||this.slipHold))this.ghost.pos=Math.min(this.dur,this.ghost.pos+this.rate*dt);
     if(!this.moving())return;
     const v=this.vel();
-    if(this.ghost&&this.playing)this.ghost.pos=Math.min(this.dur,this.ghost.pos+this.rate*dt);
     this._pos+=v*dt;
     const lp=this.loop;
     if(lp&&!this.scratchOn){const L=lp.b-lp.a;if(v>0&&this._pos>=lp.b)this._pos=lp.a+(this._pos-lp.b)%L;else if(v<0&&this._pos<=lp.a){this._pos=lp.b-(lp.a-this._pos)%L;if(!this.engHas)this.stopSrc();}}
@@ -170,9 +170,9 @@ class Deck{
     this.syncSrc();
   }
   pos(){this.advance();return this._pos;}
-  pauseNow(){this.playing=false;this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
+  pauseNow(){this.playing=false;if(!this.slipHold)this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
   play(){if(!this.loaded()||this.playing)return;ensureCtx();this.advance();if(this.dir>0&&this._pos>=this.dur-.05)this._pos=0;if(this.dir<0&&this._pos<=.05)this._pos=this.dur;
-    this.playing=true;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
+    this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
   pause(){if(!this.playing)return;this.advance();this.pauseNow();}
   seek(t){this.advance();this._pos=clamp(t,0,this.dur);this.startSrc();}
   setRate(r){this.advance();this.rate=Math.max(0,r);this.syncSrc();}
@@ -180,10 +180,10 @@ class Deck{
   /* ---------- slip ---------- */
   slipBegin(){if(this.slip&&this.playing&&!this.ghost)this.ghost={pos:this._pos,t:now(),beats:0};}
   slipEnd(){if(!this.ghost)return;const g=this.ghost.pos;this.ghost=null;this.seek(g);}
-  slipCheck(){if(this.ghost&&!this.loop&&this.dir>0&&!this.touching&&!this.hotHeld&&!this.slipRevHeld&&!this.scratchOn)this.slipEnd();}
+  slipCheck(){if(this.ghost&&!this.slipHold&&!this.loop&&this.dir>0&&!this.touching&&!this.hotHeld&&!this.slipRevHeld&&!this.scratchOn)this.slipEnd();}
   /* ---------- beats ---------- */
   beats(){return this.cur&&this.cur.beats?this.cur.beats:[];}
-  spb(){const b=this.beats();if(b.length>1)return (b[b.length-1].t-b[0].t)/(b.length-1)/1000;const bpm=this.cur&&this.cur.tr.bpm;return bpm?60/bpm:.5;}
+  spb(){const b=this.beats();if(b.length>1)return (b[b.length-1].t-b[0].t)/(b.length-1)/1000;const bpm=this.cur&&this.cur.tr.bpm;return bpm?60/bpm:60/130;}  /* no BPM detected: 130 (manual p. 25, 28) */
   bpmNow(){const t=this.cur&&this.cur.tr;if(!t)return 0;const b=this.beats();let bpm=t.bpm;
     if(b.length){const i=clamp(lowerBound(b,this._pos*1000+1)-1,0,b.length-1);bpm=b[i].bpm||bpm;}return bpm*this.rate;}
   beatPhase(t){const b=this.beats();if(b.length<2)return t/this.spb();const ms=t*1000;const i=clamp(lowerBound(b,ms+1)-1,0,b.length-2);return i+(ms-b[i].t)/(b[i+1].t-b[i].t);}
@@ -215,7 +215,7 @@ class Deck{
   applyTempo(){if(this.sync&&BUS.master&&BUS.master!==this&&BUS.masterBpm())return;this.setRate(this.sliderRate());this.dirty=true;}
   setSync(on){this.sync=on;if(on){if(!BUS.master||!BUS.master.loaded())BUS.setMaster(this);}else{this.nudge=0;this.applyTempo();}this.dirty=true;}
   /* ---------- loading ---------- */
-  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
+  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.slipHold=false;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
     if(BUS.master===this)BUS.setMaster(null);this.ui.scr='play';this.dirty=true;}
   async getAudio(tr,an){
     const M=tr.m,f=M.idx.get(tr.fileKey);
@@ -228,7 +228,7 @@ class Deck{
     if(SET.ejectLock===1&&this.playing&&this.cur){toast(say('EJECT/LOAD LOCK : chargement impossible pendant la lecture','EJECT/LOAD LOCK: cannot load while playing'));return false;}
     const was=this.playing||!!opt.play;
     this.pause();Object.assign(this,{loop:null,ghost:null,buf:null,_pos:0,dur:tr.duration||1,adjust:null,loopIn:null,lastLoop:null,loopMode:false,jumpMode:false,
-      slipRevHeld:this.lever===-1,hotHeld:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
+      slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
     this.dir=(this.rev||this.slipRevHeld)?-1:1;
     this.hist=[tr].concat(this.hist.filter(x=>x!==tr)).slice(0,8);
     const tok=++this.loadTok;

@@ -76,7 +76,7 @@ let ACTIVE=null;
 function keyPress(d,name,dir){
   const F=d.face,a=keyActions(d)[name];if(F)F.down[dir?'add':'delete'](name);d.dirty=true;if(!a)return;
   const id='k:'+d.n+':'+name,st=PTR.get(id)||{};
-  if(dir){ensureCtx();if(a.down)a.down();if(a.press||a.long){st.long=false;clearTimeout(st.t);if(a.long)st.t=setTimeout(()=>{st.long=true;a.long();},name==='usb_stop'?600:1000);}PTR.set(id,st);}
+  if(dir){ensureCtx();if(a.down)a.down();if(a.press||a.long){st.long=false;clearTimeout(st.t);if(a.long)st.t=setTimeout(()=>{st.long=true;a.long();},name==='usb_stop'?2000:1000);}PTR.set(id,st);}
   else{clearTimeout(st.t);if(a.up)a.up();if(a.press&&!st.long)a.press();PTR.delete(id);}
 }
 /* a mouse notch is ~100 px of deltaY; trackpads send many small deltas: add them up so one notch = one step */
@@ -159,14 +159,16 @@ function jogTurn(d,st,raw){
     case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=4.8){d.adjustStep((st.acc>0?1:-1)/75);st.acc-=Math.sign(st.acc)*4.8;}break;
     case 'search':if(d._scan){d.seek(d._pos+deg/200*8);}else{d.advance();d.scratchOn=true;d.scratchV=clamp(w/200*(d.vinyl&&st.tg.top?1:.5),-8,8);d.scratchT=t;d.syncSrc();}d.dirty=true;break;
     case 'touch':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();break;
-    case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+w/200*K*.35,.4,1.7);clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
+    case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+d.dir*w/200*K*.35,.4,1.7);  /* in reverse the jog's direction is reversed too (manual p. 22) */clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
   }
 }
+/* end of a slip scratch: when the background track takes over again, RELEASE/START does not act (manual p. 23) */
+function slipResume(d){const g=!!d.ghost;d.slipCheck();if(g&&!d.ghost){d.touch=d.touchTarget=1;}}
 function jogUp(d,st){
   d.jogHeld=false;const m=st.mode;d.advance();d.bend=1;
   /* let go while the hand was moving: the platter keeps turning on its own momentum (longer when JOG ADJUST is LIGHT) */
   const fling=st.w&&now()-st.wt<.08&&Math.abs(st.w)>120?st.w:0;
-  if(m==='touch'){d.scratchOn=false;d.scratchV=0;d.touching=false;const ts=tStart(d);d.startT=Math.max(.04,ts);d.touchTarget=1;d.slipCheck();}
+  if(m==='touch'){d.scratchOn=false;d.scratchV=0;d.touching=false;const ts=tStart(d);d.startT=Math.max(.04,ts);d.touchTarget=1;slipResume(d);}
   if(m==='search'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(!d.playing){d.seek(d._pos);}}
   d.syncSrc();d.dirty=true;
   if(fling&&m!=='adj'){d.spin=clamp(fling,-1600,1600);if(d.loaded()&&!d.spinning&&m!=='free'){d.spinning=true;d.spinMode=m==='touch'?'scratch':(m==='bend'?'bend':'search');
@@ -207,14 +209,14 @@ function spinTick(d,dt){
   if(!d.spinning||!d.loaded())return;
   switch(d.spinMode){
     case 'scratch':d.scratchV=clamp(d.spin/200,-20,20);d.scratchT=now();d.syncSrc();break;
-    case 'bend':d.bend=clamp(1+d.spin/200*.3,.4,1.8);d.syncSrc();break;
+    case 'bend':d.bend=clamp(1+d.dir*d.spin/200*.3,.4,1.8);d.syncSrc();break;
     case 'search':d._pos=clamp(d._pos+d.spin/200*dt,0,d.dur);break;
   }
   if(Math.abs(d.spin)<15&&Math.abs(d.spinImp||0)<2)endSpin(d);
 }
 function endSpin(d){
   const m=d.spinMode;d.spinning=false;d.spin=0;d.spinImp=0;d.advance();
-  if(m==='scratch'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(d.playing){const ts=tStart(d);d.startT=Math.max(.15,ts);d.touch=0;d.touchTarget=1;}d.slipCheck();}
+  if(m==='scratch'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(d.playing){const ts=tStart(d);d.startT=Math.max(.15,ts);d.touch=0;d.touchTarget=1;}slipResume(d);}
   if(m==='bend')d.bend=1;
   if(m==='search'&&!d.playing)d.seek(d._pos);
   d.syncSrc();d.dirty=true;

@@ -1,5 +1,18 @@
 # Booth Check — versions
 
+## V2.8.2 — 27 octobre 2026
+Corrections de la CDJ d'après le mode d'emploi (audit du 27 octobre) :
+- Slip en pause (p. 28) : en VINYL avec SLIP, PLAY/PAUSE met en pause mais le morceau continue en fond ; un nouvel appui reprend au point du fond. CUE ou SLIP annulent la pause en slip.
+- La touche SLIP (et le repère SLIP de l'écran) clignote au rythme du morceau en fond, et plus à vitesse fixe (p. 28).
+- Le slip s'annule au chargement d'un morceau (p. 29).
+- VINYL SPEED ADJUST (TOUCH/BRAKE, RELEASE/START) n'agit qu'en mode VINYL : en mode CDJ, PLAY/PAUSE arrête et démarre net (p. 23). Après un scratch en slip, quand le morceau reprend en fond, RELEASE/START ne s'applique plus (p. 23).
+- Lecture inverse : le sens de la molette qui accélère ou ralentit est inversé (p. 22).
+- USB STOP : appui d'au moins 2 secondes (p. 14).
+- Morceau sans BPM détecté : 130 BPM pour les boucles et les sauts (p. 25, 28).
+- Messages sur l'écran de la platine (p. 27, 45) : « MEMORY » et « DELETE » quelques secondes avec le signe repère ou boucle, « CUE/LOOPPOINT FULL » au-delà de 10 points par morceau ; le commentaire rekordbox d'un point rappelé s'affiche à la place du nom du morceau. Emplacement et dessin du message à vérifier sur la vraie platine.
+- Contrôle de clé : le texte ne dit plus que MASTER TEMPO n'est qu'un voyant (faux depuis la V2.8).
+- Tests : 6 nouveaux scénarios (slip en pause, slip au chargement, mode CDJ, jog en REV, 130 BPM, MEMORY).
+
 ## V2.8.1 — 27 octobre 2026
 - Steel, Stop maintenu : BROWSE et MENU passent sur les CUE casque du milieu (rangée CUE casque, LOAD, LOAD, CUE casque = BROWSE, TAG LIST, INFO, MENU), comme Victor l'avait demandé ; la V2.8 les avait mis par erreur sur les CUE des platines.
 - Steel : Stop + CUE de la platine = SLIP REVERSE tant qu'on appuie (le levier DIRECTION poussé sur SLIP REV).

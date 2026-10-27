@@ -6,7 +6,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 ## Façon de travailler
 - Répondre en français, de façon concise. Victor dicte souvent à la voix : lire le contexte attentivement.
 - Avant chaque version : faire un « point » (liste de ce qui va changer, questions s'il y en a) et attendre son « GO ».
-- À la livraison, toujours dire le numéro de version (V2.8.1 est la dernière livrée ; la suivante est V2.9).
+- À la livraison, toujours dire le numéro de version (V2.8.2 est la dernière livrée ; la suivante est V2.9).
 - Ne jamais inventer de fonction ni d'élément d'interface : tout vient de la vraie machine (mode d'emploi, photos, vidéos, captures). En cas de doute, le dire.
 - Vérifier chaque version : `python build.py`, `python tests/scenarios.py` (comportements du mode d'emploi), `python tests/smoke.py` (captures), comparer avec les photos de la vraie machine.
 - Références hors dépôt, dans `BOOTH CHECK/references/` : modes d'emploi FR de la CDJ-2000NXS2 et de la DJM-900NXS2 (PDF + texte extrait), photos de Victor.
@@ -44,6 +44,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Pistes non classées : MIC 1 / MIC 2 avec le vrai micro (TALK OVER), BOOTH MONITOR en 2e sortie son, modèles DDJ-FLX4 / DDJ-400 (si listes MIDI officielles), assistant d'apprentissage pas à pas pour les autres contrôleurs, deux contrôleurs en même temps, tests automatiques sur GitHub, téléphone et Safari. Hors machine, à décider par Victor : enregistrer son mix, mode guidé pour apprendre la CDJ. SEND / RETURN : déconseillé.
 
 ## À faire plus tard
+- Vérifier sur la vraie CDJ (V2.8.2) : emplacement et dessin des messages MEMORY / DELETE, reprise après un slip en pause (immédiate ici, sans RELEASE/START).
 - Essai de la V2.8.1 sur le vrai Steel (Stop + CUE casque, Stop + CUE = SLIP REVERSE, plan).
 - Fréquences de l'EQ de la table : le mode d'emploi donne HI 30 kHz, MID 1 kHz, LOW 20 Hz, inutilisables tels quels ; garder 300 Hz / 4 kHz tant qu'on n'a pas mieux.
 - Tester la sortie casque sur un vrai 2e appareil son.

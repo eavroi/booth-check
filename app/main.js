@@ -200,7 +200,8 @@ function tick(){
     d.advance();
     if(d.braking&&d.touch<=0){d.braking=false;d.touchTarget=1;d.touch=1;d.pauseNow();}
     if(d.adjust&&now()-d.adjT>10){d.adjust=null;}
-    if(d.ghost&&d.slipRevHeld===false&&d.dir>0&&!d.loop&&!d.touching&&!d.hotHeld&&!d.scratchOn)d.slipEnd();
+    if(d.lcdMsg&&now()>d.lcdMsg.until){d.lcdMsg=null;d.dirty=true;}
+    if(d.ghost&&!d.slipHold&&d.slipRevHeld===false&&d.dir>0&&!d.loop&&!d.touching&&!d.hotHeld&&!d.scratchOn)d.slipEnd();
   }
   BUS.tick();
   for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}

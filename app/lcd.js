@@ -104,7 +104,9 @@ function titleBar(g,col){g.fillStyle=col||NAVY;g.fillRect(18,12,764,30);}
 function drawPlayUpper(d,g){
   const cur=d.cur,ld=d.loaded(),tr=cur&&cur.tr,pos=ld?d.pos():0;
   titleBar(g);
-  if(cur){noteIcon(g,37,16,22,'#fff');g.font='400 25px '+LF;const t=(tr.artist?tr.artist+' - ':'')+tr.title;TC(g,t,60,36,25,'#fff',tr.key?622:712);
+  /* a recalled point's rekordbox comment shows where the track name is (manual p. 27) */
+  const cm=ld&&d.called&&d.called.name&&!d.playing&&Math.abs(pos-d.called.time)<.02?d.called.name:null;
+  if(cur){noteIcon(g,37,16,22,'#fff');g.font='400 25px '+LF;const t=cm||((tr.artist?tr.artist+' - ':'')+tr.title);TC(g,t,60,36,25,'#fff',tr.key?622:712);
     if(tr.key){keyGlyph(g,693,17,17,'#fff',NAVY);T(g,keyTxt(tr.key),718,36,25,'#fff');}}
   /* top row */
   modeBox(g,18,53,68,53,'LOOP','MODE',d.loopMode?'#c0600f':null);hit(d,18,53,68,53,()=>{d.loopMode=!d.loopMode;d.jumpMode=false;});
@@ -135,14 +137,21 @@ function drawPlayUpper(d,g){
       if(dir<0){triL(g,cx-.5,cy,3.3,'#1d1f23');triL(g,cx+4.5,cy,3.3,'#1d1f23');}else{triR(g,cx+.5,cy,3.3,'#1d1f23');triR(g,cx-4.5,cy,3.3,'#1d1f23');}
       T(g,String(n),x+bw/2,y+47,21,'#f2f2f2',LN,400,'center');hit(d,x,y,bw,h,()=>beatJump(d,dir,n));}});
   }
+  if(d.lcdMsg&&now()<d.lcdMsg.until)lcdMessage(g,d.lcdMsg);
   if(!mode&&ld){chip2(g,680,272,48,15,'ZOOM',d.grid?'#555':'#fff');T(g,'– GRID',733,284.5,12,d.grid?'#fff':'#3d3d3d',LA,700,'left');if(d.grid)chip2(g,742,272,38,15,'',  '#fff');}
   if(ld&&!mode){let fx=24;const flag=(t,bg,fg)=>{const w=TW(g,t,11,LA,700)+10;box(g,fx,273,w,14,bg);T(g,t,fx+w/2,284,11,fg,LA,700,'center');fx+=w+5;};
-    if(d.slip)flag('SLIP',(SET.slipFlash&&d.ghost&&Math.floor(now()*4)%2)?'#4a3c06':'#ffd23a','#000');
+    if(d.slip)flag('SLIP',(SET.slipFlash&&d.ghost&&!slipBlink(d))?'#4a3c06':'#ffd23a','#000');
     if(d.dir<0)flag(d.slipRevHeld?'SLIP REVERSE':'REVERSE','#ff1a1a','#fff');
     if(d.adjust)flag(d.adjust==='in'?'IN ADJUST':'OUT ADJUST','#ff8c00','#000');
     if(d.tReset)flag('TEMPO RESET','#d8d8d8','#000');
     if(d.grid)flag('GRID ADJUST','#fff','#000');}
 }
+/* MEMORY / DELETE / CUE/LOOPPOINT FULL over the waveform, with the cue or loop sign of the manual (place and look to check on the real player) */
+function lcdMessage(g,m){g.font='700 26px '+LA;const tw=g.measureText(m.t).width,iw=m.icon?30:0,w=tw+iw+40,x=400-w/2,y=168;
+  rbox(g,x,y,w,50,4,'rgba(0,0,0,.88)','#e8e8e8',1.6);
+  if(m.icon==='cue'){g.fillStyle='#ff1a1a';g.beginPath();g.moveTo(x+20,y+16);g.lineTo(x+38,y+16);g.lineTo(x+29,y+34);g.fill();}
+  else if(m.icon==='loop'){const c='#ff8c00';g.strokeStyle=c;g.lineWidth=2.6;g.beginPath();g.arc(x+29,y+25,8,-1.2,3.4);g.stroke();triL(g,x+26,y+16.6,4,c);}
+  T(g,m.t,x+20+iw+tw/2,y+35,26,'#fff',LA,700,'center');}
 function fmtJump(d){const n=d.jumpBeats||1;return n>=1?(n+' Beat'):(fmtBeat(n)+' Beat');}
 function chip2(g,x,y,w,h,t,col){g.strokeStyle=col;g.lineWidth=1.3;g.strokeRect(x+.65,y+.65,w-1.3,h-1.3);if(t)T(g,t,x+w/2,y+h-3,12,col,LA,700,'center');}
 /* LOOP MODE / BEAT JUMP: when active the key keeps its dark face and takes a coloured edge (orange / white), as on the real firmware */

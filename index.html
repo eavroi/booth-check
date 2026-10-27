@@ -2113,9 +2113,9 @@ class Deck{
     if(this.scratchOn&&t-this.scratchT>.06)this.scratchV=0;
     if(this.touch!==this.touchTarget){const d=Math.max(.04,this.touchTarget<this.touch?this.brakeT:this.startT),st=dt/d;this.touch=this.touch<this.touchTarget?Math.min(this.touchTarget,this.touch+st):Math.max(this.touchTarget,this.touch-st);}
     if(this.playing&&this.cur&&!this.cur.loading&&!this.cur.tr.played){const tr=this.cur.tr;tr.playT=(tr.playT||0)+dt;if(tr.playT>=60){tr.played=true;tr.m.session.push(tr);}}
+    if(this.ghost&&(this.playing||this.slipHold))this.ghost.pos=Math.min(this.dur,this.ghost.pos+this.rate*dt);
     if(!this.moving())return;
     const v=this.vel();
-    if(this.ghost&&this.playing)this.ghost.pos=Math.min(this.dur,this.ghost.pos+this.rate*dt);
     this._pos+=v*dt;
     const lp=this.loop;
     if(lp&&!this.scratchOn){const L=lp.b-lp.a;if(v>0&&this._pos>=lp.b)this._pos=lp.a+(this._pos-lp.b)%L;else if(v<0&&this._pos<=lp.a){this._pos=lp.b-(lp.a-this._pos)%L;if(!this.engHas)this.stopSrc();}}
@@ -2124,9 +2124,9 @@ class Deck{
     this.syncSrc();
   }
   pos(){this.advance();return this._pos;}
-  pauseNow(){this.playing=false;this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
+  pauseNow(){this.playing=false;if(!this.slipHold)this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
   play(){if(!this.loaded()||this.playing)return;ensureCtx();this.advance();if(this.dir>0&&this._pos>=this.dur-.05)this._pos=0;if(this.dir<0&&this._pos<=.05)this._pos=this.dur;
-    this.playing=true;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
+    this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
   pause(){if(!this.playing)return;this.advance();this.pauseNow();}
   seek(t){this.advance();this._pos=clamp(t,0,this.dur);this.startSrc();}
   setRate(r){this.advance();this.rate=Math.max(0,r);this.syncSrc();}
@@ -2134,10 +2134,10 @@ class Deck{
   /* ---------- slip ---------- */
   slipBegin(){if(this.slip&&this.playing&&!this.ghost)this.ghost={pos:this._pos,t:now(),beats:0};}
   slipEnd(){if(!this.ghost)return;const g=this.ghost.pos;this.ghost=null;this.seek(g);}
-  slipCheck(){if(this.ghost&&!this.loop&&this.dir>0&&!this.touching&&!this.hotHeld&&!this.slipRevHeld&&!this.scratchOn)this.slipEnd();}
+  slipCheck(){if(this.ghost&&!this.slipHold&&!this.loop&&this.dir>0&&!this.touching&&!this.hotHeld&&!this.slipRevHeld&&!this.scratchOn)this.slipEnd();}
   /* ---------- beats ---------- */
   beats(){return this.cur&&this.cur.beats?this.cur.beats:[];}
-  spb(){const b=this.beats();if(b.length>1)return (b[b.length-1].t-b[0].t)/(b.length-1)/1000;const bpm=this.cur&&this.cur.tr.bpm;return bpm?60/bpm:.5;}
+  spb(){const b=this.beats();if(b.length>1)return (b[b.length-1].t-b[0].t)/(b.length-1)/1000;const bpm=this.cur&&this.cur.tr.bpm;return bpm?60/bpm:60/130;}  /* no BPM detected: 130 (manual p. 25, 28) */
   bpmNow(){const t=this.cur&&this.cur.tr;if(!t)return 0;const b=this.beats();let bpm=t.bpm;
     if(b.length){const i=clamp(lowerBound(b,this._pos*1000+1)-1,0,b.length-1);bpm=b[i].bpm||bpm;}return bpm*this.rate;}
   beatPhase(t){const b=this.beats();if(b.length<2)return t/this.spb();const ms=t*1000;const i=clamp(lowerBound(b,ms+1)-1,0,b.length-2);return i+(ms-b[i].t)/(b[i+1].t-b[i].t);}
@@ -2169,7 +2169,7 @@ class Deck{
   applyTempo(){if(this.sync&&BUS.master&&BUS.master!==this&&BUS.masterBpm())return;this.setRate(this.sliderRate());this.dirty=true;}
   setSync(on){this.sync=on;if(on){if(!BUS.master||!BUS.master.loaded())BUS.setMaster(this);}else{this.nudge=0;this.applyTempo();}this.dirty=true;}
   /* ---------- loading ---------- */
-  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
+  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.slipHold=false;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
     if(BUS.master===this)BUS.setMaster(null);this.ui.scr='play';this.dirty=true;}
   async getAudio(tr,an){
     const M=tr.m,f=M.idx.get(tr.fileKey);
@@ -2182,7 +2182,7 @@ class Deck{
     if(SET.ejectLock===1&&this.playing&&this.cur){toast(say('EJECT/LOAD LOCK : chargement impossible pendant la lecture','EJECT/LOAD LOCK: cannot load while playing'));return false;}
     const was=this.playing||!!opt.play;
     this.pause();Object.assign(this,{loop:null,ghost:null,buf:null,_pos:0,dur:tr.duration||1,adjust:null,loopIn:null,lastLoop:null,loopMode:false,jumpMode:false,
-      slipRevHeld:this.lever===-1,hotHeld:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
+      slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
     this.dir=(this.rev||this.slipRevHeld)?-1:1;
     this.hist=[tr].concat(this.hist.filter(x=>x!==tr)).slice(0,8);
     const tok=++this.loadTok;
@@ -2456,7 +2456,9 @@ function titleBar(g,col){g.fillStyle=col||NAVY;g.fillRect(18,12,764,30);}
 function drawPlayUpper(d,g){
   const cur=d.cur,ld=d.loaded(),tr=cur&&cur.tr,pos=ld?d.pos():0;
   titleBar(g);
-  if(cur){noteIcon(g,37,16,22,'#fff');g.font='400 25px '+LF;const t=(tr.artist?tr.artist+' - ':'')+tr.title;TC(g,t,60,36,25,'#fff',tr.key?622:712);
+  /* a recalled point's rekordbox comment shows where the track name is (manual p. 27) */
+  const cm=ld&&d.called&&d.called.name&&!d.playing&&Math.abs(pos-d.called.time)<.02?d.called.name:null;
+  if(cur){noteIcon(g,37,16,22,'#fff');g.font='400 25px '+LF;const t=cm||((tr.artist?tr.artist+' - ':'')+tr.title);TC(g,t,60,36,25,'#fff',tr.key?622:712);
     if(tr.key){keyGlyph(g,693,17,17,'#fff',NAVY);T(g,keyTxt(tr.key),718,36,25,'#fff');}}
   /* top row */
   modeBox(g,18,53,68,53,'LOOP','MODE',d.loopMode?'#c0600f':null);hit(d,18,53,68,53,()=>{d.loopMode=!d.loopMode;d.jumpMode=false;});
@@ -2487,14 +2489,21 @@ function drawPlayUpper(d,g){
       if(dir<0){triL(g,cx-.5,cy,3.3,'#1d1f23');triL(g,cx+4.5,cy,3.3,'#1d1f23');}else{triR(g,cx+.5,cy,3.3,'#1d1f23');triR(g,cx-4.5,cy,3.3,'#1d1f23');}
       T(g,String(n),x+bw/2,y+47,21,'#f2f2f2',LN,400,'center');hit(d,x,y,bw,h,()=>beatJump(d,dir,n));}});
   }
+  if(d.lcdMsg&&now()<d.lcdMsg.until)lcdMessage(g,d.lcdMsg);
   if(!mode&&ld){chip2(g,680,272,48,15,'ZOOM',d.grid?'#555':'#fff');T(g,'– GRID',733,284.5,12,d.grid?'#fff':'#3d3d3d',LA,700,'left');if(d.grid)chip2(g,742,272,38,15,'',  '#fff');}
   if(ld&&!mode){let fx=24;const flag=(t,bg,fg)=>{const w=TW(g,t,11,LA,700)+10;box(g,fx,273,w,14,bg);T(g,t,fx+w/2,284,11,fg,LA,700,'center');fx+=w+5;};
-    if(d.slip)flag('SLIP',(SET.slipFlash&&d.ghost&&Math.floor(now()*4)%2)?'#4a3c06':'#ffd23a','#000');
+    if(d.slip)flag('SLIP',(SET.slipFlash&&d.ghost&&!slipBlink(d))?'#4a3c06':'#ffd23a','#000');
     if(d.dir<0)flag(d.slipRevHeld?'SLIP REVERSE':'REVERSE','#ff1a1a','#fff');
     if(d.adjust)flag(d.adjust==='in'?'IN ADJUST':'OUT ADJUST','#ff8c00','#000');
     if(d.tReset)flag('TEMPO RESET','#d8d8d8','#000');
     if(d.grid)flag('GRID ADJUST','#fff','#000');}
 }
+/* MEMORY / DELETE / CUE/LOOPPOINT FULL over the waveform, with the cue or loop sign of the manual (place and look to check on the real player) */
+function lcdMessage(g,m){g.font='700 26px '+LA;const tw=g.measureText(m.t).width,iw=m.icon?30:0,w=tw+iw+40,x=400-w/2,y=168;
+  rbox(g,x,y,w,50,4,'rgba(0,0,0,.88)','#e8e8e8',1.6);
+  if(m.icon==='cue'){g.fillStyle='#ff1a1a';g.beginPath();g.moveTo(x+20,y+16);g.lineTo(x+38,y+16);g.lineTo(x+29,y+34);g.fill();}
+  else if(m.icon==='loop'){const c='#ff8c00';g.strokeStyle=c;g.lineWidth=2.6;g.beginPath();g.arc(x+29,y+25,8,-1.2,3.4);g.stroke();triL(g,x+26,y+16.6,4,c);}
+  T(g,m.t,x+20+iw+tw/2,y+35,26,'#fff',LA,700,'center');}
 function fmtJump(d){const n=d.jumpBeats||1;return n>=1?(n+' Beat'):(fmtBeat(n)+' Beat');}
 function chip2(g,x,y,w,h,t,col){g.strokeStyle=col;g.lineWidth=1.3;g.strokeRect(x+.65,y+.65,w-1.3,h-1.3);if(t)T(g,t,x+w/2,y+h-3,12,col,LA,700,'center');}
 /* LOOP MODE / BEAT JUMP: when active the key keeps its dark face and takes a coloured edge (orange / white), as on the real firmware */
@@ -2874,12 +2883,15 @@ function toggleTag(M,c,t){const f=M.filter;if(f.tags.has(t.id))f.tags.delete(t.i
 let LASTOFF=null;
 /* ---------------- what each control does (CDJ-2000NXS2 manual behaviour) ---------------- */
 const blink=hz=>Math.floor(now()*hz*2)%2===0;
+/* SLIP blinks in time with the track playing in the background (manual p. 28): on for the first half of each beat */
+const slipBlink=d=>{const p=d.beatPhase(d.ghost.pos);return p-Math.floor(p)<.5;};
 function needMedia(){if(!anyMedia()){toast(say('Pas de média : charge le dossier de ta clé (bouton en haut) ou clique sur le port USB','No media: load your USB folder (top bar) or click the USB port'));return false;}return true;}
 function goScr(d,s){const u=d.ui;u.scr=s;u.info=false;u.sort=null;d.dirty=true;}
 function toggleScr(d,s,init){if(d.ui.scr===s){goScr(d,'play');return;}if(init)init();goScr(d,s);}
 /* ---------- transport ---------- */
 function cueDown(d){
   if(!d.loaded())return;
+  if(d.slipHold){d.slipHold=false;d.ghost=null;}
   if(d.playing){d.pause();if(d.loop){d.lastLoop=d.loop;d.loop=null;d.adjust=null;}d.ghost=null;d.seek(d.cue);return;}   /* back cue */
   const p=d.pos();
   if(Math.abs(p-d.cue)<.02){d.cueHold=true;d.play();}                                                  /* cue point sampler */
@@ -2887,14 +2899,17 @@ function cueDown(d){
   d.dirty=true;
 }
 function cueUp(d){if(d.cueHold){d.cueHold=false;if(d.playing){d.pause();d.seek(d.cue);}d.dirty=true;}}
-/* the CDJ-2000NXS2 has its own TOUCH/BRAKE and RELEASE/START knobs: they act on PLAY/PAUSE and on the jog touch */
+/* the CDJ-2000NXS2 has its own TOUCH/BRAKE and RELEASE/START knobs: they act on PLAY/PAUSE and on the jog touch, in VINYL mode only (manual p. 23) */
 function tBrake(d){return .04+d.kTouch*2.96;}
 function tStart(d){return .04+d.kRel*2.96;}
 function playBtn(d){
   if(!d.loaded())return;
   if(d.cueHold){d.cueHold=false;d.dirty=true;return;}
-  if(d.playing&&d.touchTarget>0){const tb=tBrake(d);if(tb>.08){d.brakeT=tb;d.braking=true;d.touchTarget=0;}else d.pause();}
-  else{const ts=tStart(d);d.braking=false;if(d.playing){d.startT=Math.max(.04,ts);d.touchTarget=1;}else{d.play();if(ts>.08){d.startT=ts;d.touch=0;d.touchTarget=1;}}}
+  /* slip pause (VINYL + SLIP, manual p. 28): the track goes on in the background; PLAY/PAUSE again goes on from there */
+  if((!d.playing||d.touchTarget===0)&&d.slipHold&&d.ghost){const g=d.ghost.pos;d.slipHold=false;d.ghost=null;d.braking=false;d.seek(g);d.play();d.dirty=true;return;}
+  if(d.playing&&d.touchTarget>0){if(d.vinyl&&d.slip){d.slipBegin();d.slipHold=!!d.ghost;}
+    const tb=tBrake(d);if(d.vinyl&&tb>.08){d.brakeT=tb;d.braking=true;d.touchTarget=0;}else d.pause();}
+  else{const ts=tStart(d);d.braking=false;if(d.playing){d.startT=Math.max(.04,d.vinyl?ts:.04);d.touchTarget=1;}else{d.play();if(d.vinyl&&ts>.08){d.startT=ts;d.touch=0;d.touchTarget=1;}}}
   d.dirty=true;
 }
 /* ---------- hot cues: A-D on bank 1, E-H on bank 2; CALL/DELETE ---------- */
@@ -2924,16 +2939,20 @@ function callUp(d){d.callHeld=false;if(d.callUsed||!d.loaded())return;
   if(!pending.length&&!d.callMode){toast(Object.keys(d.cur.store).length?say('CALL : les hot cues de ce morceau sont déjà chargés','CALL: this track’s hot cues are already loaded'):say('CALL : aucun hot cue enregistré pour ce morceau','CALL: no hot cue stored for this track'));return;}
   d.callMode=!d.callMode;d.dirty=true;}
 /* ---------- memory cues ---------- */
+/* a message on the player's own screen for a few seconds (MEMORY, DELETE, CUE/LOOPPOINT FULL: manual p. 27, 45) */
+function lcdMsg(d,t,icon){d.lcdMsg={t,icon,until:now()+2.5};d.dirty=true;}
 function addMemory(d){
   if(!d.loaded())return;
   const m=d.loop?{hot:0,time:d.loop.a,end:d.loop.b,name:'',color:null,tmp:true}:{hot:0,time:d.cue,end:null,name:'',color:null,tmp:true};
   if(d.cur.mem.some(x=>Math.abs(x.time-m.time)<.01&&!!x.end===!!m.end)){toast(say('Ce point est déjà en mémoire','This point is already in memory'));return;}
-  d.cur.mem.push(m);d.cur.mem.sort((a,b)=>a.time-b.time);toast(say('Memory '+(m.end?'loop':'cue')+' ajouté (ici seulement, la clé n’est pas modifiée)','Memory '+(m.end?'loop':'cue')+' added (here only, the USB is not changed)'));d.dirty=true;
+  /* a USB stick keeps 10 points per track at most */
+  if(d.cur.mem.length>=10){lcdMsg(d,'CUE/LOOPPOINT FULL');toast(say('10 points par morceau au plus sur une clé USB : efface-en un avec DELETE','10 points per track at most on a USB stick: delete one with DELETE'));return;}
+  d.cur.mem.push(m);d.cur.mem.sort((a,b)=>a.time-b.time);lcdMsg(d,'MEMORY',m.end?'loop':'cue');toast(say('Memory '+(m.end?'loop':'cue')+' ajouté (ici seulement, la clé n’est pas modifiée)','Memory '+(m.end?'loop':'cue')+' added (here only, the USB is not changed)'));d.dirty=true;
 }
 function deleteMem(d){
   if(!d.loaded())return;
   if(!d.called||d.playing||Math.abs(d.pos()-d.called.time)>.02){toast(say('DELETE : rappelle d’abord un memory cue avec CUE/LOOP CALL, à l’arrêt','DELETE: first recall a memory cue with CUE/LOOP CALL, while paused'));return;}
-  const i=d.cur.mem.indexOf(d.called);if(i>=0)d.cur.mem.splice(i,1);d.called=null;toast(say('Memory cue effacé (ici seulement)','Memory cue deleted (here only)'));d.dirty=true;
+  const i=d.cur.mem.indexOf(d.called);if(i>=0)d.cur.mem.splice(i,1);lcdMsg(d,'DELETE',d.called.end?'loop':'cue');d.called=null;toast(say('Memory cue effacé (ici seulement)','Memory cue deleted (here only)'));d.dirty=true;
 }
 function cueCall(d,dir){
   if(!d.loaded())return;
@@ -2943,7 +2962,7 @@ function cueCall(d,dir){
   if(!c)return;
   d.pause();d.cue=c.time;d.called=c;d.ghost=null;
   if(c.end){d.loop={a:c.time,b:c.end};d.lastLoop=d.loop;}else d.loop=null;
-  d.seek(c.time);if(c.name)toast(c.name);d.dirty=true;
+  d.seek(c.time);d.dirty=true;
 }
 /* ---------- search ---------- */
 function beatJump(d,dir,nb){
@@ -3108,7 +3127,7 @@ function keyActions(d){return {
   scan_rev:{down:()=>scanStart(d,-1),up:()=>scanStop(d)},scan_fwd:{down:()=>scanStart(d,1),up:()=>scanStop(d)},
   loop_in:{down:()=>inDown(d),up:()=>inUp(d)},loop_out:{down:()=>outDown(d)},reloop:{down:()=>reloopBtn(d)},
   four_beat:{down:()=>fourDown(d),up:()=>fourUp(d)},
-  slip:{down:()=>{d.slip=!d.slip;if(!d.slip)d.ghost=null;d.dirty=true;}},
+  slip:{down:()=>{d.slip=!d.slip;if(!d.slip){d.ghost=null;d.slipHold=false;}d.dirty=true;}},
   call_rev:{down:()=>cueCall(d,-1)},call_fwd:{down:()=>cueCall(d,1)},
   delete:{down:()=>deleteMem(d)},memory:{down:()=>addMemory(d)},
   quantize:{down:()=>{d.quant=!d.quant;d.dirty=true;}},
@@ -3127,7 +3146,7 @@ function keyActions(d){return {
   link:{press:()=>toast(say('LINK : aucune autre platine sur le réseau PRO DJ LINK','LINK: no other player on the PRO DJ LINK network'))},
   sd:{press:()=>toast(say('SD : aucune carte insérée','SD: no card inserted'))},disc:{press:()=>toast(say('DISC : aucun disque','DISC: no disc'))},
   eject:{press:()=>toast(say('DISC EJECT : aucun disque','DISC EJECT: no disc'))},
-  usb_stop:{press:()=>toast(say('USB STOP : maintiens le bouton pour démonter la clé','USB STOP: hold the button to unmount the USB')),long:()=>{const M=navMedium(d)||(d.cur&&d.cur.tr.m)||mounted().slice(-1)[0];if(!M||!M.mounted)return;if(DECKS.some(x=>x.playing&&x.cur&&x.cur.tr.m===M)){toast(say('USB STOP : arrête d’abord la lecture','USB STOP: stop playback first'));return;}
+  usb_stop:{press:()=>toast(say('USB STOP : maintiens le bouton au moins 2 secondes pour démonter la clé','USB STOP: hold the button for at least 2 seconds to unmount the USB')),long:()=>{const M=navMedium(d)||(d.cur&&d.cur.tr.m)||mounted().slice(-1)[0];if(!M||!M.mounted)return;if(DECKS.some(x=>x.playing&&x.cur&&x.cur.tr.m===M)){toast(say('USB STOP : arrête d’abord la lecture','USB STOP: stop playback first'));return;}
     unmount(M);LASTOFF=M;toast(say('Clé « '+M.name+' » démontée. Clique sur le port USB pour la remettre.','USB “'+M.name+'” unmounted. Click the USB port to plug it back.'),4000);}},
   usb_indicator:{press:()=>{const M=LASTOFF||MEDIA.find(m=>!m.mounted);if(!M){if(!MEDIA.length)toast(say('Charge d’abord le dossier de la clé','Load the USB folder first'));return;}M.mounted=true;LASTOFF=null;RM=M;applyMediumSettings(M);toast(say('Clé « '+M.name+' » connectée','USB “'+M.name+'” connected'));}},
   jog_mode:{down:()=>{d.vinyl=!d.vinyl;d.dirty=true;}},
@@ -3154,7 +3173,7 @@ function keyLight(d,name){
     case 'loop_out':if(d.adjust==='out')return blink(4);if(d.adjust==='in')return false;return !!d.loop;
     case 'reloop':return !!d.loop||!!d.lastLoop;
     case 'four_beat':return !!d.loop;
-    case 'slip':return d.slip&&(!SET.slipFlash||!d.ghost||blink(2));
+    case 'slip':return d.slip&&(!SET.slipFlash||!d.ghost||slipBlink(d));
     case 'quantize':return d.quant;
     case 'master_tempo':return d.mt;
     case 'sync':return d.sync;
@@ -3260,7 +3279,7 @@ let ACTIVE=null;
 function keyPress(d,name,dir){
   const F=d.face,a=keyActions(d)[name];if(F)F.down[dir?'add':'delete'](name);d.dirty=true;if(!a)return;
   const id='k:'+d.n+':'+name,st=PTR.get(id)||{};
-  if(dir){ensureCtx();if(a.down)a.down();if(a.press||a.long){st.long=false;clearTimeout(st.t);if(a.long)st.t=setTimeout(()=>{st.long=true;a.long();},name==='usb_stop'?600:1000);}PTR.set(id,st);}
+  if(dir){ensureCtx();if(a.down)a.down();if(a.press||a.long){st.long=false;clearTimeout(st.t);if(a.long)st.t=setTimeout(()=>{st.long=true;a.long();},name==='usb_stop'?2000:1000);}PTR.set(id,st);}
   else{clearTimeout(st.t);if(a.up)a.up();if(a.press&&!st.long)a.press();PTR.delete(id);}
 }
 /* a mouse notch is ~100 px of deltaY; trackpads send many small deltas: add them up so one notch = one step */
@@ -3343,14 +3362,16 @@ function jogTurn(d,st,raw){
     case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=4.8){d.adjustStep((st.acc>0?1:-1)/75);st.acc-=Math.sign(st.acc)*4.8;}break;
     case 'search':if(d._scan){d.seek(d._pos+deg/200*8);}else{d.advance();d.scratchOn=true;d.scratchV=clamp(w/200*(d.vinyl&&st.tg.top?1:.5),-8,8);d.scratchT=t;d.syncSrc();}d.dirty=true;break;
     case 'touch':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();break;
-    case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+w/200*K*.35,.4,1.7);clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
+    case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+d.dir*w/200*K*.35,.4,1.7);  /* in reverse the jog's direction is reversed too (manual p. 22) */clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
   }
 }
+/* end of a slip scratch: when the background track takes over again, RELEASE/START does not act (manual p. 23) */
+function slipResume(d){const g=!!d.ghost;d.slipCheck();if(g&&!d.ghost){d.touch=d.touchTarget=1;}}
 function jogUp(d,st){
   d.jogHeld=false;const m=st.mode;d.advance();d.bend=1;
   /* let go while the hand was moving: the platter keeps turning on its own momentum (longer when JOG ADJUST is LIGHT) */
   const fling=st.w&&now()-st.wt<.08&&Math.abs(st.w)>120?st.w:0;
-  if(m==='touch'){d.scratchOn=false;d.scratchV=0;d.touching=false;const ts=tStart(d);d.startT=Math.max(.04,ts);d.touchTarget=1;d.slipCheck();}
+  if(m==='touch'){d.scratchOn=false;d.scratchV=0;d.touching=false;const ts=tStart(d);d.startT=Math.max(.04,ts);d.touchTarget=1;slipResume(d);}
   if(m==='search'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(!d.playing){d.seek(d._pos);}}
   d.syncSrc();d.dirty=true;
   if(fling&&m!=='adj'){d.spin=clamp(fling,-1600,1600);if(d.loaded()&&!d.spinning&&m!=='free'){d.spinning=true;d.spinMode=m==='touch'?'scratch':(m==='bend'?'bend':'search');
@@ -3391,14 +3412,14 @@ function spinTick(d,dt){
   if(!d.spinning||!d.loaded())return;
   switch(d.spinMode){
     case 'scratch':d.scratchV=clamp(d.spin/200,-20,20);d.scratchT=now();d.syncSrc();break;
-    case 'bend':d.bend=clamp(1+d.spin/200*.3,.4,1.8);d.syncSrc();break;
+    case 'bend':d.bend=clamp(1+d.dir*d.spin/200*.3,.4,1.8);d.syncSrc();break;
     case 'search':d._pos=clamp(d._pos+d.spin/200*dt,0,d.dur);break;
   }
   if(Math.abs(d.spin)<15&&Math.abs(d.spinImp||0)<2)endSpin(d);
 }
 function endSpin(d){
   const m=d.spinMode;d.spinning=false;d.spin=0;d.spinImp=0;d.advance();
-  if(m==='scratch'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(d.playing){const ts=tStart(d);d.startT=Math.max(.15,ts);d.touch=0;d.touchTarget=1;}d.slipCheck();}
+  if(m==='scratch'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(d.playing){const ts=tStart(d);d.startT=Math.max(.15,ts);d.touch=0;d.touchTarget=1;}slipResume(d);}
   if(m==='bend')d.bend=1;
   if(m==='search'&&!d.playing)d.seek(d._pos);
   d.syncSrc();d.dirty=true;
@@ -4291,7 +4312,7 @@ function limitsList(){return [
     say('Un navigateur ne voit ni le système de fichiers ni le schéma de partition.','A browser cannot see the file system or the partition scheme.'),
     say('Windows : Gestion des disques, clic droit sur la clé, Propriétés. La CDJ-2000NXS2 lit les clés en FAT16, FAT32 ou HFS+ ; NTFS n’est pas pris en charge, exFAT n’est pas dans la liste du mode d’emploi.','Windows: Disk Management, right-click the USB, Properties. The CDJ-2000NXS2 reads drives in FAT16, FAT32 or HFS+; NTFS is not supported and exFAT is not in the manual’s list.')),
   chk('info','tool',say('Fidélité de la simulation','Simulation accuracy'),
-    say('Reproduction du comportement de la platine d’après le manuel et les données exportées, pas une émulation du firmware. Le tempo change aussi la hauteur du son (MASTER TEMPO n’est qu’un voyant ici), et AIFF n’est pas décodable dans tous les navigateurs.','A reproduction of the player’s behaviour from the manual and the exported data, not a firmware emulation. Tempo also changes the pitch (MASTER TEMPO is only an indicator here), and AIFF cannot be decoded in every browser.')),
+    say('Reproduction du comportement de la platine d’après le manuel et les données exportées, pas une émulation du firmware. MASTER TEMPO garde la hauteur du son avec un léger traitement audible, comme sur la vraie platine, et AIFF n’est pas décodable dans tous les navigateurs.','A reproduction of the player’s behaviour from the manual and the exported data, not a firmware emulation. MASTER TEMPO keeps the pitch with a slight audible processing, as on the real player, and AIFF cannot be decoded in every browser.')),
   chk('info','tool',say('Pas d’écriture sur la clé','No writing to the USB'),
     say('Les cues, memory cues et tags posés ici ne sont jamais enregistrés.','Cues, memory cues and tags set here are never saved.'))];}
 function rowHtml(c,open){
@@ -4762,7 +4783,8 @@ function tick(){
     d.advance();
     if(d.braking&&d.touch<=0){d.braking=false;d.touchTarget=1;d.touch=1;d.pauseNow();}
     if(d.adjust&&now()-d.adjT>10){d.adjust=null;}
-    if(d.ghost&&d.slipRevHeld===false&&d.dir>0&&!d.loop&&!d.touching&&!d.hotHeld&&!d.scratchOn)d.slipEnd();
+    if(d.lcdMsg&&now()>d.lcdMsg.until){d.lcdMsg=null;d.dirty=true;}
+    if(d.ghost&&!d.slipHold&&d.slipRevHeld===false&&d.dir>0&&!d.loop&&!d.touching&&!d.hotHeld&&!d.scratchOn)d.slipEnd();
   }
   BUS.tick();
   for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}
