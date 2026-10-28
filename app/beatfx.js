@@ -2,8 +2,9 @@
    What every control does comes from the manual. The amounts the manual does not give (number and strength of the repeats,
    reverb length, filter type and range, flanger / phaser depth, X-PAD response, FX FREQUENCY crossovers) are first settings,
    marked "à caler": they are to be checked against a recording of the real mixer (kit tests/kit_djm.py). */
-/* the effects in the selector's order; post = fed after the channel fader, so the echo goes on when the fader comes down and
-   is not heard with the channel CUE (manual p. 16-18, note 1). The others sit before the fader (reading of note 1, to check). */
+/* the effects in the selector's order. On a channel every BEAT FX is fed after the channel fader, so it is never heard with the
+   channel CUE (Victor, on the real mixer; manual p. 18 note 1); post = echo and reverb effects that go on when the fader comes
+   down and after ON/OFF is turned off (manual p. 16-17; the tail after OFF: Victor, on the real mixer). */
 const BFX=[
   {n:'DELAY',post:1,tmin:1,tmax:4000},{n:'ECHO',post:1,tmin:1,tmax:4000},{n:'PING PONG',post:1,tmin:1,tmax:4000},{n:'SPIRAL',post:1,tmin:10,tmax:4000},
   {n:'REVERB',post:1,pct:1},{n:'TRANS',tmin:10,tmax:16000},{n:'FILTER',tmin:10,tmax:32000,b64:1},{n:'FLANGER',tmin:10,tmax:32000,b64:1},
@@ -30,7 +31,7 @@ const bfxActive=()=>MS.fxOn||MS.pad!=null;
 function padBeats(pos){const k=clamp(pos,0,1)*7,i=Math.min(6,Math.floor(k)),f=k-i,a=fracBeats(XPADS[i]),b=fracBeats(XPADS[i+1]);return a*Math.pow(b/a,f);}
 /* ---------- the effect's place in the mixer ---------- */
 function bfxSlot(){const N=MIX.N;if(!N)return null;const c=MS.fxCh;
-  if(/^[1-4]$/.test(c)){const C=N.ch[c-1];return bfxDef().post?C.post:C.pre;}
+  if(/^[1-4]$/.test(c))return N.ch[c-1].post;
   if(c==='A')return N.sA;if(c==='B')return N.sB;if(c==='MASTER')return N.sM;return null;}   /* MIC: no microphone in Booth Check */
 function bfxBuild(){
   const N=MIX.N;if(!N||!MIX.fxReady)return;const c=AU.ctx;
@@ -100,6 +101,8 @@ function xpadAt(p){if(Math.abs(p.y-1092)<=16&&p.x>=1812&&p.x<=2134)return {pad:'
   return null;}
 function xpadDown(p){const h=xpadAt(p);if(!h)return;ensureCtx();const was=bfxActive();MS.pad=h.pad;MS.touch=h.pos;if(!was)BF.start++;bfxSend(true);MS.dirty=true;}
 function xpadMove(p){if(MS.pad==null)return;const h=xpadAt(p);if(!h)return;MS.pad=h.pad;MS.touch=h.pos;MS.dirty=true;}
+/* the controller's X-PAD key: the effect while it is held, at the fraction set with BEAT */
+function bfxHold(on){if(on){ensureCtx();const was=bfxActive();MS.pad='steel';MS.touch=null;if(!was)BF.start++;bfxSend(true);MS.dirty=true;}else if(MS.pad==='steel')xpadUp();}
 function xpadUp(){if(MS.pad==null)return;MS.pad=null;MS.touch=null;bfxSend(true);MS.dirty=true;}
 /* ---------- the effect itself, in an AudioWorklet ---------- */
 const BFX_SRC=`
@@ -128,7 +131,10 @@ class BcBeat extends AudioWorkletProcessor{
     if(o&&o.processorOptions&&o.processorOptions.p)Object.assign(this.p,o.processorOptions.p);this.dc=[[0,0],[0,0]];
     this.port.onmessage=e=>{Object.assign(this.p,e.data);};}
   rd(B,c,d){const N=this.N,x=this.w-d,i=Math.floor(x),f=x-i,a=B[c][i&this.M],b=B[c][(i+1)&this.M];return a+(b-a)*f;}
-  begin(){const sr=sampleRate,p=this.p;this.D[0].fill(0);this.D[1].fill(0);for(const C of this.cb)for(const x of C){x.b.fill(0);x.f=0;}for(const C of this.ab)for(const x of C)x.b.fill(0);
+  begin(){const sr=sampleRate,p=this.p;
+    /* turned on again while the tail of the last echo still sounds: the tail goes on */
+    if(!(this.tail>0&&p.mode===this.tailMode)){this.D[0].fill(0);this.D[1].fill(0);for(const C of this.cb)for(const x of C){x.b.fill(0);x.f=0;}for(const C of this.ab)for(const x of C)x.b.fill(0);}
+    this.tail=0;
     this.t0=this.n;this.Ts=this.Tsp=p.T;this.speed=1;this.rp=this.n;this.bk=0;this.L=Math.round(p.T*sr);this.Lp=this.L;
     /* the start of a recording (ROLL, SLIP ROLL, HELIX) and of a cycle falls on the beat grid with QUANTIZE: the nearest point, even a little late */
     let c0=this.n;if(p.quant){const sb=this.beatAt(this.n),u=Math.min(p.T/p.qSpb,1),k=Math.round(sb/u)*u;c0=Math.round(this.n+(k-sb)*p.qSpb*sr);if(c0<this.n-sr*.5)c0=this.n;}
@@ -138,19 +144,25 @@ class BcBeat extends AudioWorkletProcessor{
   process(inp,out){const I=inp[0],O=out[0];if(!O||!O.length)return true;const L=O[0].length,sr=sampleRate,p=this.p;this.n0=this.n;
     const has=I&&I.length,i0=has?I[0]:null,i1=has?(I[1]||I[0]):null;
     if(p.on&&p.start!==this.seen){this.seen=p.start;this.begin();}
+    /* ON/OFF turned off: DELAY, ECHO, PING PONG, SPIRAL and REVERB let their echoes die out (10 s at most), the others stop */
+    if(this.wasOn&&!p.on&&p.mode<=4){this.tail=10*sr;this.tailMode=p.mode;}
+    if(p.on||p.mode!==this.tailMode)this.tail=p.on?this.tail:0;
+    this.wasOn=p.on;
     if(!p.on)this.seen=-1;
     const mode=p.mode,ka=1-Math.exp(-1/(.02*sr)),km=1-Math.exp(-1/(.008*sr)),band=p.band,allB=band[0]&&band[1]&&band[2];
     const T=Math.max(.001,p.T),Ls=Math.round(T*sr),x=this.xo,dl=(a,b)=>Math.min(1,2*(1-a)),wt=a=>Math.min(1,2*a);
     for(let i=0;i<L;i++){const n=this.n;let xl=has?i0[i]:0,xr=has?i1[i]:0;
       this.mix+=((p.on?1:0)-this.mix)*km;this.dep+=(p.depth-this.dep)*ka;const d=this.dep,m=this.mix;
       /* the selected bands go into the effect, the others pass by */
+      const tl=this.tail>0&&!p.on;if(tl)this.tail--;
       let sl=xl,sr2=xr,ul=0,ur=0;
       if(m>1e-4&&!allB){const sp=(v,c)=>{const lo=x.ap.run(x.l2.run(x.l1.run(v,c),c),c),h=x.h2.run(x.h1.run(v,c),c),md=x.m2.run(x.m1.run(h,c),c),hi=x.k2.run(x.k1.run(h,c),c);
           return [band[0]*lo+band[1]*md+band[2]*hi,(1-band[0])*lo+(1-band[1])*md+(1-band[2])*hi];};
         const a=sp(xl,0),b=sp(xr,1);sl=a[0];ul=a[1];sr2=b[0];ur=b[1];}
+      if(tl){sl=sr2=0;}
       const w=this.w;this.R[0][w]=sl;this.R[1][w]=sr2;
       let yl=sl,yr=sr2;
-      if(m>1e-4){
+      if(m>1e-4||tl){
         switch(mode){
           case 0:case 1:{/* DELAY: one repeat; ECHO: repeats that fade (feedback à caler) */
             this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),fb=mode===1?.6:0;
@@ -208,7 +220,8 @@ class BcBeat extends AudioWorkletProcessor{
             const g=Math.min(1,d*4);yl=sl*(1-g)+a*g;yr=sr2*(1-g)+b*g;break;}
         }
       }
-      O[0][i]=xl*(1-m)+(yl+ul)*m;if(O[1])O[1][i]=xr*(1-m)+(yr+ur)*m;
+      if(tl){O[0][i]=xl+yl;if(O[1])O[1][i]=xr+yr;}
+      else{O[0][i]=xl*(1-m)+(yl+ul)*m;if(O[1])O[1][i]=xr*(1-m)+(yr+ur)*m;}
       this.w=(w+1)&this.M;this.n++;}
     return true;}
   /* where we are in the cycle: on the beat grid with QUANTIZE, else from the moment the effect started */

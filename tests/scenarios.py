@@ -22,6 +22,8 @@ window.TT={wait:ms=>new Promise(r=>setTimeout(r,ms)),near:(a,b,e)=>Math.abs(a-b)
     AU.ctx=oc;AU.out=oc.createGain();AU.out.connect(oc.destination);MS.on=true;
     try{mixBuild();await loadFxWorklet();MS.color=type;MS.param=param;MS.ch[1].color=color;MS.ch[1].fader=1;mixApply();colorBuild();
       const s=oc.createBufferSource();s.buffer=this.music();s.connect(MIX.N.ch[1].in);s.start(0,1);
+      /* an offline render does not wait for the worklets' messages: a short pause at the start lets them arrive */
+      oc.suspend(128/48000).then(()=>setTimeout(()=>oc.resume(),40));
       if(cutAt!=null){const g=MIX.N.ch[1].fader.gain;g.cancelScheduledValues(0);g.setValueAtTime(1,0);g.setValueAtTime(1,cutAt);g.linearRampToValueAtTime(0,cutAt+.05);}}
     finally{AU.ctx=S.ctx;AU.out=S.out;MIX.N=S.N;MIX.bfx=S.bfx;MS.on=S.on;MS.color=S.col;MS.param=S.p;MS.ch[1].color=S.c;MS.ch[1].fader=S.f;}
     const d=(await oc.startRendering()).getChannelData(0);MIX.fxReady=S.fx;return d;},
@@ -34,7 +36,8 @@ window.TT={wait:ms=>new Promise(r=>setTimeout(r,ms)),near:(a,b,e)=>Math.abs(a-b)
     try{mixBuild();await loadFxWorklet();bfxBuild();bfxSend(true);mixApply();
       if(o.cue){AU.out.disconnect();MIX.N.cueSum.connect(oc.destination);}
       const s=oc.createBufferSource();s.buffer=o.buf||this.music();s.connect(MIX.N.ch[1].in);s.start(0,o.buf?0:1);
-      if(o.cutAt!=null){const g=MIX.N.ch[1].fader.gain;g.cancelScheduledValues(0);g.setValueAtTime(1,0);g.setValueAtTime(1,o.cutAt);g.linearRampToValueAtTime(0,o.cutAt+.05);}}
+      if(o.cutAt!=null){const g=MIX.N.ch[1].fader.gain;g.cancelScheduledValues(0);g.setValueAtTime(1,0);g.setValueAtTime(1,o.cutAt);g.linearRampToValueAtTime(0,o.cutAt+.05);}
+      if(o.offAt!=null){const nd=MIX.bfx.node;oc.suspend(o.offAt).then(()=>{nd.port.postMessage({on:false});setTimeout(()=>oc.resume(),30);});}}
     finally{AU.ctx=S.ctx;AU.out=S.out;MIX.N=S.N;MIX.bfx=S.bfx;Object.assign(MS,S.ms);Object.assign(MS.freq,S.fr);Object.assign(BF,S.bf);MS.ch[1].cue=S.cue;MS.ch[1].fader=S.f;}
     const d=(await oc.startRendering()).getChannelData(0);MIX.fxReady=S.fx;return d;},
   sine(f,sec){const sr=48000,b=new AudioBuffer({numberOfChannels:2,length:sr*(sec||3),sampleRate:sr});for(let c=0;c<2;c++){const x=b.getChannelData(c);for(let i=0;i<x.length;i++)x[i]=.5*Math.sin(2*Math.PI*f*i/sr);}return b;},
@@ -138,8 +141,9 @@ SCEN=[
  ('BEAT FX : TRANS coupe le son toutes les fractions de temps (1/2 : 125 ms ouvert, 125 ms coupé)',"""const d=await TT.bfx({type:'TRANS',beat:'1/2',depth:1});const op=TT.dbIf(d,1,3,t=>t%.25>.01&&t%.25<.115),cl=TT.dbIf(d,1,3,t=>t%.25>.135&&t%.25<.24);return op-cl>30||('ouvert '+op.toFixed(1)+' coupé '+cl.toFixed(1));"""),
  ('BEAT FX : FX FREQUENCY, avec LOW seul les aigus ne sont pas coupés par TRANS',"""const cl=t=>t%.25>.135&&t%.25<.24;const dry=TT.dbIf(TT.hi(await TT.bfx({type:'TRANS',on:false})),1,3,cl),all=TT.dbIf(TT.hi(await TT.bfx({type:'TRANS',beat:'1/2',depth:1})),1,3,cl),lo=TT.dbIf(TT.hi(await TT.bfx({type:'TRANS',beat:'1/2',depth:1,band:{MID:false,HI:false}})),1,3,cl);
   return all-dry<-25&&lo-dry>-3||('aigus coupés : toutes bandes '+(all-dry).toFixed(1)+' dB, LOW seul '+(lo-dry).toFixed(1)+' dB');"""),
- ('BEAT FX : au casque (CUE de la tranche), TRANS s’entend, DELAY non',"""const cl=t=>t%.25>.135&&t%.25<.24;const dry=await TT.bfx({type:'TRANS',on:false,cue:true}),tr=await TT.bfx({type:'TRANS',depth:1,cue:true}),dl=await TT.bfx({type:'DELAY',depth:1,cue:true});
-  let e=0;for(let i=48000;i<144000;i++)e+=(dl[i]-dry[i])**2;const diff=10*Math.log10(e/96000+1e-12)-TT.db(dry,1,3),cut=TT.dbIf(tr,1,3,cl)-TT.dbIf(dry,1,3,cl);return cut<-25&&diff<-50||('TRANS au casque '+cut.toFixed(1)+' dB, écart DELAY '+diff.toFixed(1)+' dB');"""),
+ ('BEAT FX : aucun effet ne s’entend au casque (CUE de la tranche), ni TRANS ni DELAY',"""const dry=await TT.bfx({type:'TRANS',on:false,cue:true}),bad=[];for(const t of ['TRANS','DELAY','ROLL']){const d=await TT.bfx({type:t,depth:1,cue:true});let e=0;for(let i=48000;i<144000;i++)e+=(d[i]-dry[i])**2;const x=10*Math.log10(e/96000+1e-12)-TT.db(dry,1,3);if(x>-50)bad.push(t+' '+x.toFixed(0)+' dB');}return !bad.length||bad.join(', ');"""),
+ ('BEAT FX : ON/OFF coupé, la queue de l’ECHO continue (pas celle de TRANS)',"""const run=async t=>{const sr=48000;const d=await TT.bfx({type:t,beat:'1/2',depth:.5,len:3,bf:{},offAt:1.5});return d;};const dry=TT.db(await TT.bfx({type:'ECHO',on:false}),1.62,1.85),e=TT.db(await run('ECHO'),1.62,1.85),tr=TT.db(await run('TRANS'),1.62,1.85);
+  return e-dry>2&&Math.abs(tr-dry)<1.5||('ECHO après OFF '+(e-dry).toFixed(1)+' dB, TRANS après OFF '+(tr-dry).toFixed(1)+' dB');"""),
  ('BEAT FX : ROLL et SLIP ROLL répètent le son enregistré à l’appui (1/4 = 125 ms)',"""const per=async t=>{const d=await TT.bfx({type:t,beat:'1/4',depth:1});let e=0,s=0;for(let i=72000;i<120000;i++){e+=(d[i]-d[i+6000])**2;s+=d[i]*d[i];}return 10*Math.log10(e/s+1e-12);};const r=await per('ROLL'),sr=await per('SLIP ROLL');return r<-40&&sr<-40||('ROLL '+r.toFixed(1)+' dB, SLIP ROLL '+sr.toFixed(1)+' dB');"""),
  ('BEAT FX : VINYL BRAKE à fond à droite arrête le son',"""const dry=TT.db(await TT.bfx({type:'VINYL BRAKE',on:false}),1.5,3),b=TT.db(await TT.bfx({type:'VINYL BRAKE',beat:'1',depth:1}),1.5,3);return b-dry<-30||('après le freinage '+(b-dry).toFixed(1)+' dB');"""),
  ('BEAT FX : PITCH à +100 % double la hauteur',"""const d=await TT.bfx({type:'PITCH',depth:1,buf:TT.sine(220),bf:{pitch:100}});const gz=f=>{let re=0,im=0;for(let i=48000;i<144000;i++){const a=2*Math.PI*f*i/48000;re+=d[i]*Math.cos(a);im+=d[i]*Math.sin(a);}return re*re+im*im;},band=(a,b)=>{let e=0;for(let f=a;f<=b;f+=2)e+=gz(f);return e;};
@@ -154,6 +158,13 @@ SCEN=[
  ('BEAT FX : QUANTIZE allumé avec une grille, clignote sans (platine à l’arrêt)',"""setBooth({p:[2],m:true});MS.fxCh='MASTER';const d=await TT.fresh();MS.quantize=true;playBtn(d);await TT.wait(400);bfxTick();const a=BF.q;d.pause();await TT.wait(300);bfxTick();const b=BF.q;MS.quantize=false;bfxTick();return a===1&&b===2&&BF.q===0||('lecture '+a+' arrêt '+b+' coupé '+BF.q);"""),
  ('Vumètres : CLIP du MASTER avant le limiteur, CLIP de tranche en clignotement rapide (TRIM à fond)',"""setBooth({p:[2],m:true});const d=await TT.fresh();const ch=MS.ch[d.ch-1],t0=ch.trim,m0=MS.master;ch.trim=1;MS.master=1;mixApply();MS.mClip=0;ch.clip=0;playBtn(d);await TT.wait(1200);
   const mc=now()-MS.mClip<.6,lv=ch.clipLv,cl=now()-ch.clip<.6;d.pause();ch.trim=t0;MS.master=m0;mixApply();return mc&&cl&&lv===2||('master '+mc+' tranche '+cl+' niveau '+lv);"""),
+ ('Steel, Apply Ctrl sur Select : Controls 1 = effet, Stop + Controls 1 = canal, sans MASTER TEMPO',"""setBooth({p:[2],m:true});TT.steel();const d=DECKS[0],mt=d.mt;MS.fxType='REVERB';MS.fxCh='MASTER';TT.cc(0x45,1);const a=MS.fxType;TT.cc(0x0D,127);TT.cc(0x45,127);TT.cc(0x0D,0);const b=MS.fxCh,m=d.mt;MS.fxType='REVERB';MS.fxCh='MASTER';
+  return a==='TRANS'&&b==='4'&&m===mt||('effet '+a+' canal '+b+' master tempo '+m);"""),
+ ('Steel : Controls 2 = LEVEL/DEPTH (Select), Stop + Controls 2 = TIME, Controls 2 en Deck A = BEAT ◀ ▶',"""setBooth({p:[2],m:true});TT.steel();MS.depth=.5;MS.fxType='DELAY';BF.timeMs=null;BF.beat=4;TT.cc(0x46,4);const dp=MS.depth;TT.cc(0x0D,127);TT.cc(0x46,3);TT.cc(0x0D,0);const tm=BF.timeMs;TT.cc(0x42,1);const bt=bfxBeats()[BF.beat];
+  MS.depth=.5;BF.timeMs=null;BF.beat=4;MS.fxType='REVERB';return TT.near(dp,.5+4/64,.001)&&tm!=null&&bt==='1'||('depth '+dp+' time '+tm+' beat '+bt);"""),
+ ('Steel : Stop + pads = ON/OFF, X-PAD (maintenu), AUTO/TAP et TAP ; ON/OFF clignote sur le pad pendant que Stop est tenu',"""setBooth({p:[2],m:true});TT.steel();MS.fxOn=false;MS.tap=false;const m=MIDI.cfg.map;TT.cc(0x0D,127);TT.press(0x01);const on=MS.fxOn,led=midiLedState(m['c0:01'],'c0:01');TT.press(0x01);const off=!MS.fxOn;
+  TT.cc(0x03,127);const held=bfxActive();TT.cc(0x03,0);const rel=!bfxActive();TT.press(0x06);const tap=MS.tap;BF.taps.length=0;TT.press(0x04);await TT.wait(400);TT.press(0x04);const bpm=BF.tapBpm;TT.cc(0x0D,0);const led2=midiLedState(m['c0:01'],'c0:01');MS.tap=false;
+  return on&&led===2&&off&&held&&rel&&tap&&Math.abs(bpm-150)<8&&led2!==2||('on '+on+' voyant '+led+' off '+off+' X-PAD '+held+'/'+rel+' TAP '+tap+' bpm '+bpm+' voyant sans Stop '+led2);"""),
  ('Double-clic : MASTER LEVEL ne bouge pas',"""const m=MS.master=.7;const r=mixReset('master');const ok=MS.master===.7&&!r;MS.master=.5;mixApply();return ok||('master '+MS.master);"""),
 ]
 async def main():

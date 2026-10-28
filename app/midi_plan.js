@@ -6,12 +6,12 @@ const PSH={play:'PLAY',cue:'CUE',loop_in:'LOOP IN',loop_out:'LOOP OUT',reloop:'R
   sync:'SYNC',player_master:'MASTER',tempo_reset:'T.RESET',tempo_range:'T.RANGE',master_tempo:'M.TEMPO',fn:'ALT',reverse:'REVERSE',slip:'SLIP',slip_rev:'SLIP REV',quantize:'QUANTIZE',jog_mode:'JOG MODE',
   nudge_rev:'BEND −',nudge_fwd:'BEND +',load:'LOAD',tempo:'TEMPO',jog:'JOG',trim:'TRIM',hi:'HI',mid:'MID',low:'LOW',fader:'FADER',color:'COLOR',ph_cue:'CUE',
   kill_hi:'KILL HI',kill_mid:'KILL MID',kill_low:'KILL LOW',xfader:'CROSSFADER',master:'MASTER',balance:'BALANCE',mixing:'MIXING',ph_level:'LEVEL',param:'PARAMETER',fx_color:'COLOR',
-  beatfx:'BEAT FX',selector:'SÉLECTEUR',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
+  beatfx:'DEPTH',bfx_type:'FX TYPE',bfx_ch:'FX CH',bfx_depth:'DEPTH',bfx_time:'TIME',bfx_beat:'BEAT ◀▶',bfx_on:'FX ON',bfx_tap:'TAP',bfx_beat_rev:'BEAT ◀',bfx_beat_fwd:'BEAT ▶',bfx_xpad:'X-PAD',bfx_autotap:'AUTO/TAP',selector:'SÉLECTEUR',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
   browse:'BROWSE',tag_list:'TAG LIST',info:'INFO',menu:'MENU',tag_track:'TAG',track_filter:'FILTER',short_cut:'SHORT CUT'};
 const pshort=a=>a?(PSH[a]||(a.startsWith('fx:')?a.slice(3):MACT[a]?tl(MACT[a].l):a)):'';
 /* colour of a function: CDJ transport, loops, hot cues, the function key, the mixer, browsing, SOUND COLOR FX */
 function pcat(a){
-  if(!a)return 'off';if(a.startsWith('fx:')||a==='color'||a==='param'||a==='fx_color'||a==='beatfx')return 'fx';
+  if(!a)return 'off';if(a.startsWith('fx:')||a==='color'||a==='param'||a==='fx_color'||a==='beatfx'||a.startsWith('bfx_'))return 'fx';
   if(/^(loop_in|loop_out|reloop|four_beat|jump_rev|jump_fwd)$/.test(a))return 'loop';
   if(/^(hb\d|hot\d|bank|call)$/.test(a))return 'hot';if(a==='fn')return 'fn';
   if(MACT[a]&&(MACT[a].g==='chan'||MACT[a].g==='mix'))return 'mix';if(MACT[a]&&MACT[a].g==='nav'||/^(browse|tag_list|info|menu|tag_track|track_filter|load)$/.test(a))return 'nav';
@@ -71,11 +71,12 @@ function planSvg(){
     const dk=keys.concat(g.s!=null?[pkey(g.s)]:[]).join(' ');
     const cat=g.shift||g.apply?'hw':pcat(b&&b.a);
     const nm=g.id||(keys.length?(b?midiBindLabel(b):keys[0]):'');
-    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'" data-id="'+esc(keys[0]||g.id||'')+'" data-n="'+esc(nm)+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite, Select = BEAT FX (V2.9)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player, Select = BEAT FX (V2.9)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A : platine gauche ; Deck B : platine droite ; Select : BEAT FX (V2.9)','Apply Ctrl Deck A: left player; Deck B: right player; Select: BEAT FX (V2.9)'):tip(b,bs))+'</title>';
+    let h='<g class="p-c c-'+cat+'" data-k="'+dk+'" data-id="'+esc(keys[0]||g.id||'')+'" data-n="'+esc(nm)+'"><title>'+esc(g.shift?say('SHIFT : les pads 1-6 deviennent 7-12 (hot cues)','SHIFT: pads 1-6 become 7-12 (hot cues)'):g.apply?say('Apply Ctrl : Deck A = Controls 1 sur la platine gauche, Deck B = platine droite (Controls 2 = BEAT ◀ ▶), Select = BEAT FX (Controls 1 : effet, Stop + : canal ; Controls 2 : LEVEL/DEPTH, Stop + : TIME)','Apply Ctrl: Deck A = Controls 1 on the left player, Deck B = right player (Controls 2 = BEAT ◀ ▶), Select = BEAT FX (Controls 1: effect, Stop +: channel; Controls 2: LEVEL/DEPTH, Stop +: TIME)'):g.ctl?tip(b)+' — '+say('Apply Ctrl Deck A / Deck B : Controls 1 = sélecteur de la platine, Controls 2 = BEAT ◀ ▶ ; Select : Controls 1 = effet (Stop + : canal), Controls 2 = LEVEL/DEPTH (Stop + : TIME)','Apply Ctrl Deck A / Deck B: Controls 1 = player selector, Controls 2 = BEAT ◀ ▶; Select: Controls 1 = effect (Stop +: channel), Controls 2 = LEVEL/DEPTH (Stop +: TIME)'):tip(b,bs))+'</title>';
     if(g.t==='b'){
       h+='<rect x="'+g.x+'" y="'+g.y+'" width="'+g.w+'" height="'+g.h+'" rx="1.2" class="p-key"/>';
       const cx=g.x+g.w/2;
-      if(g.pad){h+='<line x1="'+(g.x+.8)+'" x2="'+(g.x+g.w-.8)+'" y1="'+(g.y+g.h/2)+'" y2="'+(g.y+g.h/2)+'" class="p-sep"/>'+T(cx,g.y+3.2,lab(b),'p-t c-'+pcat(b&&b.a),fit(lab(b),g.w,2.15),'middle')+T(cx,g.y+g.h-1.1,lab(bs),'p-t c-'+pcat(bs&&bs.a),fit(lab(bs),g.w,2.15),'middle');}
+      if(g.pad){const f=b&&b.f;h+='<line x1="'+(g.x+.8)+'" x2="'+(g.x+g.w-.8)+'" y1="'+(g.y+g.h-2.9)+'" y2="'+(g.y+g.h-2.9)+'" class="p-sep"/>'+T(cx,g.y+2.5,lab(b),'p-t c-'+pcat(b&&b.a),fit(lab(b),g.w,1.9),'middle')
+        +(f?T(cx,g.y+4.6,'■ '+pshort(f),'p-t c-fn',fit('■ '+pshort(f),g.w,1.6),'middle'):'')+T(cx,g.y+g.h-.9,lab(bs),'p-t c-'+pcat(bs&&bs.a),fit(lab(bs),g.w,1.8),'middle');}
       else if(g.lab)h+=T(cx,g.y+g.h/2+.9,g.lab,'p-t',2.3,'middle');
       /* Stop: the ALT key, MASTER TEMPO when pressed alone */
       else if(b&&b.a==='fn')h+=T(cx,g.y+g.h/2-.3,'ALT','p-t',2.4,'middle')+T(cx,g.y+g.h-1.1,say('seul : M.TEMPO','alone: M.TEMPO'),'p-t',fit(say('seul : M.TEMPO','alone: M.TEMPO'),g.w,1.8),'middle');
@@ -83,6 +84,8 @@ function planSvg(){
     }else if(g.t==='k'){
       h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-knob"/><line x1="'+g.cx+'" y1="'+(g.cy-g.r+1)+'" x2="'+g.cx+'" y2="'+(g.cy-1.5)+'" class="p-tick"/>';
       /* the two Controls: label above (Apply Ctrl and its lights sit just below) */
+      /* and, above, what it does with Apply Ctrl on Select (the BEAT FX) */
+      const bsel=g.ctl&&keys[2]?map[keys[2]]:null;if(bsel)h+=T(g.cx,g.cy-g.r-3.9,'SEL : '+pshort(bsel.a)+(bsel.f?' · ■ '+pshort(bsel.f):''),'p-t c-fx',1.7,'middle');
       h+=g.ctl?T(g.cx,g.cy-g.r-1.3,pshort(b&&b.a),'p-t p-lab',2.2,'middle'):T(g.cx,g.cy+g.r+3,lab(b),'p-t p-lab',2.3,'middle');
       if(!g.ctl&&b&&b.f)h+=T(g.cx,g.cy+g.r+5.6,'■ '+pshort(b.f),'p-t c-fn',1.9,'middle');
     }else if(g.t==='f'){
