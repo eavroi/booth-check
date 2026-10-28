@@ -18,23 +18,23 @@ function say(fr,en){return LANG==='en'?en:fr;}
 let STATUS={msg:'',until:0};
 function toast(t,ms){STATUS.msg=t;STATUS.until=Date.now()+(ms||2600);STATUS.src='deck';}
 /* ---------- player settings ----------
-   Values and defaults follow the rekordbox My Settings files written to the USB
-   (MYSETTING.DAT, MYSETTING2.DAT, DEVSETTING.DAT). [key, label, options, default, file, offset, base] */
+   Values follow the rekordbox My Settings files written to the USB (MYSETTING.DAT, MYSETTING2.DAT, DEVSETTING.DAT);
+   defaults = the player's factory settings, marked * in the manual p. 38. [key, label, options, default, file, offset, base] */
 const SETDEF=[
- ['playMode','PLAY MODE',['CONTINUE','SINGLE'],1,'my',23,0x80],
+ ['playMode','PLAY MODE',['CONTINUE','SINGLE'],0,'my',23,0x80],
  ['ejectLock','EJECT/LOAD LOCK',['UNLOCK','LOCK'],0,'my',21,0x80],
  ['qbv','QUANTIZE BEAT VALUE',['1 Beat','1/2 Beat','1/4 Beat','1/8 Beat'],0,'my',24,0x80],
- ['hcAuto','HOT CUE AUTO LOAD',['OFF','ON','rekordbox SETTING'],1,'my',25,0x80],
+ ['hcAuto','HOT CUE AUTO LOAD',['OFF','ON','rekordbox SETTING'],2,'my',25,0x80],
  ['hcColor','HOT CUE COLOR',['OFF','ON'],0,'my',26,0x80],
  ['autoCueLevel','AUTO CUE LEVEL',['-36dB','-42dB','-48dB','-54dB','-60dB','-66dB','-72dB','-78dB','MEMORY'],8,'my',11,0x80],
  ['slipFlash','SLIP FLASHING',['OFF','ON'],1,'my',16,0x80],
  ['onAir','ON AIR DISPLAY',['OFF','ON'],1,'my',8,0x80],
- ['jogRing','JOG BRIGHTNESS',['OFF','1','2'],1,'my',14,0x80],
+ ['jogRing','JOG BRIGHTNESS',['OFF','1','2'],2,'my',14,0x80],
  ['jogInd','JOG INDICATOR',['OFF','ON'],1,'my',15,0x80],
  ['discSlot','DISC SLOT ILLUMINATION',['OFF','1','2'],2,'my',20,0x80],
  ['language','LANGUAGE',['ENGLISH','FRANÇAIS','DEUTSCH','ITALIANO','NEDERLANDS','ESPAÑOL','РУССКИЙ','한국어','简体中文','繁體中文','日本語','PORTUGUÊS','SVENSKA','ČEŠTINA','MAGYAR','DANSK','ΕΛΛΗΝΙΚΆ','TÜRKÇE'],0,'my',12,0x81],
  ['historyName','HISTORY NAME',['HISTORY'],0,null],
- ['playerNo','PLAYER No.',['1','2','3','4'],0,null],
+ ['playerNo','PLAYER No.',['AUTO','1','2','3','4'],0,null],
  ['linkStatus','LINK STATUS',['NOT CONNECTED'],0,null,null,null,true],
  ['midiCh','MIDI CHANNEL',Array.from({length:16},(_,i)=>String(i+1)),0,null],
  ['digitalOut','DIGITAL OUT',['16bit','24bit'],1,null],
@@ -46,6 +46,8 @@ const SETDEF=[
  ['version','VERSION No.',['—'],0,null,null,null,true],
 ];
 const UTIL_COUNT=SETDEF.length;
+/* order of the choices on the UTILITY screen when it differs from the order of the values in the files (manual p. 38) */
+const UTIL_ORDER={qbv:[3,2,1,0],hcAuto:[1,2,0]};
 /* My Settings values set elsewhere on the player (buttons, SHORTCUT), still read from the USB */
 const SETDEF2=[
  ['timeMode',['ELAPSED','REMAIN'],1,'my',32,0x80],['autoCue',['OFF','ON'],1,'my',34,0x80],['jogMode',['CDJ','VINYL'],1,'my',33,0x80],
@@ -55,6 +57,8 @@ const SETDEF2=[
 ];
 const DEVMAP={wfColor:{1:0,3:1,4:1},keyFmt:{1:0,2:1},ovType:{1:0,2:1},wfPos:{1:0,2:1}};
 const SET={},SETSRC={};
+/* the USB indicator blinks while the player reads the USB (manual p. 14): until this time after a mount; the length is ours */
+let USBCOMM=0;
 function resetSettings(){for(const d of SETDEF){SET[d[0]]=d[3];SETSRC[d[0]]='default';}for(const d of SETDEF2){SET[d[0]]=d[2];SETSRC[d[0]]='default';}}
 resetSettings();
 const sv=k=>{const d=SETDEF.find(x=>x[0]===k);if(d)return d[2][SET[k]];const e=SETDEF2.find(x=>x[0]===k);return e?e[1][SET[k]]:'';};

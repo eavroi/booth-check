@@ -31,7 +31,7 @@ function renderFace(F){
   const live=d.loaded(),touch=!!d.touching;
   blit(sprite(F,'cb|'+live+touch+d.vinyl,[cx-F_JOG_DISPLAY,cy-F_JOG_DISPLAY,cx+F_JOG_DISPLAY,cy+F_JOG_DISPLAY],P=>centreBase(P,live,touch,d.vinyl)));
   if(live){g.setTransform(s,0,0,s,0,0);const P={g,line:Painter.prototype.line,scale:s};centrePointer(P,d._pos/1.8,d.playing?null:d.cue/1.8,d.ghost?d.ghost.pos/1.8:null);g.setTransform(1,0,0,1,0,0);}
-  const white=anyMedia()?[0,1,2][SET.jogRing]:0;
+  const white=anyMedia()&&!(SET.jogInd===1&&endBlink(d))?[0,1,2][SET.jogRing]:0;   /* JOG INDICATOR: the ring blinks at the end of the track */
   if(white)blit(sprite(F,'ring|'+white,[cx-r-24,cy-r-24,cx+r+24,cy+r+24],P=>ringLight(P,white,0)));
   /* keys */
   for(const k of F_KEYS){
@@ -153,11 +153,19 @@ function jogMove(d,st,p){
   jogTurn(d,st,da*180/Math.PI);
 }
 /* the platter turned by raw degrees (the mouse on the face, or a controller's jog wheel) */
+/* one half frame (1/150 s) every 4/3 degree: 1.8 s per turn, as the frame search (manual p. 22, 24) */
+const HALF_FRAME_DEG=360/270;
+/* TRACK SEARCH held: one track per 30 degrees (the manual gives no figure) */
+const TRACK_JOG_DEG=30;
 function jogTurn(d,st,raw){
   const deg=raw*jogSens(d);d.rimAngle+=deg;const t=now(),dt=Math.max(.008,t-st.t);st.t=t;const w=deg/dt;st.w=(st.w||0)*.5+w*.5;st.wt=t;
+  if(d.tsHeld&&st.mode!=='adj'){const h=d.tsHeld;h.acc+=deg;while(Math.abs(h.acc)>=TRACK_JOG_DEG){trackJog(d,Math.sign(h.acc));h.acc-=Math.sign(h.acc)*TRACK_JOG_DEG;}return;}
+  /* super fast search: SEARCH held, the jog drives the search, its speed follows the jog; when the jog stops, play goes on normally */
+  if(d._scan&&(st.mode==='bend'||st.mode==='search')){d.seek(d._pos+deg/200*8);d.dirty=true;return;}
   switch(st.mode){
-    case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=4.8){d.adjustStep((st.acc>0?1:-1)/75);st.acc-=Math.sign(st.acc)*4.8;}break;
-    case 'search':if(d._scan){d.seek(d._pos+deg/200*8);}else{d.advance();d.scratchOn=true;d.scratchV=clamp(w/200*(d.vinyl&&st.tg.top?1:.5),-8,8);d.scratchT=t;d.syncSrc();}d.dirty=true;break;
+    case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=HALF_FRAME_DEG){d.adjustStep((st.acc>0?1:-1)/150);st.acc-=Math.sign(st.acc)*HALF_FRAME_DEG;}break;
+    /* frame search: paused, 1.8 s per turn in every jog mode (manual p. 22) */
+    case 'search':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();d.dirty=true;break;
     case 'touch':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();break;
     case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+d.dir*w/200*K*.35,.4,1.7);  /* in reverse the jog's direction is reversed too (manual p. 22) */clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
   }
@@ -169,7 +177,7 @@ function jogUp(d,st){
   /* let go while the hand was moving: the platter keeps turning on its own momentum (longer when JOG ADJUST is LIGHT) */
   const fling=st.w&&now()-st.wt<.08&&Math.abs(st.w)>120?st.w:0;
   if(m==='touch'){d.scratchOn=false;d.scratchV=0;d.touching=false;const ts=tStart(d);d.startT=Math.max(.04,ts);d.touchTarget=1;slipResume(d);}
-  if(m==='search'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(!d.playing){d.seek(d._pos);}}
+  if(m==='search'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(!d.playing){d.seek(Math.round(d._pos*150)/150);}}
   d.syncSrc();d.dirty=true;
   if(fling&&m!=='adj'){d.spin=clamp(fling,-1600,1600);if(d.loaded()&&!d.spinning&&m!=='free'){d.spinning=true;d.spinMode=m==='touch'?'scratch':(m==='bend'?'bend':'search');
     if(d.spinMode==='scratch'){d.advance();d.touching=true;d.scratchOn=true;}}}
@@ -190,7 +198,8 @@ function jogFlick(d,e){
   let dy=e.deltaY;if(e.deltaMode===1)dy*=33;else if(e.deltaMode===2)dy*=600;
   if(!d.loaded()){const c=SPIN_CAP*jogSens(d);d.spin=clamp((d.spin||0)+clamp(dy,-120,120)*SPIN_K*jogSens(d),-c,c);return;}
   ensureCtx();
-  if(d.adjust){const n=wheelSteps(d.n+'adj',e,60);if(n)d.adjustStep(n/75);d.spin=0;d.spinImp=0;return;}
+  if(d.adjust){const n=wheelSteps(d.n+'adj',e,60);if(n)d.adjustStep(n/150);d.spin=0;d.spinImp=0;return;}
+  if(d.tsHeld){const n=wheelSteps(d.n+'ts',e,60);if(n)trackJog(d,n);return;}
   const sens=jogSens(d),cap=SPIN_CAP*sens,imp=clamp(dy,-120,120)*SPIN_K*sens;
   if(!d.spinning){
     d.spinning=true;d.spinMode=d.vinyl?'scratch':(d.playing?'bend':'search');d.spinWasPlaying=d.playing;
@@ -218,12 +227,12 @@ function endSpin(d){
   const m=d.spinMode;d.spinning=false;d.spin=0;d.spinImp=0;d.advance();
   if(m==='scratch'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(d.playing){const ts=tStart(d);d.startT=Math.max(.15,ts);d.touch=0;d.touchTarget=1;}slipResume(d);}
   if(m==='bend')d.bend=1;
-  if(m==='search'&&!d.playing)d.seek(d._pos);
+  if(m==='search'&&!d.playing)d.seek(Math.round(d._pos*150)/150);
   d.syncSrc();d.dirty=true;
 }
 function jogNudge(d,dir){
   d.rimAngle+=dir*4;if(!d.loaded())return;
-  if(d.adjust){d.adjustStep(dir/75);return;}
+  if(d.adjust){d.adjustStep(dir/150);return;}
   if(d.playing){d.nudge=dir*.06;d.syncSrc();clearTimeout(d._nT);d._nT=setTimeout(()=>{d.nudge=0;d.syncSrc();},160);}
   else d.seek(d.pos()+dir*4/200*.5);
 }

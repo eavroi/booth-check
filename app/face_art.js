@@ -196,7 +196,7 @@ function leftColumn(P){
   P.polygon([[LC-7,249],[LC-9.5,253],[LC-4.5,253]],PRINT);
 }
 function rightColumn(P){
-  P.circle(RC,95,2.2,[220,24,20]);
+  P.circle(RC,95,2.2,[58,18,16]);   /* STANDBY: lit only in standby (manual p. 14), never here */
   P.arc(RC-20,64,7,300,240+360,PRINT,1.4);P.line([[RC-20,55],[RC-20,64]],PRINT,1.4);P.line([[RC-11,68],[RC-3,68],[RC-3,58]],PRINT,1.4);
   P.rrect([RC-56,479,RC+52,530],5,[12,12,13],[76,76,80],1);
 }

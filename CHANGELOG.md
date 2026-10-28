@@ -1,5 +1,20 @@
 # Booth Check — versions
 
+## V2.8.3 — 28 octobre 2026
+Écran, voyants et réglages de la CDJ d'après le mode d'emploi (audit du 27 octobre, points E1, E3-E6, E9-E10, J7-J10) :
+- Barre de position du morceau (p. 18) : en ELAPSED, la partie jouée est allumée ; en REMAIN, elle s'éteint. En fin de morceau, c'est toute la barre qui clignote (lentement sous 30 s, vite sous 15 s) ; les chiffres du temps ne clignotent plus (le manuel ne parle que de la barre). Pas de graduations pour un morceau de plus de 15 min (p. 44). Les graduations restent toutes les minutes (le manuel parle aussi de 16 mesures sans dire quand : à vérifier sur la vraie platine).
+- QUANTIZE en gris quand le morceau n'a pas de grille (p. 14).
+- LCD BRIGHTNESS : 3 (réglage d'usine) = luminosité normale, 1 et 2 plus sombres, 4 et 5 plus clairs (écarts choisis par nous).
+- Voyants : STANDBY éteint (il ne s'allume qu'en veille, p. 14) ; touche USB allumée quand on explore la clé, clignotante quand un morceau de la clé est chargé (p. 31) ; indicateur USB qui clignote quand la platine lit la clé (branchement, chargement d'un morceau, environ 1 s, durée choisie par nous) et tant qu'on tient USB STOP (p. 14, 20) ; anneau de la jog qui clignote en fin de morceau avec JOG INDICATOR sur ON (p. 38, mêmes seuils que la barre, non donnés par le manuel).
+- UTILITY (p. 38) : la valeur ne change qu'une fois validée par le sélecteur, BACK annule ; MENU/UTILITY ramène à l'écran d'avant. Réglages d'usine du manuel quand la clé n'en a pas : PLAY MODE CONTINUE, HOT CUE AUTO LOAD rekordbox SETTING, JOG BRIGHTNESS 2 ; choix dans l'ordre du manuel ; PLAYER No. = AUTO (le numéro de la tranche), en gris avec une clé branchée (p. 12).
+- MASTER TEMPO gardé d'une visite à l'autre, pour chaque platine (p. 22).
+- Pas de 0,5 trame (1/150 s) : recherche de trame en pause (1,8 s par tour de jog dans tous les modes, p. 22), IN / OUT ADJUST (p. 24-25), et nouveau réglage fin du point CUE : en pause sur le repère, SEARCH le déplace par 0,5 trame, PLAY/PAUSE et CUE clignotent, CUE valide (p. 24). SEARCH en pause ne déplace plus le repère tout seul.
+- Jog + SEARCH : la jog mène la recherche, la lecture redevient normale quand elle s'arrête (p. 22).
+- Jog + TRACK SEARCH : TRACK SEARCH tenu et la jog tournée parcourent la liste (un morceau tous les 30°, valeur choisie par nous), le numéro s'affiche, le morceau choisi se charge au relâché (p. 22).
+- QUANTIZE agit aussi sur le rappel de hot cue, RELOOP et le levier REV : l'action part au temps suivant de la grille (p. 26, 43).
+- Non faits (pas de référence) : écran PHASE METER au toucher, couleur de fond du nom du morceau et de l'indicateur USB (réglage BACKGROUND COLOR de la clé, p. 37 : emplacement dans les fichiers inconnu), SCREEN SAVER, LANGUAGE, AUTO STANDBY ; HISTORY NAME avec l'HISTORY (V2.8.4). TRACK SEARCH pendant l'exploration : inchangé.
+- Tests : 15 nouveaux scénarios (barre de position, clignotement de fin, QUANTIZE gris, LCD BRIGHTNESS, voyants USB, UTILITY, réglages d'usine, MASTER TEMPO gardé, recherche de trame, point CUE, IN ADJUST, jog + SEARCH, jog + TRACK SEARCH, QUANTIZE sur hot cue et REV).
+
 ## V2.9.1 — 28 octobre 2026
 - BEAT FX, corrections de Victor d'après la vraie table :
   - aucun BEAT FX ne s'entend au casque avec le CUE de la tranche : les 14 effets sont pris après le fader ;

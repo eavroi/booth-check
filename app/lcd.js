@@ -20,7 +20,13 @@ function drawLcd(d,g){
     case 'filter':drawFilter(d,g);break;
     default:drawPlayUpper(d,g);
   }
-  const dim=[.3,.18,.08,0,0][SET.lcd];if(dim){g.fillStyle='rgba(0,0,0,'+dim+')';g.fillRect(0,0,800,480);}
+  lcdBright(g);
+}
+/* LCD BRIGHTNESS 1-5, 3 = as drawn (factory setting, manual p. 38); 1-2 darker, 4-5 brighter (the steps are ours, not in the manual) */
+function lcdBright(g){
+  const dim=[.36,.18][SET.lcd];if(dim){g.fillStyle='rgba(0,0,0,'+dim+')';g.fillRect(0,0,800,480);return;}
+  const up=[0,0,0,.18,.36][SET.lcd];if(!up)return;const t=g.getTransform();
+  g.save();g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='lighter';g.globalAlpha=up;g.drawImage(g.canvas,t.e,t.f,800*t.a,480*t.d,t.e,t.f,800*t.a,480*t.d);g.restore();
 }
 function noMedia(d,g){
   lower(d,g);
@@ -33,7 +39,8 @@ function lower(d,g){
   const sg=g.createLinearGradient(0,292,0,299);sg.addColorStop(0,'#000');sg.addColorStop(.45,'#0b2030');sg.addColorStop(1,'#000');g.fillStyle=sg;g.fillRect(18,292,764,7);
   box(g,18,302,67,60,null,'#e8e8e8',1.4);T(g,'PLAYER',51.5,318,13,'#fff',LA,700,'center');T(g,String(d.pn),51.5,353,39,'#fff',LN,300,'center');
   T(g,SET.playMode===0?'CONTINUE':'SINGLE',51.5,382,13,'#fff',LA,700,'center');
-  const qc=d.quant?'#ff0000':'#5a5a5a';T(g,'QUANTIZE',51.5,420,13,qc,LA,700,'center');box(g,18,427,67,27,null,qc,1.4);T(g,fmtBeat(d.qBeat),51.5,447,20,qc,LN,400,'center');
+  /* QUANTIZE in grey when it cannot act: a track not analysed, without a beat grid (manual p. 14) */
+  const qc=d.quant&&!(ld&&d.beats().length<2)?'#ff0000':'#5a5a5a';T(g,'QUANTIZE',51.5,420,13,qc,LA,700,'center');box(g,18,427,67,27,null,qc,1.4);T(g,fmtBeat(d.qBeat),51.5,447,20,qc,LN,400,'center');
   hit(d,18,405,67,52,()=>{d.quant=!d.quant;d.dirty=true;});
   T(g,'TRACK',105,315,13,'#fff',LA,700,'left');
   let tn='00';if(cur){const L=cur.list||[];const i=L.indexOf(tr);tn=String(i>=0?i+1:1).padStart(2,'0');}
@@ -44,7 +51,7 @@ function lower(d,g){
   /* IN / OUT ADJUST: the time of the loop point being set is shown (manual p. 24-25) */
   const adj=ld&&d.adjust&&d.loop?(d.adjust==='in'?d.loop.a:d.loop.b):null;
   const tv=adj!=null?adj:ld?(d.remain?d.dur-pos:pos):0,[mm,ss,ms]=fmtMs(tv);
-  const warn=ld&&d.playing&&d.dur-pos<30&&Math.floor(now()*(d.dur-pos<15?4:2))%2;const tc=warn?'#242424':'#fff';
+  const tc='#fff';
   let x=286;g.fillStyle=tc;g.textAlign='left';g.font='300 55px '+LN;for(const ch of mm){g.fillText(ch,x,361);x+=g.measureText(ch).width+1;}
   g.font='300 44px '+LN;g.fillText(':',x+1,356);x+=g.measureText(':').width+3;g.font='300 55px '+LN;for(const ch of ss){g.fillText(ch,x,361);x+=g.measureText(ch).width+1;}
   g.font='300 38px '+LN;g.fillText('.'+ms,x,361);
@@ -76,17 +83,23 @@ function lower(d,g){
   if(!cur)T(g,anyMedia()?'':'NO DISC',400,400,22,'#ff1a1a',LF,400,'center');
 }
 function chip(g,x,y,w,h,t,col){g.strokeStyle=col;g.lineWidth=1.3;RR(g,x+.65,y+.65,w-1.3,h-1.3,2);g.stroke();T(g,t,x+w/2,y+h-3.5,12,col,LA,400,'center');}
-/* overview waveform with cue marks, needle position and minute ticks */
+/* end of the track: the whole position graph blinks, slowly under 30 s left, fast under 15 s (manual p. 18);
+   the jog ring too when JOG INDICATOR is ON (p. 38: the manual gives no times for it, the same ones are used) */
+function endBlink(d){if(!d.loaded()||!d.playing)return false;const r=d.dur-d._pos;return r<30&&Math.floor(now()*(r<15?4:2))%2===1;}
+/* overview waveform (the playing address) with cue marks, needle position and 1-minute ticks */
 function overview(d,g,x0,y0,W,H,pos){
   const cur=d.cur,an=cur.an,dur=d.dur,base=y0+H;
+  if(endBlink(d))return;
   const ov=SET.wfColor===1?(an.ovRgb||an.ovBlue):(an.ovBlue||an.ovRgb);const half=SET.ovType===0,cw=W/400;
   if(ov)for(let i=0;i<400;i++){const hh=ov.h[i]/31*(half?H:H/2);if(hh<.3)continue;g.fillStyle='rgb('+ov.c[i*3]+','+ov.c[i*3+1]+','+ov.c[i*3+2]+')';
     if(half)g.fillRect(x0+i*cw,base-hh,cw+.15,hh);else g.fillRect(x0+i*cw,y0+H/2-hh,cw+.15,hh*2);}
   const px=x0+(dur?pos/dur:0)*W;
-  /* comb: played part dark, rest white */
-  g.fillStyle='#e8e8e8';g.fillRect(px,base+1,x0+W-px,7);g.fillStyle='#9a9a9a';for(let x=Math.ceil(px);x<x0+W;x+=2)g.fillRect(x,base+2,.8,5);
-  g.fillStyle='#000';g.fillRect(x0,base+1,Math.max(0,px-x0),7);g.strokeStyle='#5a5a5a';g.lineWidth=1;g.strokeRect(x0+.5,base+1.5,Math.max(0,px-x0-1),6);
-  if(dur)for(let m=60;m<dur;m+=60){g.fillStyle='#fff';g.fillRect(x0+m/dur*W-.5,base+11,1,7);}
+  /* bar graph (manual p. 18): ELAPSED = lit from the left edge up to the position; REMAIN = the left part goes out */
+  const comb=(a,b)=>{if(b<=a)return;g.fillStyle='#e8e8e8';g.fillRect(a,base+1,b-a,7);g.fillStyle='#9a9a9a';for(let x=Math.ceil(a);x<b;x+=2)g.fillRect(x,base+2,.8,5);};
+  const dark=(a,b)=>{if(b<=a)return;g.fillStyle='#000';g.fillRect(a,base+1,b-a,7);g.strokeStyle='#5a5a5a';g.lineWidth=1;g.strokeRect(a+.5,base+1.5,Math.max(0,b-a-1),6);};
+  if(d.remain){dark(x0,px);comb(px,x0+W);}else{comb(x0,px);dark(px,x0+W);}
+  /* the scale: not shown for tracks over 15 minutes (manual p. 44) */
+  if(dur&&dur<=900)for(let m=60;m<dur;m+=60){g.fillStyle='#fff';g.fillRect(x0+m/dur*W-.5,base+11,1,7);}
   if(d.loop){g.fillStyle='rgba(255,140,0,.5)';g.fillRect(x0+d.loop.a/dur*W,y0,Math.max(2,(d.loop.b-d.loop.a)/dur*W),H);}
   for(const c of cur.mem){const x=x0+c.time/dur*W;const col=c.color&&SET.hcColor?c.color:'#ff1a1a';
     g.fillStyle=col;g.beginPath();g.moveTo(x-5,y0-9);g.lineTo(x+5,y0-9);g.lineTo(x,y0-2);g.fill();}
@@ -94,8 +107,7 @@ function overview(d,g,x0,y0,W,H,pos){
   const cx=x0+d.cue/dur*W;g.fillStyle='#ff8c00';g.beginPath();g.moveTo(cx-5,base+18);g.lineTo(cx+5,base+18);g.lineTo(cx,base+10);g.fill();
   if(d.ghost){g.fillStyle='#fff';g.fillRect(x0+d.ghost.pos/dur*W-1,y0,2,H+8);}
   if(d.touchPrev!=null){g.fillStyle='#ffcf3a';g.fillRect(x0+d.touchPrev/dur*W-1,y0-2,2,H+10);}
-  const blink=d.playing&&dur-pos<30&&Math.floor(now()*(dur-pos<15?4:2))%2;
-  if(!blink){g.fillStyle='#000';g.fillRect(px-2.5,y0-1,5,H+10);g.fillStyle=d.ghost?'#ffd200':'#fff';g.fillRect(px-1.5,y0,3,H+8);}
+  g.fillStyle='#000';g.fillRect(px-2.5,y0-1,5,H+10);g.fillStyle=d.ghost?'#ffd200':'#fff';g.fillRect(px-1.5,y0,3,H+8);
 }
 /* hot cue colour as the player shows it: rekordbox colour when HOT CUE COLOR is ON, else green (cue) / orange (loop) */
 function hotColor(c){if(SET.hcColor===1&&c.color)return c.color;return c.end?'#ff9600':'#28e214';}
@@ -399,23 +411,29 @@ function drawUtility(d,g){
   for(let r=0;r<LROWS;r++){const i=st.top+r,it=SETDEF[i];const y=LY+r*LROWH;if(!it)continue;const sel=i===st.sel;
     g.fillStyle=sel?'#d6d7db':(r%2?'#33362b':'#3c3d35');g.fillRect(30,y,752,LROWH-1);g.fillStyle='#5e6152';g.fillRect(30,y+LROWH-1,752,1);
     if(!sel){g.fillStyle='#5e6152';g.fillRect(470,y,1,LROWH);}
-    const ro=!!it[7];const lc=sel?'#000':(ro&&!anyMedia()&&it[0]!=='version'?'#fff':'#fff');
-    T(g,it[1],44,y+23,22,sel?'#3a3a3a':lc,LF);
-    let val=it[2][SET[it[0]]];if(it[0]==='version')val='Ver 1.85 (sim.)';if(it[0]==='linkStatus')val=anyMedia()?'NOT CONNECTED':'';if(it[0]==='playerNo')val=String(d.pn);
+    /* PLAYER No. is grey and cannot be changed while a storage device is connected (manual p. 12) */
+    const grey=it[0]==='playerNo'&&anyMedia();const lc=grey?'#8a8a8a':'#fff';
+    T(g,it[1],44,y+23,22,sel?(grey?'#8a8a8a':'#3a3a3a'):lc,LF);
+    /* while a value is being changed it is only shown: it takes effect when the selector is pushed (manual p. 38) */
+    let val=it[2][sel&&st.edit?st.val:SET[it[0]]];if(it[0]==='version')val='Ver 1.85 (sim.)';if(it[0]==='linkStatus')val=anyMedia()?'NOT CONNECTED':'';
     if(sel&&st.edit){g.fillStyle='#fff';g.fillRect(471,y,311,LROWH-1);triR(g,478,y+15,5,'#000');}
-    T(g,val,492,y+23,22,sel?'#000':'#fff',LF);
+    T(g,val,492,y+23,22,sel?(grey?'#8a8a8a':'#000'):lc,LF);
     if(SETSRC[it[0]]==='usb'&&!sel){T(g,'USB',772,y+20,11,'#9fd27a',LA,700,'right');}
     hit(d,30,y,752,LROWH,()=>{if(st.sel===i){utilEnter(d);}else{st.sel=i;st.edit=false;}});}
   const h=LROWS*LROWH,th=h*LROWS/UTIL_COUNT,ty=LY+(h-th)*st.top/(UTIL_COUNT-LROWS);g.fillStyle='#bbb';g.fillRect(21,ty,3,th);
 }
-function utilEnter(d){const st=d.ui.util,it=SETDEF[st.sel];if(!it||it[7])return;if(it[2].length<2)return;st.edit=!st.edit;}
+/* push: first on a setting, the cursor goes to its value; pushed again, the value is set (BACK before that cancels it: manual p. 38) */
+function utilEnter(d){const st=d.ui.util,it=SETDEF[st.sel];if(!it||it[7])return;
+  if(it[0]==='playerNo'){toast(anyMedia()?say('PLAYER No. : débranche la clé pour le changer','PLAYER No.: unplug the USB to change it'):say('PLAYER No. : AUTO, le numéro de la tranche de la table où la platine est branchée','PLAYER No.: AUTO, the mixer channel the player is plugged into'));return;}
+  if(it[2].length<2)return;
+  if(!st.edit){st.edit=true;st.val=SET[it[0]];return;}
+  const k=it[0];st.edit=false;if(st.val===SET[k])return;SET[k]=st.val;SETSRC[k]='edit';
+  for(const x of DECKS){if(k==='qbv')x.qBeat=[1,.5,.25,.125][SET.qbv];x.dirty=true;}
+}
 function utilStep(d,dir){
   const st=d.ui.util,it=SETDEF[st.sel];
   if(!st.edit){st.sel=clamp(st.sel+dir,0,UTIL_COUNT-1);return;}
-  const k=it[0];if(k==='playerNo'){toast(say('PLAYER No. : le numéro de la tranche de la table où la platine est branchée','PLAYER No.: the mixer channel the player is plugged into'));return;}
-  SET[k]=(SET[k]+dir+it[2].length)%it[2].length;SETSRC[k]='edit';
-  for(const x of DECKS){if(k==='qbv')x.qBeat=[1,.5,.25,.125][SET.qbv];x.dirty=true;}
-  if(k==='hcAuto'&&d.cur&&!d.cur.loading){}
+  const ord=UTIL_ORDER[it[0]]||it[2].map((_,i)=>i),n=ord.length;st.val=ord[(ord.indexOf(st.val)+dir+n)%n];
 }
 /* ---------- SHORTCUT: the settings page ---------- */
 function segs(d,g,x,y,w,h,opts,selIdx,fns,icons){const n=opts.length,sw=w/n;

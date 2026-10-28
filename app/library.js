@@ -74,7 +74,7 @@ function readRbfltr(b){
     if(lo>=2000&&hi<=40000&&lo<hi){const bpm=Math.round((lo+hi)/20)/10,pct=Math.round((hi-lo)/(hi+lo)*100);if(pct>=0&&pct<=6)return {bpm,pct};}}
   return null;
 }
-function applyMediumSettings(m){resetSettings();for(const [k,v] of Object.entries(m.setValues||{})){SET[k]=v;SETSRC[k]='usb';}for(const d of DECKS)d.applySettings();}
+function applyMediumSettings(m){USBCOMM=now()+1;resetSettings();for(const [k,v] of Object.entries(m.setValues||{})){SET[k]=v;SETSRC[k]='usb';}for(const d of DECKS)d.applySettings();}
 function unmount(m){m.mounted=false;for(const d of DECKS){if(d.cur&&d.cur.tr.m===m)d.eject();const u=d.ui;if(u.nav.some(n=>n.m===m)){u.nav=[{k:'media',sel:0,top:0}];if(u.scr!=='play')u.scr='play';}d.dirty=true;}
   for(let i=TAGLIST.length-1;i>=0;i--)if(TAGLIST[i].m===m)TAGLIST.splice(i,1);}
 /* artwork thumbnails, decoded once */

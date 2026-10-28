@@ -112,14 +112,25 @@ class Deck{
       cueHold:false,kTouch:0,kRel:0,rimAngle:0,spin:0,spinning:false,face:null});
     this.ui={scr:'play',nav:[{k:'media',sel:0,top:0}],tl:{sel:0,top:0},menu:{sel:0},util:{sel:0,top:0,edit:false},info:false,sort:null,
       search:{q:'',sel:0,top:0,kb:0},sc:{sel:0},filt:{tab:0,sel:0,pad:null,padTxt:'',tcol:0,tsel:0,side:null},iplay:{sel:0},hits:[],items:[]};
+    this.mt=mtStored(n);
     BUS.add(this);DECKS.push(this);
   }
   loaded(){return !!(this.cur&&!this.cur.loading);}
   out(){if(!this.gain){ensureCtx();this.gain=AU.ctx.createGain();this.gain.connect(mixInput(this.ch));}return this.gain;}
   applySettings(){
     this.quant=!!SET.quantize;this.qBeat=[1,.5,.25,.125][SET.qbv];this.remain=SET.timeMode===1;this.autoCueOn=!!SET.autoCue;this.vinyl=SET.jogMode===1;
-    this.mt=!!SET.masterTempo;this.rangeIdx=SET.tempoRange;this.setSync(!!SET.sync);this.applyTempo();this.dirty=true;
+    if(SETSRC.masterTempo==='usb')this.setMt(!!SET.masterTempo);this.rangeIdx=SET.tempoRange;this.setSync(!!SET.sync);this.applyTempo();this.dirty=true;
   }
+  /* MASTER TEMPO is kept when the player is switched off (manual p. 22): here, from one visit to the next */
+  setMt(on){this.mt=on;try{const o=JSON.parse(localStorage.getItem('bc.mt')||'{}');o[this.n]=on;localStorage.setItem('bc.mt',JSON.stringify(o));}catch(e){}this.syncSrc();this.dirty=true;}
+  /* QUANTIZE on hot cue recall, RELOOP and the REV lever: the action starts on the next beat of the grid (manual p. 26, 43);
+     fn gets how far the track has gone past that beat by the time the timer fires */
+  nextGrid(t,dir){const b=this.beats(),ms=t*1000,i=clamp(lowerBound(b,ms+1)-1,0,b.length-2),dd=b[i+1].t-b[i].t,f=(ms-b[i].t)/dd/this.qBeat;
+    const k=dir>0?Math.ceil(f-1e-6):Math.floor(f+1e-6);return (b[i].t+k*this.qBeat*dd)/1000;}
+  quantDo(fn){clearTimeout(this._qT);this._qT=null;const v=this.vel();
+    if(!this.quant||!this.playing||this.beats().length<2||Math.abs(v)<.05){fn(0);return;}
+    const g=this.nextGrid(this.pos(),Math.sign(v)),w=(g-this._pos)/v;if(!(w>.004)){fn(0);return;}
+    this._qT=setTimeout(()=>{this._qT=null;fn(Math.max(0,(this.pos()-g)*Math.sign(v)));},w*1000);}
   /* ---------- velocity model ---------- */
   vel(){if(this.scratchOn)return this.scratchV;if(!this.playing)return 0;return this.dir*this.rate*this.bend*this.touch*(1+this.nudge);}
   moving(){return this.playing||this.scratchOn;}
@@ -170,9 +181,9 @@ class Deck{
     this.syncSrc();
   }
   pos(){this.advance();return this._pos;}
-  pauseNow(){this.playing=false;if(!this.slipHold)this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
+  pauseNow(){clearTimeout(this._qT);this._qT=null;this.cueAdj=false;this.playing=false;if(!this.slipHold)this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
   play(){if(!this.loaded()||this.playing)return;ensureCtx();this.advance();if(this.dir>0&&this._pos>=this.dur-.05)this._pos=0;if(this.dir<0&&this._pos<=.05)this._pos=this.dur;
-    this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
+    this.cueAdj=false;this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
   pause(){if(!this.playing)return;this.advance();this.pauseNow();}
   seek(t){this.advance();this._pos=clamp(t,0,this.dur);this.startSrc();}
   setRate(r){this.advance();this.rate=Math.max(0,r);this.syncSrc();}
@@ -231,7 +242,7 @@ class Deck{
       slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
     this.dir=(this.rev||this.slipRevHeld)?-1:1;
     this.hist=[tr].concat(this.hist.filter(x=>x!==tr)).slice(0,8);
-    const tok=++this.loadTok;
+    const tok=++this.loadTok;this.usbComm=now()+1;clearTimeout(this._qT);this._qT=null;this.cueAdj=false;
     this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,list:opt.list||(this.cur&&this.cur.list)||null};
     this.ui.scr='play';this.ui.info=false;this.ui.sort=null;this.dirty=true;
     const an=await getAnalysis(tr);if(tok!==this.loadTok)return false;
@@ -257,6 +268,7 @@ class Deck{
     return true;
   }
 }
+function mtStored(n){try{return !!JSON.parse(localStorage.getItem('bc.mt')||'{}')[n];}catch(e){return false;}}
 function findAutoCue(buf,db){
   const thr=Math.pow(10,db/20),ch=[];for(let c=0;c<buf.numberOfChannels;c++)ch.push(buf.getChannelData(c));
   const lim=Math.min(buf.length,buf.sampleRate*120);

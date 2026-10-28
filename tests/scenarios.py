@@ -165,6 +165,47 @@ SCEN=[
  ('Steel : Stop + pads = ON/OFF, X-PAD (maintenu), AUTO/TAP et TAP ; ON/OFF clignote sur le pad pendant que Stop est tenu',"""setBooth({p:[2],m:true});TT.steel();MS.fxOn=false;MS.tap=false;const m=MIDI.cfg.map;TT.cc(0x0D,127);TT.press(0x01);const on=MS.fxOn,led=midiLedState(m['c0:01'],'c0:01');TT.press(0x01);const off=!MS.fxOn;
   TT.cc(0x03,127);const held=bfxActive();TT.cc(0x03,0);const rel=!bfxActive();TT.press(0x06);const tap=MS.tap;BF.taps.length=0;TT.press(0x04);await TT.wait(400);TT.press(0x04);const bpm=BF.tapBpm;TT.cc(0x0D,0);const led2=midiLedState(m['c0:01'],'c0:01');MS.tap=false;
   return on&&led===2&&off&&held&&rel&&tap&&Math.abs(bpm-150)<8&&led2!==2||('on '+on+' voyant '+led+' off '+off+' X-PAD '+held+'/'+rel+' TAP '+tap+' bpm '+bpm+' voyant sans Stop '+led2);"""),
+ ('Écran : barre de position allumée à gauche en ELAPSED, éteinte à gauche en REMAIN',"""const d=await TT.fresh();d.seek(d.dur/2);const cv=document.createElement('canvas');cv.width=800;cv.height=480;const g=cv.getContext('2d');
+  const px=(rem)=>{d.remain=rem;drawLcd(d,g);const a=g.getImageData(150,424,1,1).data,b=g.getImageData(650,424,1,1).data;return [a[0],b[0]];};const e=px(false),r=px(true);d.remain=true;
+  return e[0]>100&&e[1]<60&&r[0]<60&&r[1]>100||('ELAPSED '+e+' REMAIN '+r);"""),
+ ('Écran : en fin de morceau toute la barre clignote (et l’anneau avec JOG INDICATOR), plus vite sous 15 s',"""const d=await TT.fresh();const cnt=async(at)=>{d.seek(d.dur-at);d.play();const v=[];for(let i=0;i<48;i++){v.push(endBlink(d));await TT.wait(25);}d.pause();let n=0;for(let i=1;i<v.length;i++)if(v[i]!==v[i-1])n++;return n;};
+  const slow=await cnt(25),fast=await cnt(12),none=await cnt(60);return slow>=1&&fast>slow&&none===0||('changements : 25 s '+slow+', 12 s '+fast+', 60 s '+none);"""),
+ ('Écran : QUANTIZE en gris quand le morceau n’a pas de grille',"""const d=await TT.fresh();d.quant=true;const cv=document.createElement('canvas');cv.width=800;cv.height=480;const g=cv.getContext('2d');
+  const col=()=>{drawLcd(d,g);return g.getImageData(18,440,1,1).data;};const a=col(),b0=d.cur.beats;d.cur.beats=[];const b=col();d.cur.beats=b0;
+  return a[0]>200&&a[1]<60&&b[0]<120&&Math.abs(b[0]-b[1])<10||('avec grille '+Array.from(a)+' sans '+Array.from(b));"""),
+ ('Écran : LCD BRIGHTNESS 3 = normal, 1-2 plus sombre, 4-5 plus clair',"""const d=await TT.fresh();const cv=document.createElement('canvas');cv.width=800;cv.height=480;const g=cv.getContext('2d');const l0=SET.lcd;
+  const lum=k=>{SET.lcd=k;drawLcd(d,g);const x=g.getImageData(0,0,800,480).data;let s=0;for(let i=0;i<x.length;i+=4)s+=x[i]+x[i+1]+x[i+2];return s;};const v=[0,1,2,3,4].map(lum);SET.lcd=l0;
+  return v[0]<v[1]&&v[1]<v[2]&&v[2]<v[3]&&v[3]<v[4]||v.join(' < ');"""),
+ ('Voyants : touche USB allumée en exploration, clignote avec un morceau chargé ; indicateur USB clignote à la lecture de la clé et pendant USB STOP',"""const d=await TT.fresh();const sample=async(f)=>{const v=new Set();for(let i=0;i<14;i++){v.add(!!f());await TT.wait(40);}return v.size;};
+  const load=await sample(()=>keyLight(d,'usb_indicator'));await TT.wait(1100);const idle=await sample(()=>keyLight(d,'usb_indicator'));
+  d.face.down.add('usb_stop');const stop=await sample(()=>keyLight(d,'usb_indicator'));d.face.down.delete('usb_stop');
+  const play=await sample(()=>keyLight(d,'usb'));goScr(d,'browse');const br=keyLight(d,'usb');goScr(d,'play');
+  return load===2&&idle===1&&keyLight(d,'usb_indicator')&&stop===2&&play===2&&br===true||('chargement '+load+' repos '+idle+' USB STOP '+stop+' touche en lecture '+play+' en exploration '+br);"""),
+ ('UTILITY : la valeur change à la validation, BACK annule, MENU/UTILITY revient à l’écran d’avant',"""const d=await TT.fresh();const u=d.ui;goScr(d,'browse');keyActions(d).menu.long();const inU=u.scr==='utility';u.util.sel=0;const v0=SET.playMode;
+  utilEnter(d);utilStep(d,1);const live=SET.playMode;backBtn(d,false);const cancel=SET.playMode===v0&&!u.util.edit;utilEnter(d);utilStep(d,1);utilEnter(d);const set=SET.playMode!==v0;
+  SET.playMode=v0;keyActions(d).menu.long();return inU&&live===v0&&cancel&&set&&u.scr==='browse'||('UTILITY '+inU+' pendant '+live+' annulé '+cancel+' validé '+set+' retour '+u.scr);"""),
+ ('UTILITY : réglages d’usine du manuel (CONTINUE, rekordbox SETTING, JOG BRIGHTNESS 2, PLAYER No. AUTO)',"""const v=k=>{const x=SETDEF.find(e=>e[0]===k);return x[2][x[3]];};const r=[v('playMode'),v('hcAuto'),v('jogRing'),v('playerNo'),v('qbv')].join(' / ');
+  return r==='CONTINUE / rekordbox SETTING / 2 / AUTO / 1 Beat'||r;"""),
+ ('MASTER TEMPO gardé d’une visite à l’autre',"""const d=await TT.fresh();const m0=d.mt;d.setMt(true);const a=mtStored(d.n);d.setMt(false);const b=mtStored(d.n);d.setMt(m0);return a===true&&b===false||('gardé '+a+' / '+b);"""),
+ ('Recherche de trame : en pause, un tour de jog = 1,8 s, au pas de 0,5 trame, aussi en mode CDJ',"""const d=await TT.fresh();d.vinyl=false;d.jogWeight=.5;d.seek(30);const st={mode:'search',t:now(),tg:{top:false}};
+  for(let i=0;i<36;i++){await TT.wait(20);jogTurn(d,st,10);}st.w=0;jogUp(d,st);const mv=d.pos()-30,fr=d.pos()*150;d.vinyl=true;
+  return Math.abs(mv-1.8)<.3&&Math.abs(fr-Math.round(fr))<1e-6||('déplacement '+mv.toFixed(3)+' s, en demi-trames '+fr);"""),
+ ('Point CUE : en pause sur le repère, SEARCH ajuste par 0,5 trame, CUE et PLAY clignotent, CUE valide (sans QUANTIZE)',"""const d=await TT.fresh();d.quant=true;const c0=d.cue;scanStart(d,1);scanStop(d);const p=d.pos(),moved=TT.near(p-c0,1/150,1e-6),kept=d.cue===c0;
+  const v=new Set();for(let i=0;i<14;i++){v.add(keyLight(d,'cue'));await TT.wait(40);}cueDown(d);cueUp(d);
+  return moved&&kept&&v.size===2&&TT.near(d.cue,p,1e-6)||('pas '+(p-c0)+' repère gardé '+kept+' CUE clignote '+(v.size===2)+' nouveau repère '+d.cue+' / '+p);"""),
+ ('IN ADJUST : pas de 0,5 trame',"""const d=await TT.fresh();d.quant=false;d.seek(20);d.setLoop(20,22,true);startAdjust(d,'in');scanStart(d,1);scanStop(d);const a=d.loop.a;d.adjust=null;d.exitLoop();
+  return TT.near(a-20,1/150,1e-6)||('pas '+(a-20));"""),
+ ('Jog + SEARCH : la jog mène la recherche, la lecture redevient normale quand elle s’arrête',"""const d=await TT.fresh();playBtn(d);await TT.wait(100);d.jogHeld=true;const p0=d.pos();scanStart(d,1);await TT.wait(300);const p1=d.pos();
+  jogTurn(d,{mode:'bend',t:now(),tg:{}},90);const p2=d.pos();scanStop(d);d.jogHeld=false;d.pause();
+  return p1-p0<.5&&p2-p1>3||('sans tourner '+(p1-p0).toFixed(2)+' s, en tournant '+(p2-p1).toFixed(2)+' s');"""),
+ ('Jog + TRACK SEARCH : la jog parcourt la liste, le morceau choisi se charge au relâché',"""const d=await TT.fresh(D1,0);const L=d.cur.list;if(L.length<2)return 'liste trop courte '+L.length;trackDown(d,1);await TT.wait(300);const a=L.indexOf(d.cur.tr);
+  jogTurn(d,{mode:'search',t:now(),tg:{}},-30);const pick=d.tsHeld.pick;trackUp(d);await TT.wait(1500);const i=L.indexOf(d.cur.tr);return a===1&&pick===0&&i===0||('appui '+a+' choisi '+pick+' chargé '+i);"""),
+ ('QUANTIZE : le rappel de hot cue part sur le temps suivant',"""const d=await TT.fresh();d.quant=true;d.qBeat=1;d.cur.hot[1]={hot:1,time:30,end:null,name:'',color:null};const b=d.beats();const t0=b[Math.floor(b.length/3)].t/1000;
+  d.seek(t0+d.spb()*.3);playBtn(d);await TT.wait(30);hotDown(d,0);hotUp(d,0);const now0=d.pos();const early=now0>t0&&now0<t0+d.spb();await TT.wait(d.spb()*1000+80);const p=d.pos();d.pause();
+  d.quant=false;d.seek(t0);playBtn(d);hotDown(d,0);hotUp(d,0);const q=d.pos();d.pause();delete d.cur.hot[1];
+  return early&&p>30&&p<30+d.spb()&&q<30.1||('avant le temps '+early+' après '+p.toFixed(3)+' sans QUANTIZE '+q.toFixed(3));"""),
+ ('QUANTIZE : le levier REV part sur le temps suivant',"""const d=await TT.fresh();d.quant=true;d.qBeat=1;const b=d.beats();const t0=b[Math.floor(b.length/3)].t/1000;d.seek(t0+d.spb()*.3);playBtn(d);await TT.wait(30);
+  setLever(d,1);const a=d.dir;await TT.wait(d.spb()*1000+80);const c=d.dir;setLever(d,0);d.pause();return a===1&&c===-1||('tout de suite '+a+' après un temps '+c);"""),
  ('Double-clic : MASTER LEVEL ne bouge pas',"""const m=MS.master=.7;const r=mixReset('master');const ok=MS.master===.7&&!r;MS.master=.5;mixApply();return ok||('master '+MS.master);"""),
 ]
 async def main():

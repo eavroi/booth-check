@@ -6,7 +6,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 ## Façon de travailler
 - Répondre en français, de façon concise. Victor dicte souvent à la voix : lire le contexte attentivement.
 - Avant chaque version : faire un « point » (liste de ce qui va changer, questions s'il y en a) et attendre son « GO ».
-- À la livraison, toujours dire le numéro de version (V2.9.1 est la dernière livrée ; la suivante est V2.8.3).
+- À la livraison, toujours dire le numéro de version (V2.8.3 est la dernière livrée ; la suivante est V2.8.4).
 - Ne jamais inventer de fonction ni d'élément d'interface : tout vient de la vraie machine (mode d'emploi, photos, vidéos, captures). En cas de doute, le dire.
 - Vérifier chaque version : `python build.py`, `python tests/scenarios.py` (comportements du mode d'emploi), `python tests/smoke.py` (captures), comparer avec les photos de la vraie machine.
 - Références hors dépôt, dans `BOOTH CHECK/references/` : modes d'emploi FR de la CDJ-2000NXS2 et de la DJM-900NXS2 (PDF + texte extrait), photos de Victor.
@@ -37,7 +37,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 
 ## Feuille de route (validée par Victor le 27 octobre 2026, susceptible de changer)
 1. Audit complet des modes d'emploi CDJ-2000NXS2 et DJM-900NXS2, page par page : chaque fonction, chaque comportement d'écran et de la platine classé « simulé / partiel / absent / différent du réel », avec la liste d'écarts que Victor a constatés. Résultat = base des versions suivantes.
-2. V2.9 et V2.9.1 (faites) : BEAT FX de la table et sur le Steel ; retours d'écoute de Victor à venir. Ensuite V2.8.3 (écran et voyants CDJ) et V2.8.4 (fonctions CDJ manquantes), voir `references/audit/SYNTHESE.md`.
+2. V2.9 et V2.9.1 (faites) : BEAT FX de la table et sur le Steel ; retours d'écoute de Victor à venir. V2.8.3 (faite) : écran, voyants et réglages CDJ. Ensuite V2.8.4 (fonctions CDJ manquantes : F1-F4, E11-E12, J11-J12, E7-E8), voir `references/audit/SYNTHESE.md`.
 3. Calage des SOUND COLOR FX et des BEAT FX sur un enregistrement de la vraie table (kit `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.9/kit-test-DJM/`, COLOR et BEAT FX) : Victor fera un seul passage sur la vraie DJM pour les deux.
 4. V2.10 : LINK entre platines, fente SD de la CDJ (2e clé, ex. clé de secours), site utilisable sans internet.
 5. V2.11 : contrôle de clé enrichi : rapport à garder ou envoyer (texte / PDF), comparaison de deux clés, nouveaux contrôles (doublons, morceaux sans tonalité, playlists vides, fichiers trop gros ; chaque limite vérifiée dans le mode d'emploi), export de l'HISTORY.
@@ -45,6 +45,8 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Pistes non classées : MIC 1 / MIC 2 avec le vrai micro (TALK OVER), BOOTH MONITOR en 2e sortie son, modèles DDJ-FLX4 / DDJ-400 (si listes MIDI officielles), assistant d'apprentissage pas à pas pour les autres contrôleurs, deux contrôleurs en même temps, tests automatiques sur GitHub, téléphone et Safari. Hors machine, à décider par Victor : enregistrer son mix, mode guidé pour apprendre la CDJ. SEND / RETURN : déconseillé.
 
 ## À faire plus tard
+- Vérifier sur la vraie CDJ (V2.8.3) : graduations de la barre de position (1 minute ou 16 mesures, et quand), si les chiffres du temps clignotent aussi en fin de morceau, touche USB quand la clé est branchée sans exploration ni morceau chargé (éteinte ici), écran ouvert en touchant le PHASE METER, rythme de l'anneau avec JOG INDICATOR.
+- Couleur de fond du nom du morceau et de l'indicateur USB (BACKGROUND COLOR, p. 37) : il faut une clé exportée avec une couleur choisie dans rekordbox pour trouver où elle est rangée.
 - Essayer les BEAT FX sur le vrai Steel (V2.9.1, Chrome ou Edge).
 - Vérifier sur la vraie CDJ (V2.8.2) : emplacement et dessin des messages MEMORY / DELETE, reprise après un slip en pause (immédiate ici, sans RELEASE/START).
 - Essai de la V2.8.1 sur le vrai Steel (Stop + CUE casque, Stop + CUE = SLIP REVERSE, plan).

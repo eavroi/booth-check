@@ -559,23 +559,23 @@ function say(fr,en){return LANG==='en'?en:fr;}
 let STATUS={msg:'',until:0};
 function toast(t,ms){STATUS.msg=t;STATUS.until=Date.now()+(ms||2600);STATUS.src='deck';}
 /* ---------- player settings ----------
-   Values and defaults follow the rekordbox My Settings files written to the USB
-   (MYSETTING.DAT, MYSETTING2.DAT, DEVSETTING.DAT). [key, label, options, default, file, offset, base] */
+   Values follow the rekordbox My Settings files written to the USB (MYSETTING.DAT, MYSETTING2.DAT, DEVSETTING.DAT);
+   defaults = the player's factory settings, marked * in the manual p. 38. [key, label, options, default, file, offset, base] */
 const SETDEF=[
- ['playMode','PLAY MODE',['CONTINUE','SINGLE'],1,'my',23,0x80],
+ ['playMode','PLAY MODE',['CONTINUE','SINGLE'],0,'my',23,0x80],
  ['ejectLock','EJECT/LOAD LOCK',['UNLOCK','LOCK'],0,'my',21,0x80],
  ['qbv','QUANTIZE BEAT VALUE',['1 Beat','1/2 Beat','1/4 Beat','1/8 Beat'],0,'my',24,0x80],
- ['hcAuto','HOT CUE AUTO LOAD',['OFF','ON','rekordbox SETTING'],1,'my',25,0x80],
+ ['hcAuto','HOT CUE AUTO LOAD',['OFF','ON','rekordbox SETTING'],2,'my',25,0x80],
  ['hcColor','HOT CUE COLOR',['OFF','ON'],0,'my',26,0x80],
  ['autoCueLevel','AUTO CUE LEVEL',['-36dB','-42dB','-48dB','-54dB','-60dB','-66dB','-72dB','-78dB','MEMORY'],8,'my',11,0x80],
  ['slipFlash','SLIP FLASHING',['OFF','ON'],1,'my',16,0x80],
  ['onAir','ON AIR DISPLAY',['OFF','ON'],1,'my',8,0x80],
- ['jogRing','JOG BRIGHTNESS',['OFF','1','2'],1,'my',14,0x80],
+ ['jogRing','JOG BRIGHTNESS',['OFF','1','2'],2,'my',14,0x80],
  ['jogInd','JOG INDICATOR',['OFF','ON'],1,'my',15,0x80],
  ['discSlot','DISC SLOT ILLUMINATION',['OFF','1','2'],2,'my',20,0x80],
  ['language','LANGUAGE',['ENGLISH','FRANÇAIS','DEUTSCH','ITALIANO','NEDERLANDS','ESPAÑOL','РУССКИЙ','한국어','简体中文','繁體中文','日本語','PORTUGUÊS','SVENSKA','ČEŠTINA','MAGYAR','DANSK','ΕΛΛΗΝΙΚΆ','TÜRKÇE'],0,'my',12,0x81],
  ['historyName','HISTORY NAME',['HISTORY'],0,null],
- ['playerNo','PLAYER No.',['1','2','3','4'],0,null],
+ ['playerNo','PLAYER No.',['AUTO','1','2','3','4'],0,null],
  ['linkStatus','LINK STATUS',['NOT CONNECTED'],0,null,null,null,true],
  ['midiCh','MIDI CHANNEL',Array.from({length:16},(_,i)=>String(i+1)),0,null],
  ['digitalOut','DIGITAL OUT',['16bit','24bit'],1,null],
@@ -587,6 +587,8 @@ const SETDEF=[
  ['version','VERSION No.',['—'],0,null,null,null,true],
 ];
 const UTIL_COUNT=SETDEF.length;
+/* order of the choices on the UTILITY screen when it differs from the order of the values in the files (manual p. 38) */
+const UTIL_ORDER={qbv:[3,2,1,0],hcAuto:[1,2,0]};
 /* My Settings values set elsewhere on the player (buttons, SHORTCUT), still read from the USB */
 const SETDEF2=[
  ['timeMode',['ELAPSED','REMAIN'],1,'my',32,0x80],['autoCue',['OFF','ON'],1,'my',34,0x80],['jogMode',['CDJ','VINYL'],1,'my',33,0x80],
@@ -596,6 +598,8 @@ const SETDEF2=[
 ];
 const DEVMAP={wfColor:{1:0,3:1,4:1},keyFmt:{1:0,2:1},ovType:{1:0,2:1},wfPos:{1:0,2:1}};
 const SET={},SETSRC={};
+/* the USB indicator blinks while the player reads the USB (manual p. 14): until this time after a mount; the length is ours */
+let USBCOMM=0;
 function resetSettings(){for(const d of SETDEF){SET[d[0]]=d[3];SETSRC[d[0]]='default';}for(const d of SETDEF2){SET[d[0]]=d[2];SETSRC[d[0]]='default';}}
 resetSettings();
 const sv=k=>{const d=SETDEF.find(x=>x[0]===k);if(d)return d[2][SET[k]];const e=SETDEF2.find(x=>x[0]===k);return e?e[1][SET[k]]:'';};
@@ -942,7 +946,7 @@ function leftColumn(P){
   P.polygon([[LC-7,249],[LC-9.5,253],[LC-4.5,253]],PRINT);
 }
 function rightColumn(P){
-  P.circle(RC,95,2.2,[220,24,20]);
+  P.circle(RC,95,2.2,[58,18,16]);   /* STANDBY: lit only in standby (manual p. 14), never here */
   P.arc(RC-20,64,7,300,240+360,PRINT,1.4);P.line([[RC-20,55],[RC-20,64]],PRINT,1.4);P.line([[RC-11,68],[RC-3,68],[RC-3,58]],PRINT,1.4);
   P.rrect([RC-56,479,RC+52,530],5,[12,12,13],[76,76,80],1);
 }
@@ -1689,7 +1693,7 @@ function readRbfltr(b){
     if(lo>=2000&&hi<=40000&&lo<hi){const bpm=Math.round((lo+hi)/20)/10,pct=Math.round((hi-lo)/(hi+lo)*100);if(pct>=0&&pct<=6)return {bpm,pct};}}
   return null;
 }
-function applyMediumSettings(m){resetSettings();for(const [k,v] of Object.entries(m.setValues||{})){SET[k]=v;SETSRC[k]='usb';}for(const d of DECKS)d.applySettings();}
+function applyMediumSettings(m){USBCOMM=now()+1;resetSettings();for(const [k,v] of Object.entries(m.setValues||{})){SET[k]=v;SETSRC[k]='usb';}for(const d of DECKS)d.applySettings();}
 function unmount(m){m.mounted=false;for(const d of DECKS){if(d.cur&&d.cur.tr.m===m)d.eject();const u=d.ui;if(u.nav.some(n=>n.m===m)){u.nav=[{k:'media',sel:0,top:0}];if(u.scr!=='play')u.scr='play';}d.dirty=true;}
   for(let i=TAGLIST.length-1;i>=0;i--)if(TAGLIST[i].m===m)TAGLIST.splice(i,1);}
 /* artwork thumbnails, decoded once */
@@ -2327,14 +2331,25 @@ class Deck{
       cueHold:false,kTouch:0,kRel:0,rimAngle:0,spin:0,spinning:false,face:null});
     this.ui={scr:'play',nav:[{k:'media',sel:0,top:0}],tl:{sel:0,top:0},menu:{sel:0},util:{sel:0,top:0,edit:false},info:false,sort:null,
       search:{q:'',sel:0,top:0,kb:0},sc:{sel:0},filt:{tab:0,sel:0,pad:null,padTxt:'',tcol:0,tsel:0,side:null},iplay:{sel:0},hits:[],items:[]};
+    this.mt=mtStored(n);
     BUS.add(this);DECKS.push(this);
   }
   loaded(){return !!(this.cur&&!this.cur.loading);}
   out(){if(!this.gain){ensureCtx();this.gain=AU.ctx.createGain();this.gain.connect(mixInput(this.ch));}return this.gain;}
   applySettings(){
     this.quant=!!SET.quantize;this.qBeat=[1,.5,.25,.125][SET.qbv];this.remain=SET.timeMode===1;this.autoCueOn=!!SET.autoCue;this.vinyl=SET.jogMode===1;
-    this.mt=!!SET.masterTempo;this.rangeIdx=SET.tempoRange;this.setSync(!!SET.sync);this.applyTempo();this.dirty=true;
+    if(SETSRC.masterTempo==='usb')this.setMt(!!SET.masterTempo);this.rangeIdx=SET.tempoRange;this.setSync(!!SET.sync);this.applyTempo();this.dirty=true;
   }
+  /* MASTER TEMPO is kept when the player is switched off (manual p. 22): here, from one visit to the next */
+  setMt(on){this.mt=on;try{const o=JSON.parse(localStorage.getItem('bc.mt')||'{}');o[this.n]=on;localStorage.setItem('bc.mt',JSON.stringify(o));}catch(e){}this.syncSrc();this.dirty=true;}
+  /* QUANTIZE on hot cue recall, RELOOP and the REV lever: the action starts on the next beat of the grid (manual p. 26, 43);
+     fn gets how far the track has gone past that beat by the time the timer fires */
+  nextGrid(t,dir){const b=this.beats(),ms=t*1000,i=clamp(lowerBound(b,ms+1)-1,0,b.length-2),dd=b[i+1].t-b[i].t,f=(ms-b[i].t)/dd/this.qBeat;
+    const k=dir>0?Math.ceil(f-1e-6):Math.floor(f+1e-6);return (b[i].t+k*this.qBeat*dd)/1000;}
+  quantDo(fn){clearTimeout(this._qT);this._qT=null;const v=this.vel();
+    if(!this.quant||!this.playing||this.beats().length<2||Math.abs(v)<.05){fn(0);return;}
+    const g=this.nextGrid(this.pos(),Math.sign(v)),w=(g-this._pos)/v;if(!(w>.004)){fn(0);return;}
+    this._qT=setTimeout(()=>{this._qT=null;fn(Math.max(0,(this.pos()-g)*Math.sign(v)));},w*1000);}
   /* ---------- velocity model ---------- */
   vel(){if(this.scratchOn)return this.scratchV;if(!this.playing)return 0;return this.dir*this.rate*this.bend*this.touch*(1+this.nudge);}
   moving(){return this.playing||this.scratchOn;}
@@ -2385,9 +2400,9 @@ class Deck{
     this.syncSrc();
   }
   pos(){this.advance();return this._pos;}
-  pauseNow(){this.playing=false;if(!this.slipHold)this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
+  pauseNow(){clearTimeout(this._qT);this._qT=null;this.cueAdj=false;this.playing=false;if(!this.slipHold)this.ghost=null;this.nudge=0;this.stopSrc();this.dirty=true;}
   play(){if(!this.loaded()||this.playing)return;ensureCtx();this.advance();if(this.dir>0&&this._pos>=this.dur-.05)this._pos=0;if(this.dir<0&&this._pos<=.05)this._pos=this.dur;
-    this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
+    this.cueAdj=false;this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
   pause(){if(!this.playing)return;this.advance();this.pauseNow();}
   seek(t){this.advance();this._pos=clamp(t,0,this.dur);this.startSrc();}
   setRate(r){this.advance();this.rate=Math.max(0,r);this.syncSrc();}
@@ -2446,7 +2461,7 @@ class Deck{
       slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
     this.dir=(this.rev||this.slipRevHeld)?-1:1;
     this.hist=[tr].concat(this.hist.filter(x=>x!==tr)).slice(0,8);
-    const tok=++this.loadTok;
+    const tok=++this.loadTok;this.usbComm=now()+1;clearTimeout(this._qT);this._qT=null;this.cueAdj=false;
     this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,list:opt.list||(this.cur&&this.cur.list)||null};
     this.ui.scr='play';this.ui.info=false;this.ui.sort=null;this.dirty=true;
     const an=await getAnalysis(tr);if(tok!==this.loadTok)return false;
@@ -2472,6 +2487,7 @@ class Deck{
     return true;
   }
 }
+function mtStored(n){try{return !!JSON.parse(localStorage.getItem('bc.mt')||'{}')[n];}catch(e){return false;}}
 function findAutoCue(buf,db){
   const thr=Math.pow(10,db/20),ch=[];for(let c=0;c<buf.numberOfChannels;c++)ch.push(buf.getChannelData(c));
   const lim=Math.min(buf.length,buf.sampleRate*120);
@@ -2633,7 +2649,13 @@ function drawLcd(d,g){
     case 'filter':drawFilter(d,g);break;
     default:drawPlayUpper(d,g);
   }
-  const dim=[.3,.18,.08,0,0][SET.lcd];if(dim){g.fillStyle='rgba(0,0,0,'+dim+')';g.fillRect(0,0,800,480);}
+  lcdBright(g);
+}
+/* LCD BRIGHTNESS 1-5, 3 = as drawn (factory setting, manual p. 38); 1-2 darker, 4-5 brighter (the steps are ours, not in the manual) */
+function lcdBright(g){
+  const dim=[.36,.18][SET.lcd];if(dim){g.fillStyle='rgba(0,0,0,'+dim+')';g.fillRect(0,0,800,480);return;}
+  const up=[0,0,0,.18,.36][SET.lcd];if(!up)return;const t=g.getTransform();
+  g.save();g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='lighter';g.globalAlpha=up;g.drawImage(g.canvas,t.e,t.f,800*t.a,480*t.d,t.e,t.f,800*t.a,480*t.d);g.restore();
 }
 function noMedia(d,g){
   lower(d,g);
@@ -2646,7 +2668,8 @@ function lower(d,g){
   const sg=g.createLinearGradient(0,292,0,299);sg.addColorStop(0,'#000');sg.addColorStop(.45,'#0b2030');sg.addColorStop(1,'#000');g.fillStyle=sg;g.fillRect(18,292,764,7);
   box(g,18,302,67,60,null,'#e8e8e8',1.4);T(g,'PLAYER',51.5,318,13,'#fff',LA,700,'center');T(g,String(d.pn),51.5,353,39,'#fff',LN,300,'center');
   T(g,SET.playMode===0?'CONTINUE':'SINGLE',51.5,382,13,'#fff',LA,700,'center');
-  const qc=d.quant?'#ff0000':'#5a5a5a';T(g,'QUANTIZE',51.5,420,13,qc,LA,700,'center');box(g,18,427,67,27,null,qc,1.4);T(g,fmtBeat(d.qBeat),51.5,447,20,qc,LN,400,'center');
+  /* QUANTIZE in grey when it cannot act: a track not analysed, without a beat grid (manual p. 14) */
+  const qc=d.quant&&!(ld&&d.beats().length<2)?'#ff0000':'#5a5a5a';T(g,'QUANTIZE',51.5,420,13,qc,LA,700,'center');box(g,18,427,67,27,null,qc,1.4);T(g,fmtBeat(d.qBeat),51.5,447,20,qc,LN,400,'center');
   hit(d,18,405,67,52,()=>{d.quant=!d.quant;d.dirty=true;});
   T(g,'TRACK',105,315,13,'#fff',LA,700,'left');
   let tn='00';if(cur){const L=cur.list||[];const i=L.indexOf(tr);tn=String(i>=0?i+1:1).padStart(2,'0');}
@@ -2657,7 +2680,7 @@ function lower(d,g){
   /* IN / OUT ADJUST: the time of the loop point being set is shown (manual p. 24-25) */
   const adj=ld&&d.adjust&&d.loop?(d.adjust==='in'?d.loop.a:d.loop.b):null;
   const tv=adj!=null?adj:ld?(d.remain?d.dur-pos:pos):0,[mm,ss,ms]=fmtMs(tv);
-  const warn=ld&&d.playing&&d.dur-pos<30&&Math.floor(now()*(d.dur-pos<15?4:2))%2;const tc=warn?'#242424':'#fff';
+  const tc='#fff';
   let x=286;g.fillStyle=tc;g.textAlign='left';g.font='300 55px '+LN;for(const ch of mm){g.fillText(ch,x,361);x+=g.measureText(ch).width+1;}
   g.font='300 44px '+LN;g.fillText(':',x+1,356);x+=g.measureText(':').width+3;g.font='300 55px '+LN;for(const ch of ss){g.fillText(ch,x,361);x+=g.measureText(ch).width+1;}
   g.font='300 38px '+LN;g.fillText('.'+ms,x,361);
@@ -2689,17 +2712,23 @@ function lower(d,g){
   if(!cur)T(g,anyMedia()?'':'NO DISC',400,400,22,'#ff1a1a',LF,400,'center');
 }
 function chip(g,x,y,w,h,t,col){g.strokeStyle=col;g.lineWidth=1.3;RR(g,x+.65,y+.65,w-1.3,h-1.3,2);g.stroke();T(g,t,x+w/2,y+h-3.5,12,col,LA,400,'center');}
-/* overview waveform with cue marks, needle position and minute ticks */
+/* end of the track: the whole position graph blinks, slowly under 30 s left, fast under 15 s (manual p. 18);
+   the jog ring too when JOG INDICATOR is ON (p. 38: the manual gives no times for it, the same ones are used) */
+function endBlink(d){if(!d.loaded()||!d.playing)return false;const r=d.dur-d._pos;return r<30&&Math.floor(now()*(r<15?4:2))%2===1;}
+/* overview waveform (the playing address) with cue marks, needle position and 1-minute ticks */
 function overview(d,g,x0,y0,W,H,pos){
   const cur=d.cur,an=cur.an,dur=d.dur,base=y0+H;
+  if(endBlink(d))return;
   const ov=SET.wfColor===1?(an.ovRgb||an.ovBlue):(an.ovBlue||an.ovRgb);const half=SET.ovType===0,cw=W/400;
   if(ov)for(let i=0;i<400;i++){const hh=ov.h[i]/31*(half?H:H/2);if(hh<.3)continue;g.fillStyle='rgb('+ov.c[i*3]+','+ov.c[i*3+1]+','+ov.c[i*3+2]+')';
     if(half)g.fillRect(x0+i*cw,base-hh,cw+.15,hh);else g.fillRect(x0+i*cw,y0+H/2-hh,cw+.15,hh*2);}
   const px=x0+(dur?pos/dur:0)*W;
-  /* comb: played part dark, rest white */
-  g.fillStyle='#e8e8e8';g.fillRect(px,base+1,x0+W-px,7);g.fillStyle='#9a9a9a';for(let x=Math.ceil(px);x<x0+W;x+=2)g.fillRect(x,base+2,.8,5);
-  g.fillStyle='#000';g.fillRect(x0,base+1,Math.max(0,px-x0),7);g.strokeStyle='#5a5a5a';g.lineWidth=1;g.strokeRect(x0+.5,base+1.5,Math.max(0,px-x0-1),6);
-  if(dur)for(let m=60;m<dur;m+=60){g.fillStyle='#fff';g.fillRect(x0+m/dur*W-.5,base+11,1,7);}
+  /* bar graph (manual p. 18): ELAPSED = lit from the left edge up to the position; REMAIN = the left part goes out */
+  const comb=(a,b)=>{if(b<=a)return;g.fillStyle='#e8e8e8';g.fillRect(a,base+1,b-a,7);g.fillStyle='#9a9a9a';for(let x=Math.ceil(a);x<b;x+=2)g.fillRect(x,base+2,.8,5);};
+  const dark=(a,b)=>{if(b<=a)return;g.fillStyle='#000';g.fillRect(a,base+1,b-a,7);g.strokeStyle='#5a5a5a';g.lineWidth=1;g.strokeRect(a+.5,base+1.5,Math.max(0,b-a-1),6);};
+  if(d.remain){dark(x0,px);comb(px,x0+W);}else{comb(x0,px);dark(px,x0+W);}
+  /* the scale: not shown for tracks over 15 minutes (manual p. 44) */
+  if(dur&&dur<=900)for(let m=60;m<dur;m+=60){g.fillStyle='#fff';g.fillRect(x0+m/dur*W-.5,base+11,1,7);}
   if(d.loop){g.fillStyle='rgba(255,140,0,.5)';g.fillRect(x0+d.loop.a/dur*W,y0,Math.max(2,(d.loop.b-d.loop.a)/dur*W),H);}
   for(const c of cur.mem){const x=x0+c.time/dur*W;const col=c.color&&SET.hcColor?c.color:'#ff1a1a';
     g.fillStyle=col;g.beginPath();g.moveTo(x-5,y0-9);g.lineTo(x+5,y0-9);g.lineTo(x,y0-2);g.fill();}
@@ -2707,8 +2736,7 @@ function overview(d,g,x0,y0,W,H,pos){
   const cx=x0+d.cue/dur*W;g.fillStyle='#ff8c00';g.beginPath();g.moveTo(cx-5,base+18);g.lineTo(cx+5,base+18);g.lineTo(cx,base+10);g.fill();
   if(d.ghost){g.fillStyle='#fff';g.fillRect(x0+d.ghost.pos/dur*W-1,y0,2,H+8);}
   if(d.touchPrev!=null){g.fillStyle='#ffcf3a';g.fillRect(x0+d.touchPrev/dur*W-1,y0-2,2,H+10);}
-  const blink=d.playing&&dur-pos<30&&Math.floor(now()*(dur-pos<15?4:2))%2;
-  if(!blink){g.fillStyle='#000';g.fillRect(px-2.5,y0-1,5,H+10);g.fillStyle=d.ghost?'#ffd200':'#fff';g.fillRect(px-1.5,y0,3,H+8);}
+  g.fillStyle='#000';g.fillRect(px-2.5,y0-1,5,H+10);g.fillStyle=d.ghost?'#ffd200':'#fff';g.fillRect(px-1.5,y0,3,H+8);
 }
 /* hot cue colour as the player shows it: rekordbox colour when HOT CUE COLOR is ON, else green (cue) / orange (loop) */
 function hotColor(c){if(SET.hcColor===1&&c.color)return c.color;return c.end?'#ff9600':'#28e214';}
@@ -3012,23 +3040,29 @@ function drawUtility(d,g){
   for(let r=0;r<LROWS;r++){const i=st.top+r,it=SETDEF[i];const y=LY+r*LROWH;if(!it)continue;const sel=i===st.sel;
     g.fillStyle=sel?'#d6d7db':(r%2?'#33362b':'#3c3d35');g.fillRect(30,y,752,LROWH-1);g.fillStyle='#5e6152';g.fillRect(30,y+LROWH-1,752,1);
     if(!sel){g.fillStyle='#5e6152';g.fillRect(470,y,1,LROWH);}
-    const ro=!!it[7];const lc=sel?'#000':(ro&&!anyMedia()&&it[0]!=='version'?'#fff':'#fff');
-    T(g,it[1],44,y+23,22,sel?'#3a3a3a':lc,LF);
-    let val=it[2][SET[it[0]]];if(it[0]==='version')val='Ver 1.85 (sim.)';if(it[0]==='linkStatus')val=anyMedia()?'NOT CONNECTED':'';if(it[0]==='playerNo')val=String(d.pn);
+    /* PLAYER No. is grey and cannot be changed while a storage device is connected (manual p. 12) */
+    const grey=it[0]==='playerNo'&&anyMedia();const lc=grey?'#8a8a8a':'#fff';
+    T(g,it[1],44,y+23,22,sel?(grey?'#8a8a8a':'#3a3a3a'):lc,LF);
+    /* while a value is being changed it is only shown: it takes effect when the selector is pushed (manual p. 38) */
+    let val=it[2][sel&&st.edit?st.val:SET[it[0]]];if(it[0]==='version')val='Ver 1.85 (sim.)';if(it[0]==='linkStatus')val=anyMedia()?'NOT CONNECTED':'';
     if(sel&&st.edit){g.fillStyle='#fff';g.fillRect(471,y,311,LROWH-1);triR(g,478,y+15,5,'#000');}
-    T(g,val,492,y+23,22,sel?'#000':'#fff',LF);
+    T(g,val,492,y+23,22,sel?(grey?'#8a8a8a':'#000'):lc,LF);
     if(SETSRC[it[0]]==='usb'&&!sel){T(g,'USB',772,y+20,11,'#9fd27a',LA,700,'right');}
     hit(d,30,y,752,LROWH,()=>{if(st.sel===i){utilEnter(d);}else{st.sel=i;st.edit=false;}});}
   const h=LROWS*LROWH,th=h*LROWS/UTIL_COUNT,ty=LY+(h-th)*st.top/(UTIL_COUNT-LROWS);g.fillStyle='#bbb';g.fillRect(21,ty,3,th);
 }
-function utilEnter(d){const st=d.ui.util,it=SETDEF[st.sel];if(!it||it[7])return;if(it[2].length<2)return;st.edit=!st.edit;}
+/* push: first on a setting, the cursor goes to its value; pushed again, the value is set (BACK before that cancels it: manual p. 38) */
+function utilEnter(d){const st=d.ui.util,it=SETDEF[st.sel];if(!it||it[7])return;
+  if(it[0]==='playerNo'){toast(anyMedia()?say('PLAYER No. : débranche la clé pour le changer','PLAYER No.: unplug the USB to change it'):say('PLAYER No. : AUTO, le numéro de la tranche de la table où la platine est branchée','PLAYER No.: AUTO, the mixer channel the player is plugged into'));return;}
+  if(it[2].length<2)return;
+  if(!st.edit){st.edit=true;st.val=SET[it[0]];return;}
+  const k=it[0];st.edit=false;if(st.val===SET[k])return;SET[k]=st.val;SETSRC[k]='edit';
+  for(const x of DECKS){if(k==='qbv')x.qBeat=[1,.5,.25,.125][SET.qbv];x.dirty=true;}
+}
 function utilStep(d,dir){
   const st=d.ui.util,it=SETDEF[st.sel];
   if(!st.edit){st.sel=clamp(st.sel+dir,0,UTIL_COUNT-1);return;}
-  const k=it[0];if(k==='playerNo'){toast(say('PLAYER No. : le numéro de la tranche de la table où la platine est branchée','PLAYER No.: the mixer channel the player is plugged into'));return;}
-  SET[k]=(SET[k]+dir+it[2].length)%it[2].length;SETSRC[k]='edit';
-  for(const x of DECKS){if(k==='qbv')x.qBeat=[1,.5,.25,.125][SET.qbv];x.dirty=true;}
-  if(k==='hcAuto'&&d.cur&&!d.cur.loading){}
+  const ord=UTIL_ORDER[it[0]]||it[2].map((_,i)=>i),n=ord.length;st.val=ord[(ord.indexOf(st.val)+dir+n)%n];
 }
 /* ---------- SHORTCUT: the settings page ---------- */
 function segs(d,g,x,y,w,h,opts,selIdx,fns,icons){const n=opts.length,sw=w/n;
@@ -3147,6 +3181,8 @@ const blink=hz=>Math.floor(now()*hz*2)%2===0;
 /* SLIP blinks in time with the track playing in the background (manual p. 28): on for the first half of each beat */
 const slipBlink=d=>{const p=d.beatPhase(d.ghost.pos);return p-Math.floor(p)<.5;};
 function needMedia(){if(!anyMedia()){toast(say('Pas de média : charge le dossier de ta clé (bouton en haut) ou clique sur le port USB','No media: load your USB folder (top bar) or click the USB port'));return false;}return true;}
+/* paused on the CUE point; after a fine adjust by half frames, exactly on it */
+const atCue=d=>Math.abs(d._pos-d.cue)<(d.cueAdj?1e-4:.02);
 function goScr(d,s){const u=d.ui;u.scr=s;u.info=false;u.sort=null;d.dirty=true;}
 function toggleScr(d,s,init){if(d.ui.scr===s){goScr(d,'play');return;}if(init)init();goScr(d,s);}
 /* ---------- transport ---------- */
@@ -3155,8 +3191,8 @@ function cueDown(d){
   if(d.slipHold){d.slipHold=false;d.ghost=null;}
   if(d.playing){d.pause();if(d.loop){d.lastLoop=d.loop;d.loop=null;d.adjust=null;}d.ghost=null;d.seek(d.cue);return;}   /* back cue */
   const p=d.pos();
-  if(Math.abs(p-d.cue)<.02){d.cueHold=true;d.play();}                                                  /* cue point sampler */
-  else{d.cue=d.snap(p);d.seek(d.cue);}                                                                /* set cue while paused */
+  if(atCue(d)){d.cueHold=true;d.play();}                                                  /* cue point sampler */
+  else{d.cue=d.cueAdj?p:d.snap(p);d.cueAdj=false;d.seek(d.cue);}                                     /* set cue while paused (after a fine adjust: exactly there) */
   d.dirty=true;
 }
 function cueUp(d){if(d.cueHold){d.cueHold=false;if(d.playing){d.pause();d.seek(d.cue);}d.dirty=true;}}
@@ -3182,9 +3218,9 @@ function hotDownN(d,n){
   if(d.callHeld){d.callUsed=true;if(c){delete d.cur.hot[n];toast(say('Hot cue '+HL[n-1]+' effacé (ici seulement, la clé n’est pas modifiée)','Hot cue '+HL[n-1]+' deleted (here only, the USB is not changed)'));}d.dirty=true;return;}
   if(!c&&d.callMode&&d.cur.store[n]){d.cur.hot[n]=d.cur.store[n];if(!Object.keys(d.cur.store).some(k=>!d.cur.hot[k]))d.callMode=false;toast(say('Hot cue '+HL[n-1]+' rappelé','Hot cue '+HL[n-1]+' recalled'));d.dirty=true;return;}
   if(c){
-    d.hotHeld={n};if(d.playing)d.slipBegin();
-    if(c.end)d.setLoop(c.time,c.end,true);else{if(d.loop){d.lastLoop=d.loop;d.loop=null;}d.adjust=null;d.seek(c.time);}
-    if(!d.playing)d.play();
+    d.hotHeld={n};const pl=d.playing;if(pl)d.slipBegin();
+    const go=late=>{if(c.end)d.setLoop(c.time,c.end,true);else{if(d.loop){d.lastLoop=d.loop;d.loop=null;}d.adjust=null;d.seek(c.time+late);}d.dirty=true;};
+    if(pl)d.quantDo(go);else{go(0);d.play();}
   }else{
     const lp=d.loop;
     d.cur.hot[n]=lp?{hot:n,time:lp.a,end:lp.b,name:'',color:null,tmp:true}:{hot:n,time:d.snap(d.pos()),end:null,name:'',color:null,tmp:true};
@@ -3193,7 +3229,7 @@ function hotDownN(d,n){
   d.dirty=true;
 }
 function hotUp(d,i){hotUpN(d,padN(d,i));}
-function hotUpN(d,n){const h=d.hotHeld;if(!h||h.n!==n)return;d.hotHeld=null;d.slipCheck();}
+function hotUpN(d,n){const h=d.hotHeld;if(!h||h.n!==n)return;d.hotHeld=null;if(d.ghost){clearTimeout(d._qT);d._qT=null;}d.slipCheck();}
 function callDown(d){d.callHeld=true;d.callUsed=false;}
 function callUp(d){d.callHeld=false;if(d.callUsed||!d.loaded())return;
   const pending=Object.keys(d.cur.store).filter(k=>!d.cur.hot[k]);
@@ -3238,6 +3274,13 @@ function trackSearch(d,dir){
   const L=d.cur.list||[];const i=L.indexOf(d.cur.tr);const nx=L[i+dir];
   if(nx)d.loadTrack(nx,{list:L});
 }
+/* super fast track search (manual p. 22): TRACK SEARCH held and the jog turned runs through the list in the jog's direction.
+   The track number follows; the track picked is loaded when the key is let go (loading each one would decode every file) */
+function trackDown(d,dir){trackSearch(d,dir);d.tsHeld={pick:null,acc:0};}
+function trackUp(d){const h=d.tsHeld;d.tsHeld=null;if(!h||h.pick==null||!d.cur)return;const L=d.cur.list||[];const t=L[h.pick];if(t&&t!==d.cur.tr)d.loadTrack(t,{list:L});d.dirty=true;}
+function trackJog(d,n){const h=d.tsHeld;if(!h||!d.cur)return;const L=d.cur.list||[];if(!L.length)return;
+  const i0=h.pick!=null?h.pick:Math.max(0,L.indexOf(d.cur.tr));h.pick=clamp(i0+n,0,L.length-1);const t=L[h.pick];
+  toast('TRACK '+String(h.pick+1).padStart(2,'0')+' · '+(t.artist?t.artist+' - ':'')+t.title,1200);d.dirty=true;}
 /* ---------- loops ---------- */
 function inDown(d){
   if(!d.loaded())return;
@@ -3258,7 +3301,7 @@ function reloopBtn(d){
   if(!d.loaded())return;
   if(d.loop&&(d.playing||d.adjust))d.exitLoop();
   else if(d.loop)d.play();
-  else if(d.lastLoop){d.setLoop(d.lastLoop.a,d.lastLoop.b,true);if(!d.playing)d.play();}
+  else if(d.lastLoop){const L=d.lastLoop;if(d.playing)d.quantDo(()=>{d.setLoop(L.a,L.b,true);d.dirty=true;});else{d.setLoop(L.a,L.b,true);d.play();}}
   d.dirty=true;
 }
 function fourDown(d){if(!d.loaded())return;if(d.loop){d.loopScale(.5);toast('LOOP CUTTER : '+fmtBeat(d.loopLenBeats())+' BEAT');return;}d._4T=setTimeout(()=>{d._4T=null;d.beatLoop(8);},1000);}
@@ -3271,6 +3314,8 @@ function setLever(d,p){
   d.lever=p;d.rev=p===1;
   if(p===-1){d.slipRevHeld=true;if(d.playing&&!d.ghost)d.ghost={pos:d._pos};const sp=d.spb()/d.rate;clearTimeout(d._srT);
     d._srT=setTimeout(()=>{if(d.slipRevHeld){d.slipRevHeld=false;applyDir(d);if(d.dir>0)d.slipEnd();}},8*sp*1000);}
+  /* REV: with QUANTIZE the reverse play starts on the next beat */
+  if(p===1&&d.dir>0&&d.playing){d.quantDo(()=>{if(d.lever!==1)return;d.slipBegin();applyDir(d);});d.dirty=true;return;}
   if(p===1)d.slipBegin();
   applyDir(d);if(d.dir>0)d.slipCheck();
 }
@@ -3384,7 +3429,7 @@ function keyActions(d){return {
   hot_cue_c:{down:()=>hotDown(d,2),up:()=>hotUp(d,2)},hot_cue_d:{down:()=>hotDown(d,3),up:()=>hotUp(d,3)},
   bank_rev:{down:()=>{d.bank=0;d.dirty=true;}},bank_fwd:{down:()=>{d.bank=1;d.dirty=true;}},
   hot_cue_call:{down:()=>callDown(d),up:()=>callUp(d)},
-  track_rev:{down:()=>trackSearch(d,-1)},track_fwd:{down:()=>trackSearch(d,1)},
+  track_rev:{down:()=>trackDown(d,-1),up:()=>trackUp(d)},track_fwd:{down:()=>trackDown(d,1),up:()=>trackUp(d)},
   scan_rev:{down:()=>scanStart(d,-1),up:()=>scanStop(d)},scan_fwd:{down:()=>scanStart(d,1),up:()=>scanStop(d)},
   loop_in:{down:()=>inDown(d),up:()=>inUp(d)},loop_out:{down:()=>outDown(d)},reloop:{down:()=>reloopBtn(d)},
   four_beat:{down:()=>fourDown(d),up:()=>fourUp(d)},
@@ -3397,7 +3442,8 @@ function keyActions(d){return {
     long:()=>{if(!needMedia())return;const M=navMedium(d)||RM;d.ui.nav=[{k:'media',sel:0,top:0},{k:'root',m:M,label:M.name,sel:0,top:0},{k:'search',label:'SEARCH',sel:0,top:0}];d.ui.search.q='';goScr(d,'browse');}},
   tag_list:{press:()=>{if(!needMedia())return;toggleScr(d,'taglist');}},
   info:{press:()=>infoBtn(d),long:()=>toast(say('LINK INFO : aucune autre platine reliée en PRO DJ LINK','LINK INFO: no other player linked over PRO DJ LINK'))},
-  menu:{press:()=>menuBtn(d),long:()=>{d.ui.util.edit=false;if(d.ui.scr==='utility')goScr(d,'play');else goScr(d,'utility');}},
+  /* MENU/UTILITY > 1 s: the UTILITY screen; pressed again, the screen shown before comes back (manual p. 38) */
+  menu:{press:()=>menuBtn(d),long:()=>{const u=d.ui;u.util.edit=false;if(u.scr==='utility')goScr(d,u.utilFrom||'play');else{u.utilFrom=u.scr;goScr(d,'utility');}}},
   back:{press:()=>backBtn(d,false),long:()=>backBtn(d,true)},
   tag_track:{press:()=>tagTrack(d)},
   track_filter:{press:()=>filterBtn(d,false),long:()=>filterBtn(d,true)},
@@ -3414,12 +3460,16 @@ function keyActions(d){return {
   sync:{press:()=>{d.setSync(!d.sync);if(d.sync&&BUS.master===d&&DECKS.length===1)toast(say('SYNC : pas d’autre platine, ce lecteur devient MASTER','SYNC: no other player, this one becomes MASTER'));},long:()=>toast(say('INSTANT DOUBLES : il faut une autre platine','INSTANT DOUBLES: needs another player'))},
   master:{down:()=>{if(!d.loaded()){toast(say('MASTER : charge un morceau','MASTER: load a track'));return;}BUS.setMaster(BUS.master===d?null:d);}},
   tempo_range:{down:()=>{d.rangeIdx=(d.rangeIdx+1)%4;d.applyTempo();}},
-  master_tempo:{down:()=>{d.mt=!d.mt;d.syncSrc();d.dirty=true;if(d.mt&&!AU.engOk)toast(say('MASTER TEMPO : ce navigateur ne peut pas garder la hauteur','MASTER TEMPO: this browser cannot keep the pitch'));}},
+  master_tempo:{down:()=>{d.setMt(!d.mt);if(d.mt&&!AU.engOk)toast(say('MASTER TEMPO : ce navigateur ne peut pas garder la hauteur','MASTER TEMPO: this browser cannot keep the pitch'));}},
   tempo_reset:{down:()=>{d.tReset=!d.tReset;d.applyTempo();}},
 };}
+/* SEARCH: held, searches forward / back. Paused on the CUE point it adjusts that point by half frames (1/150 s), CUE sets it (manual p. 24);
+   in IN / OUT ADJUST, half frames too (p. 24-25); with the jog held, the jog drives the search (p. 22). The repeat rate is ours */
 function scanStart(d,dir){
   if(!d.loaded())return;let n=0;
-  const step=()=>{if(d.adjust){d.adjustStep(dir/75);return;}n++;const fast=d.jogHeld?6:1;d.seek(d.pos()+dir*.12*(1+Math.min(n,40)/5)*fast);if(!d.playing)d.cue=d._pos;};
+  d.advance();if(!d.playing&&!d.adjust&&atCue(d))d.cueAdj=true;
+  const step=()=>{if(d.adjust){d.adjustStep(dir/150);return;}if(d.jogHeld)return;if(d.cueAdj&&!d.playing){d.seek(d.pos()+dir/150);return;}
+    n++;d.seek(d.pos()+dir*.12*(1+Math.min(n,40)/5));};
   step();clearInterval(d._scan);d._scan=setInterval(step,70);
 }
 function scanStop(d){clearInterval(d._scan);d._scan=null;}
@@ -3428,7 +3478,7 @@ function keyLight(d,name){
   const ld=d.loaded(),u=d.ui;
   switch(name){
     case 'play':return ld&&(d.playing&&d.touchTarget>0?true:blink(1));
-    case 'cue':if(!ld)return false;if(d.playing)return true;return Math.abs(d._pos-d.cue)<.02?true:blink(1);
+    case 'cue':if(!ld)return false;if(d.playing)return true;return atCue(d)?true:blink(1);
     /* IN / OUT ADJUST: that key blinks fast, the other one is off */
     case 'loop_in':if(d.adjust==='in')return blink(4);if(d.adjust==='out')return false;return !!d.loop||d.loopIn!=null;
     case 'loop_out':if(d.adjust==='out')return blink(4);if(d.adjust==='in')return false;return !!d.loop;
@@ -3445,8 +3495,10 @@ function keyLight(d,name){
     case 'tag_list':return u.scr==='taglist';
     case 'info':return u.info||u.scr==='iplay';
     case 'menu':return !!u.sort||u.scr==='menu'||u.scr==='utility';
-    case 'usb':return anyMedia();
-    case 'usb_indicator':return anyMedia();
+    /* source key (manual p. 31): lit = this device is being browsed, blinking = a track from it is loaded */
+    case 'usb':if(!anyMedia())return false;if(u.scr==='browse')return true;return !!(d.cur&&d.cur.tr.m.mounted)&&blink(1);
+    /* USB indicator: blinks while the USB is read (mount, track loading) and while USB STOP is held, until the USB is unmounted (p. 14, 20) */
+    case 'usb_indicator':if(!anyMedia())return false;if((d.face&&d.face.down.has('usb_stop'))||now()<USBCOMM||now()<(d.usbComm||0)||(d.cur&&d.cur.loading))return blink(3);return true;
     case 'bank_rev':return d.bank===0;case 'bank_fwd':return d.bank===1;
     case 'track_filter':return filterActive(fm(d))||u.scr==='filter';
     case 'short_cut':return u.scr==='shortcut';
@@ -3495,7 +3547,7 @@ function renderFace(F){
   const live=d.loaded(),touch=!!d.touching;
   blit(sprite(F,'cb|'+live+touch+d.vinyl,[cx-F_JOG_DISPLAY,cy-F_JOG_DISPLAY,cx+F_JOG_DISPLAY,cy+F_JOG_DISPLAY],P=>centreBase(P,live,touch,d.vinyl)));
   if(live){g.setTransform(s,0,0,s,0,0);const P={g,line:Painter.prototype.line,scale:s};centrePointer(P,d._pos/1.8,d.playing?null:d.cue/1.8,d.ghost?d.ghost.pos/1.8:null);g.setTransform(1,0,0,1,0,0);}
-  const white=anyMedia()?[0,1,2][SET.jogRing]:0;
+  const white=anyMedia()&&!(SET.jogInd===1&&endBlink(d))?[0,1,2][SET.jogRing]:0;   /* JOG INDICATOR: the ring blinks at the end of the track */
   if(white)blit(sprite(F,'ring|'+white,[cx-r-24,cy-r-24,cx+r+24,cy+r+24],P=>ringLight(P,white,0)));
   /* keys */
   for(const k of F_KEYS){
@@ -3617,11 +3669,19 @@ function jogMove(d,st,p){
   jogTurn(d,st,da*180/Math.PI);
 }
 /* the platter turned by raw degrees (the mouse on the face, or a controller's jog wheel) */
+/* one half frame (1/150 s) every 4/3 degree: 1.8 s per turn, as the frame search (manual p. 22, 24) */
+const HALF_FRAME_DEG=360/270;
+/* TRACK SEARCH held: one track per 30 degrees (the manual gives no figure) */
+const TRACK_JOG_DEG=30;
 function jogTurn(d,st,raw){
   const deg=raw*jogSens(d);d.rimAngle+=deg;const t=now(),dt=Math.max(.008,t-st.t);st.t=t;const w=deg/dt;st.w=(st.w||0)*.5+w*.5;st.wt=t;
+  if(d.tsHeld&&st.mode!=='adj'){const h=d.tsHeld;h.acc+=deg;while(Math.abs(h.acc)>=TRACK_JOG_DEG){trackJog(d,Math.sign(h.acc));h.acc-=Math.sign(h.acc)*TRACK_JOG_DEG;}return;}
+  /* super fast search: SEARCH held, the jog drives the search, its speed follows the jog; when the jog stops, play goes on normally */
+  if(d._scan&&(st.mode==='bend'||st.mode==='search')){d.seek(d._pos+deg/200*8);d.dirty=true;return;}
   switch(st.mode){
-    case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=4.8){d.adjustStep((st.acc>0?1:-1)/75);st.acc-=Math.sign(st.acc)*4.8;}break;
-    case 'search':if(d._scan){d.seek(d._pos+deg/200*8);}else{d.advance();d.scratchOn=true;d.scratchV=clamp(w/200*(d.vinyl&&st.tg.top?1:.5),-8,8);d.scratchT=t;d.syncSrc();}d.dirty=true;break;
+    case 'adj':st.acc+=deg;while(Math.abs(st.acc)>=HALF_FRAME_DEG){d.adjustStep((st.acc>0?1:-1)/150);st.acc-=Math.sign(st.acc)*HALF_FRAME_DEG;}break;
+    /* frame search: paused, 1.8 s per turn in every jog mode (manual p. 22) */
+    case 'search':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();d.dirty=true;break;
     case 'touch':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();break;
     case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+d.dir*w/200*K*.35,.4,1.7);  /* in reverse the jog's direction is reversed too (manual p. 22) */clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
   }
@@ -3633,7 +3693,7 @@ function jogUp(d,st){
   /* let go while the hand was moving: the platter keeps turning on its own momentum (longer when JOG ADJUST is LIGHT) */
   const fling=st.w&&now()-st.wt<.08&&Math.abs(st.w)>120?st.w:0;
   if(m==='touch'){d.scratchOn=false;d.scratchV=0;d.touching=false;const ts=tStart(d);d.startT=Math.max(.04,ts);d.touchTarget=1;slipResume(d);}
-  if(m==='search'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(!d.playing){d.seek(d._pos);}}
+  if(m==='search'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(!d.playing){d.seek(Math.round(d._pos*150)/150);}}
   d.syncSrc();d.dirty=true;
   if(fling&&m!=='adj'){d.spin=clamp(fling,-1600,1600);if(d.loaded()&&!d.spinning&&m!=='free'){d.spinning=true;d.spinMode=m==='touch'?'scratch':(m==='bend'?'bend':'search');
     if(d.spinMode==='scratch'){d.advance();d.touching=true;d.scratchOn=true;}}}
@@ -3654,7 +3714,8 @@ function jogFlick(d,e){
   let dy=e.deltaY;if(e.deltaMode===1)dy*=33;else if(e.deltaMode===2)dy*=600;
   if(!d.loaded()){const c=SPIN_CAP*jogSens(d);d.spin=clamp((d.spin||0)+clamp(dy,-120,120)*SPIN_K*jogSens(d),-c,c);return;}
   ensureCtx();
-  if(d.adjust){const n=wheelSteps(d.n+'adj',e,60);if(n)d.adjustStep(n/75);d.spin=0;d.spinImp=0;return;}
+  if(d.adjust){const n=wheelSteps(d.n+'adj',e,60);if(n)d.adjustStep(n/150);d.spin=0;d.spinImp=0;return;}
+  if(d.tsHeld){const n=wheelSteps(d.n+'ts',e,60);if(n)trackJog(d,n);return;}
   const sens=jogSens(d),cap=SPIN_CAP*sens,imp=clamp(dy,-120,120)*SPIN_K*sens;
   if(!d.spinning){
     d.spinning=true;d.spinMode=d.vinyl?'scratch':(d.playing?'bend':'search');d.spinWasPlaying=d.playing;
@@ -3682,12 +3743,12 @@ function endSpin(d){
   const m=d.spinMode;d.spinning=false;d.spin=0;d.spinImp=0;d.advance();
   if(m==='scratch'){d.scratchOn=false;d.scratchV=0;d.touching=false;if(d.playing){const ts=tStart(d);d.startT=Math.max(.15,ts);d.touch=0;d.touchTarget=1;}slipResume(d);}
   if(m==='bend')d.bend=1;
-  if(m==='search'&&!d.playing)d.seek(d._pos);
+  if(m==='search'&&!d.playing)d.seek(Math.round(d._pos*150)/150);
   d.syncSrc();d.dirty=true;
 }
 function jogNudge(d,dir){
   d.rimAngle+=dir*4;if(!d.loaded())return;
-  if(d.adjust){d.adjustStep(dir/75);return;}
+  if(d.adjust){d.adjustStep(dir/150);return;}
   if(d.playing){d.nudge=dir*.06;d.syncSrc();clearTimeout(d._nT);d._nT=setTimeout(()=>{d.nudge=0;d.syncSrc();},160);}
   else d.seek(d.pos()+dir*4/200*.5);
 }
