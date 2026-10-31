@@ -177,8 +177,8 @@ footer .pop .ic{text-decoration:none;color:#b4b8bf;width:34px;height:34px}
 .floatwin.map{width:min(1000px,calc(100vw - 16px))}
 /* ---------- the controller map ---------- */
 .floatwin.plan{width:min(1040px,calc(100vw - 16px))}
-.ptabs{display:flex;gap:6px;margin:0 0 6px}.ptabs button{flex:0 0 auto;padding:6px 14px;border-radius:6px;border:1px solid #4a4f57;background:#1b1d21;color:#cfd3d9;font:inherit;font-weight:600;cursor:pointer}.ptabs button[aria-pressed=true]{background:#e6e8ec;color:#15171a;border-color:#e6e8ec}
-.phint{margin:0 0 6px;color:#e8c65a;min-height:1.3em}
+.planbar{display:flex;align-items:center;gap:12px;margin:0 0 6px;flex-wrap:wrap}.ptabs{display:flex;gap:4px}.ptabs button{flex:0 0 auto;padding:2px 8px;font-size:.85em;border-radius:5px;border:1px solid #4a4f57;background:#1b1d21;color:#cfd3d9;font:inherit;font-weight:600;cursor:pointer}.ptabs button[aria-pressed=true]{background:#e6e8ec;color:#15171a;border-color:#e6e8ec}
+.phint{margin:0;color:#e8c65a;min-height:1.3em}
 .fw-grip{position:absolute;right:2px;bottom:2px;width:16px;height:16px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 0 55%,#6f757e 55% 62%,transparent 62% 72%,#6f757e 72% 79%,transparent 79%)}
 /* the controller panel: nothing in it is squeezed when the mapping list is opened */
 .gear.midi>*{flex-shrink:0}
@@ -379,7 +379,7 @@ kbd{flex:none;font:600 11.5px var(--mono);background:#22252a;border:1px solid va
   <div class="fw-h" id="planHead" data-i18n-aria="mapMove"><h2 id="pTitle"><span data-i18n="planTitle"></span> · <span id="planName"></span></h2>
     <div class="hr"><button class="ic" id="pClose" type="button" data-i18n-aria="close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>
   <div class="fw-b">
-    <div class="ptabs" id="planTabs"></div><p class="phint" id="planHint"></p>
+    <div class="planbar"><div class="ptabs" id="planTabs"></div><p class="phint" id="planHint"></p></div>
     <div class="pbody" id="planBody"></div>
     <div class="mleg pleg" id="planLeg"></div>
     <p class="note" data-i18n="planNote"></p>

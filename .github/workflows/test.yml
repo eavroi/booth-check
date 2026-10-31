@@ -1,0 +1,26 @@
+# À chaque envoi sur GitHub : index.html doit être à jour et les scénarios doivent passer.
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installer Playwright et Chromium
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: index.html correspond à app/ et lib/
+        run: |
+          python build.py
+          git diff --exit-code index.html
+      - name: Scénarios
+        run: python tests/scenarios.py

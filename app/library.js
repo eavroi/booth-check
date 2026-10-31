@@ -26,17 +26,19 @@ function readMenus(buf){
   out.hist=[];for(const {dv,o} of rows(11))out.hist.push({id:dv.getUint32(o,true),name:readStr(dv,o+4),tracks:[]});
   const he=rows(12).map(({dv,o})=>({track:dv.getUint32(o,true),pl:dv.getUint32(o+4,true),idx:dv.getUint32(o+8,true)}));
   for(const h of out.hist)h.tracks=he.filter(e=>e.pl===h.id).sort((a,b)=>a.idx-b.idx).map(e=>e.track);
+  /* the USB itself (table 19): counter, colour (BACKGROUND COLOR), date, name. Old rows stay in the page, only the live one counts */
+  out.vol=null;for(const {dv,o} of rows(19)){const v={n:dv.getUint32(o+4,true),bg:dv.getUint8(o+9),date:readStr(dv,o+12),name:readStr(dv,o+30)};if(!out.vol||v.n>out.vol.n)out.vol=v;}
   return out;
 }
 class Medium{constructor(){Object.assign(this,{id:0,name:'USB',idx:new Map(),hasContents:false,lib:null,ext:null,tracks:[],byId:new Map(),tagById:new Map(),ttags:new Map(),
-  demo:false,mounted:true,menu:[],sortMenu:[],column:0,colNames:{},hist:[],session:[],artImg:new Map(),anCache:new Map(),setFound:[],setFiles:{},setValues:{},filter:newFilter(),djName:''});}}
+  demo:false,mounted:true,menu:[],sortMenu:[],column:0,colNames:{},hist:[],session:[],artImg:new Map(),anCache:new Map(),lv:new Map(),ver:0,setFound:[],setFiles:{},setValues:{},filter:newFilter(),bg:0,bg0:0,date:'',used:0});}}
 let MEDIA_SEQ=0;
 async function loadUsb(list,isDemo,onInfo){
   const pdb=list.find(e=>/(^|\/)pioneer\/rekordbox\/export\.pdb$/i.test(e.path));
   if(!pdb){onInfo({err:'nopdb'});return null;}
   const cut=pdb.path.toLowerCase().lastIndexOf('pioneer/rekordbox/export.pdb'),prefix=pdb.path.slice(0,cut);
   const m=new Medium();m.id=++MEDIA_SEQ;
-  for(const e of list){if(!e.path.startsWith(prefix))continue;const k='/'+norm(e.path.slice(prefix.length));m.idx.set(k,e.file);if(k.startsWith('/contents/'))m.hasContents=true;}
+  for(const e of list){if(!e.path.startsWith(prefix))continue;const k='/'+norm(e.path.slice(prefix.length));m.idx.set(k,e.file);m.used+=e.file.size||0;if(k.startsWith('/contents/'))m.hasContents=true;}
   const nAudio=[...m.idx.keys()].filter(k=>k.startsWith('/contents/')).length;
   let menus;
   try{const b=new Uint8Array(await pdb.file.arrayBuffer());m.lib=parseExport(b);menus=readMenus(b);}
@@ -56,10 +58,10 @@ async function loadUsb(list,isDemo,onInfo){
   if(isDemo&&ext&&ext.tags.length>3){const f=n=>{const g=ext.tags.find(x=>x.name===n);return g?g.id:null;};const mk=a=>new Set(a.map(f).filter(x=>x!=null));m.ttags.set(1,mk(['Techno','Synth','Peak Time']));m.ttags.set(2,mk(['Acid House','Beat','Lounge']));}
   m.menu=menus.menu.length?menus.menu:DEF_MENU;m.sortMenu=menus.sort.length?menus.sort:DEF_SORT;m.column=menus.column||0;m.colNames=menus.names;m.hist=menus.hist;
   /* My Settings written by rekordbox on this key; read only now, when the key is plugged in */
-  const sf={};for(const [k2,p] of [['my','/pioneer/mysetting.dat'],['my2','/pioneer/mysetting2.dat'],['dev','/pioneer/devsetting.dat'],['djm','/pioneer/djmmysetting.dat'],['prof','/pioneer/djprofile.nxs']]){const f=m.idx.get(p);if(f){try{sf[k2]=new Uint8Array(await f.arrayBuffer());}catch(e){}}}
-  if(sf.prof&&sf.prof.length>40){let e=32;while(e<sf.prof.length&&sf.prof[e])e++;try{m.djName=new TextDecoder('utf-8').decode(sf.prof.subarray(32,e));}catch(_){m.djName='';}}
-  /* the browser only gives the folder (the drive letter for a key's root), not the volume label: show the DJ profile name rekordbox wrote on the key next to it */
-  let nm=!isDemo&&m.djName.trim()?m.djName.trim()+' ('+folder+')':folder;let base=nm,k=2;while(MEDIA.some(x=>x.name===nm&&x.mounted))nm=base+' ('+(k++)+')';m.name=nm;
+  const sf={};for(const [k2,p] of [['my','/pioneer/mysetting.dat'],['my2','/pioneer/mysetting2.dat'],['dev','/pioneer/devsetting.dat'],['djm','/pioneer/djmmysetting.dat']]){const f=m.idx.get(p);if(f){try{sf[k2]=new Uint8Array(await f.arrayBuffer());}catch(e){}}}
+  /* the name, colour and date of the USB are in export.pdb (table 19); without them, the folder */
+  const vol=menus.vol;if(vol){m.bg=m.bg0=vol.bg<BGCOL.length?vol.bg:0;m.date=vol.date;}
+  let nm=(vol&&vol.name)||folder;let base=nm,k=2;while(MEDIA.some(x=>x.name===nm&&x.mounted))nm=base+' ('+(k++)+')';m.name=nm;
   /* TRACK FILTER conditions saved by rekordbox on the key (RBFLTR.DAT): only the BPM range is decoded with confidence */
   const rf=m.idx.get('/pioneer/rekordbox/rbfltr.dat');if(rf){try{const b=new Uint8Array(await rf.arrayBuffer());const r=readRbfltr(b);if(r){m.filter.bpmVal=r.bpm;m.filter.bpmPct=r.pct;m.rbfltr=r;}}catch(e){}}
   const ps=parseSettings({my:sf.my,my2:sf.my2,dev:sf.dev});m.setFound=ps.found;m.setFiles=sf;m.setValues=ps.values;
@@ -81,8 +83,9 @@ function readRbfltr(b){
     if(lo>=2000&&hi<=40000&&lo<hi){const bpm=Math.round((lo+hi)/20)/10,pct=Math.round((hi-lo)/(hi+lo)*100);if(pct>=0&&pct<=6)return {bpm,pct};}}
   return null;
 }
-function applyMediumSettings(m){USBCOMM=now()+1;resetSettings();for(const [k,v] of Object.entries(m.setValues||{})){SET[k]=v;SETSRC[k]='usb';}for(const d of DECKS)d.applySettings();}
-function unmount(m){m.mounted=false;for(const d of DECKS){if(d.cur&&d.cur.tr.m===m)d.eject();const u=d.ui;if(u.nav.some(n=>n.m===m)){u.nav=[{k:'media',sel:0,top:0}];if(u.scr!=='play')u.scr='play';}d.dirty=true;}
+/* a 2nd USB leaves the settings as they are, and a player that is playing keeps its tempo */
+function applyMediumSettings(m){USBCOMM=now()+1;if(mounted().some(x=>x!==m))return;resetSettings();for(const [k,v] of Object.entries(m.setValues||{})){SET[k]=v;SETSRC[k]='usb';}for(const d of DECKS)if(!d.playing)d.applySettings();}
+function unmount(m){m.mounted=false;for(const d of DECKS){if(d.cur&&d.cur.tr.m===m)d.eject();const u=d.ui;if(u.nav.some(n=>n.m===m)){u.nav=[{k:'media',sel:0,top:0}];u.browsed=false;if(u.scr!=='play')u.scr='play';}d.dirty=true;}
   for(let i=TAGLIST.length-1;i>=0;i--)if(TAGLIST[i].m===m)TAGLIST.splice(i,1);}
 /* artwork thumbnails, decoded once */
 function artFor(t){

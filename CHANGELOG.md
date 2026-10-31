@@ -1,5 +1,59 @@
 # Booth Check — versions
 
+## V3.1 — 31 octobre 2026
+L'écran de la CDJ est refait au plus près du vrai firmware 1.87 (émulateur cdj-nxs2-qemu, observation seulement, rien n'est copié), et la solidité passe avant les nouveautés. Comparaison écran par écran avec la clé de Victor : couleurs relevées au pixel.
+
+**Boucles**
+- Le panneau 1/4 à 32 s'ouvre seul quand une boucle est active, sous une onde réduite à sa moitié haute, et se ferme à l'EXIT ; la longueur en cours est en orange plein.
+- Zone de boucle orange opaque derrière l'onde, grise une fois sortie. Case LOOP orange si active, grise si sortie, `--` pour une boucle posée à la main.
+- IN / OUT ADJUST : l'onde s'arrête sur le point réglé, le son continue, plus d'étiquette ; le temps affiché suit le mode en cours (REMAIN = restant au point).
+- 4/8 BEAT : la boucle part du point de l'appui, en 4 comme en 8 temps. Un nouveau CUE en pause efface la boucle gardée pour RELOOP.
+
+**Écran de lecture**
+- Plage : ±6 sur vert, ±10 sur rouge, ±16 sur blanc, WIDE en lettres rouges. PHASE METER : temps en cours orange, rouge sur le premier temps ; distance au prochain repère sur 2 chiffres, 00.0 en rouge dessus.
+- Pause : curseurs rouges et barre NEEDLE SEARCH plus claire. Lecture : NEEDLE COUNTDOWN. Plus de mot ELAPSED. Le titre seul dans la barre, sans l'artiste.
+- Une platine seule passe MASTER dès le chargement.
+- Hot cues : lettres dans des carrés à bord coloré, sur les deux rangées de la vue d'ensemble, au-dessus et au-dessous de l'onde. Triangle blanc sur le prochain repère, qui avance avec la lecture.
+- Bande grise en dégradé derrière l'onde. Zoom de départ : 37,5 px par seconde (35 px pour 2 temps environ).
+- Commentaire d'un repère dans le titre, avec la marque CUE : celui du point rappelé, ou du prochain repère à moins de 16 mesures (hors boucle). Règle déduite de ce qu'on voit sur l'émulateur.
+- Lettres de l'écran redessinées plus hautes et plus étroites, comme sur le firmware ; titres PLAYER, TRACK, REMAIN, TEMPO plus fins.
+
+**Navigation**
+- La touche USB ouvre directement la clé. BACK remonte aux supports (ou BACK maintenu) : nom, morceaux, listes, date, place utilisée. La place libre n'est pas lisible depuis un navigateur. Aux supports, BACK ne fait plus rien.
+- Barre de titre : USB avec son icône, icône et nom pour un dossier, une playlist, une tonalité, un artiste, un genre, une couleur ; 【】 seulement pour les catégories. Racine en 【PLAYLIST】, 【TRACK】… ; le tri choisi s'affiche à droite du titre.
+- TAG LIST : barre grise, puce, « USB », plus de « No Track. », colonne de droite comme dans les listes.
+- MENU : en lecture, LOAD PREVIOUS TRACK seul, moitié droite sur fond gris foncé, sans le morceau chargé. Sur les supports et la racine : MY SETTINGS avec LOAD, SAVE, BACKGROUND COLOR, WAVEFORM COLOR (rien n'est écrit sur la clé, SAVE le dit). Tous les petits menus prennent le dessin du firmware.
+- UTILITY : plus de mention USB ni My Settings, curseur et couleurs du firmware.
+- Sur l'écran de lecture, BACK ouvre la liste d'où vient le morceau.
+
+**Clé**
+- Nom, couleur et date lus dans la table 19 d'`export.pdb`, sur la ligne vivante (drapeaux de présence de la page) : plus besoin de deviner entre les anciennes lignes. `djprofile.nxs` n'est plus lu. Sur la clé de Victor : VG_USB DJ, Vert.
+- Couleur de la clé : barre de titre et ascenseur en lecture, exploration et INFO, jamais TAG LIST ni UTILITY ; indicateur USB de la face. BACKGROUND COLOR : 9 choix, la barre montre la couleur sous le curseur, coche sur la couleur choisie.
+
+**Bouton INFO (relevé sur l'émulateur)**
+- Dans le Browser, INFO n'agit que dans une liste de morceaux. La vue miniatures ou panneau reste mémorisée (niveaux, BACK, chargement), BACK remonte sans fermer le panneau.
+- Vue panneau : titres sans miniature, numéros 001 en PLAYLIST, HISTORY et TAG LIST. Panneau blanc à 8 lignes : artiste, genre, durée, BPM, tonalité, étoiles à la couleur du morceau, date d'ajout, commentaire.
+- Liste vide : EMPTY, on n'y entre pas. Titre trop long : il défile sur la ligne sélectionnée.
+- Icône de tonalité verte (manuel p. 33) sur les morceaux compatibles avec le MASTER : même tonalité, relative, voisines. Catégories KEY (`Abm`, `Abm, B`, `Abm, B, Dbm, Ebm`) et BPM (±0 % à ±6 %) avec leur niveau intermédiaire.
+- Écran INFO redessiné : liste blanche étroite dans l'ordre du firmware, jaquette centrée, commentaire dessous, crayon, pastille de couleur. BACK sans effet, INFO revient à la lecture, appui long aussi depuis la lecture, le sélecteur saute au niveau de la valeur et BACK repasse par la catégorie.
+- Coche rouge de la TAG LIST sur l'icône du morceau.
+
+**Divers**
+- BEAT FX ON/OFF : le halo reste rond. Plan du contrôleur : boutons plus petits, texte à leur droite. Steel : message clair si l'envoi vers le contrôleur échoue.
+
+**Solidité (audit technique)**
+- Grosses clés : tri beaucoup plus rapide et listes gardées d'une image à l'autre (avant : 380 ms par image avec 10 000 morceaux).
+- Sous 900 px de large, plus d'éjection des platines 3 et 4 ni de booth effacé. Une 2e clé ne remet plus les réglages à zéro et ne change plus le tempo d'une platine qui joue.
+- Morceau de plus de 20 minutes (12 sur téléphone) : pas décodé, vrai message ; fichier illisible et manque de mémoire ont leur message.
+- Boucle principale : une erreur ne fige plus tout. Fenêtre cachée : SYNC, MASTER et voyants continuent.
+- Fin de morceau et TRACK SEARCH hors liste ne lancent plus le premier morceau ; REMOVE ALL coupe l'enchaînement ; GRID ADJUST puis éjection ne plante plus.
+- Limiteur commun sur la sortie, table masquée comprise. Contrôleur débranché : touches, Kill et défilement relâchés. Boucle active : ne peut plus être sautée après un à-coup, scénario stabilisé.
+- Vérification automatique sur GitHub à chaque envoi (`index.html` à jour, scénarios).
+
+**Non fait** : couleurs de la vue d'ensemble (le firmware a deux couches, il faudrait lire la section PWV4 des ANLZ) ; [PLAYSTATE] et LIST DELETE du MENU (vus sur l'émulateur, pas ouverts). Barre rouge du cachemètre gardée telle quelle, Victor ne sait pas si elle existe sur la vraie CDJ.
+Pas vérifié : vue de la liste au démarrage de la platine, INFO sans morceau chargé, numéros dans HISTORY, lignes LABEL et MY TAG de l'écran INFO (absentes du seul morceau vu, donc retirées), PRO DJ LINK, couleur exacte de l'indicateur USB, son à l'oreille, vrai Steel.
+Tests : 38 nouveaux scénarios, 171 au total.
+
 ## V3.0 — 31 octobre 2026
 La V3 commence par stabiliser ce qui existe, les nouvelles machines viendront après. Cette version réunit ce qui était prévu en V3.0 et V3.2.
 

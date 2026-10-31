@@ -40,6 +40,8 @@ function renderFace(F){
     let lit=false,col=null;const dn=F.down.has(k.name);
     if(k.kind==='pad'){const pc=padLight(d,k.pad);lit=!!pc;col=pc?parseCol(pc):[40,226,20];}
     else lit=!!keyLight(d,k.name)||!!k.always;
+    /* the USB indicator takes the colour set on the USB (manual p. 14, 37); the exact shades of the light are not known, those of the scroll bar are used */
+    if(k.name==='usb_indicator'&&RM&&RM.bg)col=parseCol(BGCOL[RM.bg][2]);
     let pos=0;if(k.kind==='lever')pos=d.lever;
     const ck=k.name+'|'+(lit?1:0)+(dn?1:0)+'|'+(col?col.join(','):'')+'|'+pos;
     blit(sprite(F,ck,grow(keyBounds(k),k.kind==='big'?22:k.kind==='lever'?16:12),P=>{const kk=pos?Object.assign({},k,{pos}):k;drawKey(P,kk,lit,dn,col);}));

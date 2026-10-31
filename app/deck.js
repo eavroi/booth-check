@@ -1,7 +1,9 @@
 /* ---------------- audio, one Deck per player, and the sync bus that links them ---------------- */
 const AU={ctx:null,out:null,engOk:false,engReady:null};
 function ensureCtx(){
-  if(!AU.ctx){const C=window.AudioContext||window.webkitAudioContext;AU.ctx=new C();AU.out=AU.ctx.createGain();AU.out.gain.value=.9;AU.out.connect(AU.ctx.destination);AU.engReady=loadDeckWorklet(AU.ctx);mixBuild();}
+  if(!AU.ctx){const C=window.AudioContext||window.webkitAudioContext;AU.ctx=new C();AU.out=AU.ctx.createGain();AU.out.gain.value=.9;AU.lim=AU.ctx.createDynamicsCompressor();AU.lim.threshold.value=-1;AU.lim.knee.value=0;AU.lim.ratio.value=20;AU.lim.attack.value=.002;AU.lim.release.value=.12;
+    /* one limiter on the way out, for the mixer and for the players that go straight to the output */
+    AU.out.connect(AU.lim);AU.lim.connect(AU.ctx.destination);AU.engReady=loadDeckWorklet(AU.ctx);mixBuild();}
   if(AU.ctx.state==='suspended')AU.ctx.resume();
   return AU.ctx;
 }
@@ -111,7 +113,7 @@ class Deck{
     /* controls */
     Object.assign(this,{quant:true,qBeat:1,remain:true,autoCueOn:true,vinyl:true,mt:false,sync:false,rangeIdx:1,tempoV:0,tReset:false,slip:false,
       rev:false,revDone:false,syncHold:null,holdSide:0,syncLost:false,lever:0,slipRevHeld:false,hotHeld:null,bank:0,callMode:false,callHeld:false,callUsed:false,loopIn:null,lastLoop:null,adjust:null,adjOrig:null,
-      autoLen:4,loopMode:false,jumpMode:false,zi:2,grid:false,gridHold:false,brakeT:.05,startT:.05,jogWeight:.5,touchPrev:null,called:null,hist:[],
+      autoLen:4,loopMode:false,loopHide:false,jumpMode:false,zi:0,grid:false,cmt:null,gridHold:false,brakeT:.05,startT:.05,jogWeight:.5,touchPrev:null,called:null,hist:[],
       cueHold:false,kTouch:0,kRel:0,rimAngle:0,spin:0,spinning:false,face:null});
     this.ui={scr:'play',nav:[{k:'media',sel:0,top:0}],tl:{sel:0,top:0},menu:{sel:0},util:{sel:0,top:0,edit:false},info:false,sort:null,
       search:{q:'',sel:0,top:0,kb:0},sc:{sel:0},filt:{tab:0,sel:0,pad:null,padTxt:'',tcol:0,tsel:0,side:null},iplay:{sel:0},hits:[],items:[]};
@@ -177,8 +179,8 @@ class Deck{
     if(!this.moving())return;
     const v=this.vel(),pp=this._pos;
     this._pos+=v*dt;
-    /* active loop: reached, it is set and plays (manual p. 25) */
-    const al=this.cur&&this.cur.activeLoop;if(al&&!this.loop&&v>0&&pp<al.time&&this._pos>=al.time)this.setLoop(al.time,al.end,false);
+    /* active loop: reached, it is set and plays (manual p. 25); _alPos is the last position checked, the engine may have moved the position since */
+    const al=this.cur&&this.cur.activeLoop,was=this._alPos==null?pp:this._alPos;this._alPos=this._pos;if(al&&!this.loop&&v>0&&was<al.time&&this._pos>=al.time&&this._pos<al.end)this.setLoop(al.time,al.end,false);
     const lp=this.loop;
     if(lp&&!this.scratchOn){const L=lp.b-lp.a;if(v>0&&this._pos>=lp.b)this._pos=lp.a+(this._pos-lp.b)%L;else if(v<0&&this._pos<=lp.a){this._pos=lp.b-(lp.a-this._pos)%L;if(!this.engHas)this.stopSrc();}}
     if(this._pos>=this.dur){this._pos=this.dur;if(this.scratchOn)this.scratchV=Math.min(0,this.scratchV);else{this.pauseNow();this.ended=true;this.onEnd();}}
@@ -190,9 +192,9 @@ class Deck{
   play(){if(!this.loaded()||this.playing)return;ensureCtx();this.advance();if(this.dir>0&&this._pos>=this.dur-.05)this._pos=0;if(this.dir<0&&this._pos<=.05)this._pos=this.dur;
     this.cueAdj=false;this.playing=true;this.slipHold=false;this.ended=false;this.touch=this.touchTarget=1;this.last=now();this.startSrc();this.dirty=true;}
   pause(){if(!this.playing)return;this.advance();this.pauseNow();}
-  seek(t){this.advance();this._pos=clamp(t,0,this.dur);this.startSrc();}
+  seek(t){this.advance();this._pos=this._alPos=clamp(t,0,this.dur);this.startSrc();}
   setRate(r){this.advance();this.rate=Math.max(0,r);this.syncSrc();}
-  onEnd(){if(SET.playMode===0&&this.cur){const L=this.cur.list||[];const i=L.indexOf(this.cur.tr);const nx=L[i+1];if(nx)this.loadTrack(nx,{play:true});}}
+  onEnd(){if(SET.playMode===0&&this.cur){const L=this.cur.list||[];const i=L.indexOf(this.cur.tr);if(i<0)return;const nx=L[i+1];if(nx)this.loadTrack(nx,{play:true});}}
   /* ---------- slip ---------- */
   slipBegin(){if(this.slip&&this.playing&&!this.ghost)this.ghost={pos:this._pos,t:now(),beats:0};}
   slipEnd(){if(!this.ghost)return;const g=this.ghost.pos;this.ghost=null;this.seek(g);}
@@ -214,11 +216,16 @@ class Deck{
     return (b[j].t+frac*(b[j+1].t-b[j].t))/1000;
   }
   /* ---------- loops ---------- */
-  setLoop(a,b,jump){a=Math.max(0,a);b=Math.min(this.dur,b);if(b-a<0.01)return false;this.advance();this.slipBegin();
-    this.loop={a,b};this.lastLoop=this.loop;this.loopIn=null;this.adjust=null;if(jump||this._pos>=b||this._pos<a)this._pos=a;this.startSrc();this.dirty=true;return true;}
+  /* man: a loop set by hand with IN and OUT, its length is not shown (on the firmware: -- in the LOOP box, no key lit in the panel) */
+  setLoop(a,b,jump,man){a=Math.max(0,a);b=Math.min(this.dur,b);if(b-a<0.01)return false;this.advance();this.slipBegin();
+    this.loop={a,b,man:!!man};this.lastLoop=this.loop;this.loopHide=false;this.loopIn=null;this.adjust=null;if(jump||this._pos>=b||this._pos<a)this._pos=this._alPos=a;this.startSrc();this.dirty=true;return true;}
   exitLoop(){if(!this.loop)return;this.advance();this.lastLoop=this.loop;this.loop=null;this.adjust=null;this.startSrc();this.slipCheck();this.dirty=true;}
-  beatLoop(n){if(!this.loaded())return;/* during a loop the real deck keeps the loop in point and only changes the length */const a=this.loop?this.loop.a:this.snap(this.pos());const end=n>=1?this.beatShift(a,Math.round(n)):a+n*this.spb();if(slipTooLong(this,a,end))return;if(this.setLoop(a,end,false)){this.autoLen=n;toast('BEAT LOOP '+fmtBeat(n));}}
+  /* start: the point of the key press (4/8 BEAT sets its loop after the key is pressed) */
+  beatLoop(n,start){if(!this.loaded())return;/* during a loop the real deck keeps the loop in point and only changes the length */const a=this.loop?this.loop.a:start!=null?start:this.snap(this.pos());const end=n>=1?this.beatShift(a,Math.round(n)):a+n*this.spb();if(slipTooLong(this,a,end))return;if(this.setLoop(a,end,false)){this.autoLen=n;toast('BEAT LOOP '+fmtBeat(n));}}
   loopLenBeats(){const l=this.loop||this.lastLoop;return l?Math.round((l.b-l.a)/this.spb()*32)/32:this.autoLen;}
+  loopManual(){const l=this.loop||this.lastLoop;return !!(l&&l.man);}
+  /* the LOOP panel opens by itself while a loop is active (firmware); LOOP MODE opens or closes it by hand */
+  loopPanel(){return !this.jumpMode&&(this.loopMode||(!!this.loop&&!this.loopHide));}
   loopScale(f){const l=this.loop;if(!l)return;this.advance();const sp=this.spb(),len=clamp((l.b-l.a)*f,sp/32,sp*512);l.b=Math.min(this.dur,l.a+len);
     if(this._pos>=l.b)this._pos=l.a+((this._pos-l.a)%(l.b-l.a));this.startSrc();this.autoLen=this.loopLenBeats();this.dirty=true;}
   loopMove(n){const l=this.loop;if(!l)return;this.advance();const na=this.beatShift(l.a,n),nb=this.beatShift(l.b,n);if(na<0||nb>this.dur)return;this._pos+=na-l.a;l.a=na;l.b=nb;this.startSrc();}
@@ -239,11 +246,14 @@ class Deck{
   /* same track and same point as the master: INST.DOUBLE > 1 s, or the master's track loaded here (manual p. 30) */
   instantDouble(){const m=BUS.master;if(!m||m===this||!m.loaded()){toast(say('INSTANT DOUBLES : il faut un MASTER sur une autre platine','INSTANT DOUBLES: needs a MASTER on another player'));return;}this.loadTrack(m.cur.tr,{list:m.cur.list});}
   /* ---------- loading ---------- */
-  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.slipHold=false;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
+  eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;this.grid=false;this.cmt=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.slipHold=false;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
     if(BUS.master===this)BUS.setMaster(null);this.ui.scr='play';this.dirty=true;}
   async getAudio(tr,an){
     const M=tr.m,f=M.idx.get(tr.fileKey);
-    if(f){try{ensureCtx();return {buf:await AU.ctx.decodeAudioData(await f.arrayBuffer()),note:''};}catch(e){return {buf:null,note:say('Format non décodable par ce navigateur ('+tr.ext.toUpperCase()+') : lecture simulée','Format not decodable by this browser ('+tr.ext.toUpperCase()+'): simulated playback')};}}
+    /* a decoded track takes about 2 x 11 MB a minute at 48 kHz: over the limit the tab could fall, so it is not decoded */
+    const lim=PHONE.matches?12:20;if(f&&(tr.duration>lim*60||f.size>lim*25e6))return {buf:null,note:say('Morceau trop long pour ce navigateur ('+lim+' minutes au plus) : lecture simulée, sans son','Track too long for this browser ('+lim+' minutes at most): simulated playback, no sound')};
+    if(f){let ab;try{ab=await f.arrayBuffer();}catch(e){return {buf:null,note:say('Fichier illisible, la clé a peut-être été retirée : recharge-la. Lecture simulée','File cannot be read, the USB may have been removed: load it again. Simulated playback')};}
+      try{ensureCtx();return {buf:await AU.ctx.decodeAudioData(ab),note:''};}catch(e){return {buf:null,note:say('Format non décodable par ce navigateur ('+tr.ext.toUpperCase()+'), ou mémoire insuffisante : lecture simulée','Format not decodable by this browser ('+tr.ext.toUpperCase()+'), or not enough memory: simulated playback')};}}
     /* no network, or the page opened alone: the built-in sound stands in */
     if(tr.url)try{const r=await fetch(tr.url);if(r.ok){ensureCtx();return {buf:demoTrim(await AU.ctx.decodeAudioData(await r.arrayBuffer()),tr.trimMs),note:''};}}catch(e){}
     if(M.demo)return {buf:synthDemo(tr,an.beats),note:''};
@@ -253,13 +263,13 @@ class Deck{
     opt=opt||{};
     if(SET.ejectLock===1&&this.playing&&this.cur){toast(say('EJECT/LOAD LOCK : chargement impossible pendant la lecture','EJECT/LOAD LOCK: cannot load while playing'));return false;}
     const was=this.playing||!!opt.play;
-    this.pause();Object.assign(this,{loop:null,ghost:null,buf:null,_pos:0,dur:tr.duration||1,adjust:null,loopIn:null,lastLoop:null,loopMode:false,jumpMode:false,
+    this.pause();Object.assign(this,{loop:null,ghost:null,buf:null,_pos:0,_alPos:null,cmt:null,dur:tr.duration||1,adjust:null,loopIn:null,lastLoop:null,loopMode:false,loopHide:false,jumpMode:false,
       slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,revDone:false,syncLost:false,syncHold:null,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
     this.dir=(this.rev||this.slipRevHeld)?-1:1;
     this.hist=[tr].concat(this.hist.filter(x=>x!==tr)).slice(0,8);
     const tok=++this.loadTok;this.usbComm=now()+1;clearTimeout(this._qT);this._qT=null;this.cueAdj=false;
-    this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,tag:!!opt.tag,list:opt.list||(this.cur&&this.cur.list)||null};
-    this.ui.scr='play';this.ui.info=false;this.ui.sort=null;this.dirty=true;
+    this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,tag:!!opt.tag,list:opt.list||(this.cur&&this.cur.list)||null,nav:opt.nav||(this.cur&&this.cur.nav)||null};
+    this.ui.scr='play';this.ui.sort=null;this.dirty=true;
     const an=await getAnalysis(tr);if(tok!==this.loadTok)return false;
     const au=await this.getAudio(tr,an);if(AU.engReady)await AU.engReady;if(tok!==this.loadTok)return false;
     const c=this.cur;c.an=an;c.beats=an.beats;c.note=au.note;c.loading=false;
@@ -278,7 +288,9 @@ class Deck{
     if(this.buf&&this.engine()){const b=this.buf,ch=[];for(let k=0;k<Math.min(2,b.numberOfChannels);k++)ch.push(b.getChannelData(k).slice());
       this.eng.port.postMessage({load:ch,sr:b.sampleRate},ch.map(a=>a.buffer));this.engHas=true;this.engLast=null;
       this.buf={duration:b.duration,sampleRate:b.sampleRate,numberOfChannels:b.numberOfChannels,length:b.length};}
-    this._pos=this.cue;this.applyTempo();this.dirty=true;
+    this._pos=this._alPos=this.cue;this.applyTempo();this.dirty=true;
+    /* a player alone is MASTER as soon as a track is loaded (firmware) */
+    if(DECKS.length===1&&BUS.master!==this)BUS.setMaster(this);
     if(c.note)toast(c.note,4000);
     const M=BUS.master,dbl=M&&M!==this&&M.loaded()&&M.cur.tr===tr;if(dbl)this.seek(M.pos());
     if(was||dbl&&M.playing)this.play();

@@ -300,7 +300,7 @@ function fxD(P,st){
   dyn(P,()=>'fxch|'+st.fxCh,[cs[0]-cr-8,cs[1]-cr-8,cs[0]+cr+8,cs[1]+cr+8],P=>selKnob(P,cs[0],cs[1],cr,FXCH.find(c=>c[0]===st.fxCh)[1]));
   dT(P,x,2018,'TIME',30);dKnob(P,'enc',1972,2098,53,0);
   dT(P,x,2238,'LEVEL / DEPTH',30);dScale(P,1972,2326,53,{gap:16});kn(P,'depth',()=>st.depth,'std',1972,2326,53);dT(P,1918,2400,'MIN',24);dT(P,2028,2400,'MAX',24);
-  dT(P,x,2444,'ON/OFF',30);dyn(P,()=>'fxon|'+(bfxActive()&&blinkOn()),[1890,2460,2050,2620],P=>bigBlue(P,1970,2540,62,bfxActive()&&blinkOn()));  /* ON/OFF blinks while the effect is on (manual p. 14) */
+  dT(P,x,2444,'ON/OFF',30);dyn(P,()=>'fxon|'+(bfxActive()&&blinkOn()),[1850,2420,2090,2660],P=>bigBlue(P,1970,2540,62,bfxActive()&&blinkOn()));  /* ON/OFF blinks while the effect is on (manual p. 14) */
   /* model line: the mixer's own name replaced by the site's, as on the CDJ */
   dT(P,1830,2658,'PROFESSIONAL MIXER',24,'rm');dT(P,1846,2654,'BOOTH CHECK',40,'lm',[232,234,238]);
 }

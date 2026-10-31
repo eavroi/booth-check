@@ -145,15 +145,19 @@ function midiInputs(){return MIDI.acc?[...MIDI.acc.inputs.values()].filter(p=>p.
 function midiPorts(){
   const ins=midiInputs(),was=MIDI.port;
   let p=ins.find(x=>x.name===MIDI.port)||ins.find(x=>x.name===mstore.get('port',''))||ins.find(x=>Object.values(MTPL).some(t=>t.match&&t.match.test(x.name)));
-  if(MIDI.inp&&(!p||p!==MIDI.inp)){MIDI.inp.onmidimessage=null;MIDI.inp=null;}
+  if(MIDI.inp&&(!p||p!==MIDI.inp)){MIDI.inp.onmidimessage=null;MIDI.inp=null;midiRelease();}
   if(p&&p!==MIDI.inp)midiUse(p,false);
   else if(p&&!MIDI.out){MIDI.out=midiOutFor(p.name);if(MIDI.out){MIDI.leds.clear();midiInit();}}
   if(!p){if(was)toast(say('Contrôleur débranché : ','Controller unplugged: ')+was,2600);MIDI.port='';MIDI.out=null;}
   midiDot();renderMidi();
 }
+/* the controller is gone with keys held: everything is let go, or a Kill would stay down and a list would go on scrolling */
+function midiRelease(){MIDI.fn={};clearInterval(MIDI.navT);MIDI.navT=null;MIDI.navHeld=0;
+  for(const w of [...MIDI.down.values()]){const A=MACT[w.a];if(A)try{midiButton(A,w.b,false);}catch(e){}}
+  MIDI.down.clear();MIDI.btn.clear();MIDI.kill.clear();if(typeof planFn==='function')planFn();}
 function midiUse(p,chosen){
   if(MIDI.inp)MIDI.inp.onmidimessage=null;
-  MIDI.inp=p;MIDI.port=p.name;p.onmidimessage=midiMsg;if(chosen)mstore.set('port',p.name);
+  MIDI.inp=p;MIDI.port=p.name;p.onmidimessage=midiMsg;MIDI.said.send=false;if(chosen)mstore.set('port',p.name);
   MIDI.out=midiOutFor(p.name);
   MIDI.cfg=midiCfgFor(p.name);MIDI.btn.clear();MIDI.down.clear();MIDI.pick.clear();MIDI.leds.clear();MIDI.fn={};midiInit();
   toast(p.name+say(' branché',' plugged in')+(MIDI.cfg.tpl!=='none'?say(', modèle chargé',', template loaded'):say(' : ouvre « Contrôleur » pour relier ses boutons',': open “Controller” to map its buttons')),3200);
@@ -349,7 +353,9 @@ function midiTempoGuide(s){
 }
 /* sent only when a light changes, spaced a few ms apart (the Hercules driver loses messages sent in a burst);
    blinking is done by the controller itself (its own "blink" code) */
-function midiSend(list){const o=MIDI.out;if(!o)return;let t=Math.max(performance.now(),MIDI.sendT||0);for(const m of list){try{o.send(m,t);}catch(e){}t+=4;}MIDI.sendT=t;}
+function midiSend(list){const o=MIDI.out;if(!o)return;let t=Math.max(performance.now(),MIDI.sendT||0),bad=null;for(const m of list){try{o.send(m,t);}catch(e){bad=e;}t+=4;}MIDI.sendT=t;
+  /* the lights depend on this: say it once if the browser refuses to send */
+  if(bad&&!MIDI.said.send){MIDI.said.send=true;toast(say('Contrôleur : envoi refusé, les voyants ne suivent plus ('+bad.message+'). Débranche et rebranche le contrôleur.','Controller: sending refused, the lights no longer follow ('+bad.message+'). Unplug and plug the controller back.'),6000);}}
 /* ---------- light check, one code at a time: what the manual announces, and what the person sees on the controller ---------- */
 const STEEL_LEDS=[[0x01,'pad 1 gauche'],[0x02,'pad 2 gauche'],[0x03,'pad 3 gauche'],[0x04,'pad 4 gauche'],[0x05,'pad 5 gauche'],[0x06,'pad 6 gauche'],[0x07,'Sync gauche'],[0x08,'Pitch bend + gauche'],[0x0B,'Play gauche'],[0x0C,'Cue gauche'],[0x0D,'Stop gauche'],[0x0E,'Kill aigus gauche'],[0x0F,'Kill médiums gauche'],[0x10,'Kill basses gauche'],[0x11,'Pitch bend − gauche'],[0x12,'flèche ◀ du milieu (« Folders »)'],[0x13,'SHIFT gauche (« Mode » dans le manuel)'],[0x14,'Cue casque gauche'],[0x15,'Pitch bend + droit'],[0x16,'flèche ▶ du milieu (« Files »)'],[0x17,'SHIFT droit (« Mode » dans le manuel)'],[0x18,'Cue casque droit'],[0x19,'pad 1 droit'],[0x1A,'pad 2 droit'],[0x1B,'pad 3 droit'],[0x1C,'pad 4 droit'],[0x1D,'pad 5 droit'],[0x1E,'pad 6 droit'],[0x1F,'Sync droit'],[0x20,'Pitch bend − droit (le manuel écrit « + »)'],[0x23,'Play droit'],[0x24,'Cue droit'],[0x25,'Stop droit'],[0x26,'Kill aigus droit'],[0x27,'Kill médiums droit'],[0x28,'Kill basses droit'],[0x29,'Scratch'],[0x31,'pad 1 gauche, clignotant'],[0x32,'pad 2 gauche, clignotant'],[0x33,'pad 3 gauche, clignotant'],[0x34,'pad 4 gauche, clignotant'],[0x35,'pad 5 gauche, clignotant'],[0x36,'pad 6 gauche, clignotant'],[0x37,'Sync gauche, clignotant'],[0x38,'Pitch bend + gauche, clignotant'],[0x3B,'Play gauche, clignotant'],[0x3C,'Cue gauche, clignotant'],[0x3D,'Stop gauche, clignotant'],[0x3E,'Kill aigus gauche, clignotant'],[0x3F,'Kill médiums gauche, clignotant'],[0x40,'Kill basses gauche, clignotant'],[0x41,'Pitch bend − gauche, clignotant'],[0x42,'flèche ◀ (« Folders »), clignotant'],[0x43,'SHIFT gauche, clignotant'],[0x44,'Cue casque gauche, clignotant'],[0x46,'Stop droit, clignotant'],[0x47,'flèche ▶ (« Files »), clignotant'],[0x4A,'pad 1 droit, clignotant'],[0x4B,'pad 2 droit, clignotant'],[0x4C,'pad 3 droit, clignotant'],[0x4D,'pad 4 droit, clignotant'],[0x4E,'pad 5 droit, clignotant'],[0x50,'pad 6 droit, clignotant'],[0x53,'Play droit, clignotant'],[0x54,'Cue droit, clignotant'],[0x55,'Pitch bend − droit, clignotant'],[0x57,'SHIFT droit, clignotant'],[0x58,'Cue casque droit, clignotant'],[0x59,'Scratch, clignotant'],[0x5A,'Kill aigus droit, clignotant'],[0x5B,'Kill médiums droit, clignotant'],[0x5C,'Kill basses droit, clignotant'],[0x5F,'Sync droit, clignotant'],[0x60,'Pitch bend + droit, clignotant'],[0x64,'pad 7 gauche (SHIFT)'],[0x65,'pad 8 gauche (SHIFT)'],[0x66,'pad 9 gauche (SHIFT)'],[0x67,'pad 10 gauche (SHIFT)'],[0x68,'pad 11 gauche (SHIFT)'],[0x69,'pad 12 gauche (SHIFT)'],[0x6A,'pad 7 droit (SHIFT)'],[0x6B,'pad 8 droit (SHIFT)'],[0x6C,'pad 9 droit (SHIFT)'],[0x6D,'pad 10 droit (SHIFT)'],[0x6E,'pad 11 droit (SHIFT)'],[0x6F,'pad 12 droit (SHIFT)'],[0x74,'pad 7 gauche (SHIFT), clignotant'],[0x75,'pad 8 gauche (SHIFT), clignotant'],[0x76,'pad 9 gauche (SHIFT), clignotant'],[0x77,'pad 10 gauche (SHIFT), clignotant'],[0x78,'pad 11 gauche (SHIFT), clignotant'],[0x79,'pad 12 gauche (SHIFT), clignotant'],[0x7A,'pad 7 droit (SHIFT), clignotant'],[0x7B,'pad 8 droit (SHIFT), clignotant'],[0x7C,'pad 9 droit (SHIFT), clignotant'],[0x7D,'pad 10 droit (SHIFT), clignotant'],[0x7E,'pad 11 droit (SHIFT), clignotant'],[0x7F,'pad 12 droit (SHIFT), clignotant']];
 const STEEL_LEDS_X=(()=>{const known=new Set(STEEL_LEDS.map(x=>x[0]));const L=[[0x12,'« Folders » (à revérifier)'],[0x16,'« Files » (à revérifier)']];for(let n=1;n<=0x7F;n++)if(!known.has(n)&&n!==0x70)L.push([n,'code absent du manuel']);return L;})();

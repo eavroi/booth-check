@@ -6,9 +6,10 @@ const slipBlink=d=>{const p=d.beatPhase(d.ghost.pos);return p-Math.floor(p)<.5;}
 function needMedia(){if(!anyMedia()){toast(say('Pas de média : charge le dossier de ta clé (bouton en haut) ou clique sur le port USB','No media: load your USB folder (top bar) or click the USB port'));return false;}return true;}
 /* paused on the CUE point; after a fine adjust by half frames, exactly on it */
 const atCue=d=>Math.abs(d._pos-d.cue)<(d.cueAdj?1e-4:.02);
-function goScr(d,s){const u=d.ui;u.scr=s;u.info=false;u.sort=null;u.pop=null;d.dirty=true;}
-/* a small menu over the screen (MENU in the TAG LIST, the HISTORY, GRID ADJUST): rows of {l,fn}; BACK or MENU closes it */
-function popOpen(d,title,rows){d.ui.pop={title,rows,sel:0};d.dirty=true;}
+function goScr(d,s){const u=d.ui;u.scr=s;u.sort=null;u.pop=null;d.dirty=true;}
+/* a small menu over the screen (MENU in the TAG LIST, the HISTORY, GRID ADJUST, MY SETTINGS): rows of {l,fn}, sub = opens another menu, on = its check;
+   plain = no 【】; bg = the title bar shows the colour under the cursor. BACK or MENU closes it */
+function popOpen(d,title,rows,o){d.ui.pop=Object.assign({title,rows,sel:0,top:0},o);d.dirty=true;}
 function popOk(d,title,fn){popOpen(d,title,[{l:'OK',fn:()=>{d.ui.pop=null;fn();}}]);}
 function toggleScr(d,s,init){if(d.ui.scr===s){goScr(d,'play');return;}if(init)init();goScr(d,s);}
 /* ---------- transport ---------- */
@@ -18,7 +19,7 @@ function cueDown(d){
   if(d.playing){d.pause();if(d.loop){d.lastLoop=d.loop;d.loop=null;d.adjust=null;}d.ghost=null;d.seek(d.cue);return;}   /* back cue */
   const p=d.pos();
   if(atCue(d)){d.cueHold=true;d.play();}                                                  /* cue point sampler */
-  else{d.cue=d.cueAdj?p:d.snap(p);d.cueAdj=false;d.seek(d.cue);}                                     /* set cue while paused (after a fine adjust: exactly there) */
+  else{d.cue=d.cueAdj?p:d.snap(p);d.cueAdj=false;d.lastLoop=null;d.seek(d.cue);}                     /* set cue while paused (after a fine adjust: exactly there); the loop kept for RELOOP goes (firmware) */
   d.dirty=true;
 }
 function cueUp(d){if(d.cueHold){d.cueHold=false;if(d.playing){d.pause();d.seek(d.cue);}d.dirty=true;}}
@@ -99,7 +100,7 @@ function trackSearch(d,dir){
   if(!d.loaded())return;
   const t=now();const dbl=dir<0&&d._tsT&&t-d._tsT<.6;d._tsT=t;
   if(dir<0&&!dbl&&d.pos()>1.2){d.seek(d.loop?d.loop.a:0);if(!d.playing)d.cue=d._pos;return;}
-  const L=d.cur.list||[];const i=L.indexOf(d.cur.tr);const nx=L[i+dir];
+  const L=d.cur.list||[];const i=L.indexOf(d.cur.tr);if(i<0)return;const nx=L[i+dir];
   if(nx)d.loadTrack(nx,{list:L});
 }
 /* super fast track search (manual p. 22): TRACK SEARCH held and the jog turned runs through the list in the jog's direction.
@@ -122,7 +123,7 @@ function outDown(d){
   if(d.loop){startAdjust(d,'out');return;}
   if(!d.playing)return;const b=d.snap(d.pos());
   /* no IN point set: the current CUE point is the loop in (manual p. 24) */
-  const a=d.loopIn!=null?d.loopIn:(d.cue<b-.05?d.cue:null);if(a!=null&&(slipTooLong(d,a,b)||!d.setLoop(a,b,true)))d.loopIn=null;
+  const a=d.loopIn!=null?d.loopIn:(d.cue<b-.05?d.cue:null);if(a!=null&&(slipTooLong(d,a,b)||!d.setLoop(a,b,true,true)))d.loopIn=null;
 }
 /* with SLIP, no loop of more than 8 seconds (manual p. 29) */
 function slipTooLong(d,a,b){if(!d.slip||b-a<=8)return false;toast(say('SLIP : pas de boucle de plus de 8 secondes','SLIP: no loop over 8 seconds'));return true;}
@@ -131,11 +132,12 @@ function reloopBtn(d){
   if(!d.loaded())return;
   if(d.loop&&(d.playing||d.adjust))d.exitLoop();
   else if(d.loop)d.play();
-  else if(d.lastLoop){const L=d.lastLoop;if(d.playing)d.quantDo(()=>{d.setLoop(L.a,L.b,true);d.dirty=true;});else{d.setLoop(L.a,L.b,true);d.play();}}
+  else if(d.lastLoop){const L=d.lastLoop;if(d.playing)d.quantDo(()=>{d.setLoop(L.a,L.b,true,L.man);d.dirty=true;});else{d.setLoop(L.a,L.b,true,L.man);d.play();}}
   d.dirty=true;
 }
-function fourDown(d){if(!d.loaded())return;if(d.loop){d.loopScale(.5);toast('LOOP CUTTER : '+fmtBeat(d.loopLenBeats())+' BEAT');return;}d._4T=setTimeout(()=>{d._4T=null;d.beatLoop(8);},1000);}
-function fourUp(d){if(d._4T){clearTimeout(d._4T);d._4T=null;d.beatLoop(4);}}
+/* 4/8 BEAT: 4 beats when let go, 8 when held 1 s, both from the point of the press (firmware) */
+function fourDown(d){if(!d.loaded())return;if(d.loop){d.loopScale(.5);toast('LOOP CUTTER : '+fmtBeat(d.loopLenBeats())+' BEAT');return;}clearTimeout(d._4T);const a=d._4a=d.snap(d.pos());d._4T=setTimeout(()=>{d._4T=null;d.beatLoop(8,a);},1000);}
+function fourUp(d){if(d._4T){clearTimeout(d._4T);d._4T=null;d.beatLoop(4,d._4a);}}
 /* ---------- direction lever: up = SLIP REVERSE (spring), middle = FWD, down = REV ---------- */
 function applyDir(d){d.advance();const dir=(d.rev&&!d.revDone)||d.slipRevHeld?-1:1;if(dir!==d.dir){d.dir=dir;d.startSrc();}d.dirty=true;}
 function setLever(d,p){
@@ -155,15 +157,18 @@ function revSlip(d){if(d.lever!==1||!d.ghost)return;d._rvT=setTimeout(()=>{if(d.
 /* ---------- browse side ---------- */
 function backBtn(d,long){
   const u=d.ui;
-  if(long){if(anyMedia()){u.nav=[{k:'media',sel:0,top:0}];goScr(d,'browse');}return;}
-  if(u.pop){u.pop=null;d.dirty=true;return;}if(u.sort){u.sort=null;return;}if(u.info){u.info=false;return;}
+  if(long){if(anyMedia()){u.browsed=true;u.nav=[{k:'media',sel:0,top:0}];goScr(d,'browse');}return;}
+  if(u.pop){u.pop=null;d.dirty=true;return;}if(u.sort){u.sort=null;return;}
   switch(u.scr){
-    case 'browse':if(u.nav.length>1)u.nav.pop();else goScr(d,'play');break;
+    /* up one level, the view of the list stays; nothing above the supports */
+    case 'browse':if(u.nav.length>1)u.nav.pop();break;
     case 'utility':if(u.util.edit)u.util.edit=false;else goScr(d,'play');break;
     case 'filter':if(u.filt.pad!=null)u.filt.pad=null;else goScr(d,u.filt.from||'play');break;
     case 'taglist':if(u.tl.m&&mounted().length>1){u.tl.m=null;u.tl.sel=0;u.tl.top=0;}else goScr(d,'play');break;
     case 'hname':goScr(d,'utility');break;
-    case 'menu':case 'iplay':case 'shortcut':goScr(d,'play');break;
+    case 'menu':case 'shortcut':goScr(d,'play');break;
+    /* on the play screen, BACK opens the list the track was loaded from; on the INFO screen it does nothing (firmware) */
+    case 'play':if(d.cur&&d.cur.nav){u.nav=d.cur.nav.map(n=>({...n}));u.browsed=true;goScr(d,'browse');}break;
   }
   d.dirty=true;
 }
@@ -174,7 +179,9 @@ function selTrack(d){
   return d.cur?d.cur.tr:null;
 }
 /* one TAG LIST per USB, 100 tracks at most, no track twice (manual p. 34); 1 added, 0 already there, -1 full */
-function tagAdd(tr){if(TAGLIST.includes(tr))return 0;if(TAGLIST.filter(x=>x.m===tr.m).length>=100){toast(say('TAG LIST pleine (100 morceaux par clé)','TAG LIST full (100 tracks per USB)'));return -1;}TAGLIST.push(tr);return 1;}
+function tagAdd(tr){if(TAGLIST.includes(tr))return 0;if(TAGLIST.filter(x=>x.m===tr.m).length>=100){toast(say('TAG LIST pleine (100 morceaux par clé)','TAG LIST full (100 tracks per USB)'));return -1;}TAGLIST.push(tr);tagSync();return 1;}
+/* a track playing from the TAG LIST goes on to what is in the list now; taken out of it, it ends without going on (p. 35) */
+function tagSync(){for(const x of DECKS)if(x.cur&&x.cur.tag)x.cur.list=TAGLIST.includes(x.cur.tr)?TAGLIST.filter(t=>t.m===x.cur.tr.m):[x.cur.tr];}
 /* TAG TRACK/REMOVE: on a track, adds it; on a folder, category or playlist whose tracks show on the right, adds them all and its name blinks (p. 34) */
 function tagTrack(d){
   const u=d.ui;if(u.scr==='taglist')return;
@@ -186,12 +193,11 @@ function tagTrack(d){
   d.dirty=true;
 }
 /* TAG TRACK/REMOVE held > 1 s: taken out. A track playing from the TAG LIST plays to its end, the next one does not start (p. 35) */
-function tagRemove(d){const tr=selTrack(d),i=TAGLIST.indexOf(tr);if(i<0)return;TAGLIST.splice(i,1);
-  for(const x of DECKS)if(x.cur&&x.cur.tr===tr&&x.cur.tag)x.cur.list=[tr];
+function tagRemove(d){const tr=selTrack(d),i=TAGLIST.indexOf(tr);if(i<0)return;TAGLIST.splice(i,1);tagSync();
   toast(say('« '+tr.title+' » retiré de la TAG LIST','“'+tr.title+'” removed from TAG LIST'));d.dirty=true;}
 function tagMenu(d){const M=tagMedium(d);if(!M)return;
   popOpen(d,'LIST MENU',[{l:'TAGLIST MENU',fn:()=>popOpen(d,'TAGLIST MENU',[
-    {l:'REMOVE ALL TRACKS',fn:()=>popOk(d,'REMOVE ALL TRACKS',()=>{for(let i=TAGLIST.length-1;i>=0;i--)if(TAGLIST[i].m===M)TAGLIST.splice(i,1);d.dirty=true;})},
+    {l:'REMOVE ALL TRACKS',fn:()=>popOk(d,'REMOVE ALL TRACKS',()=>{for(let i=TAGLIST.length-1;i>=0;i--)if(TAGLIST[i].m===M)TAGLIST.splice(i,1);tagSync();d.dirty=true;})},
     {l:'CREATE PLAYLIST',fn:()=>popOk(d,'CREATE PLAYLIST',()=>tagPlaylist(M))}])}]);}
 /* the TAG LIST becomes a playlist TAG LIST XXX of the PLAYLIST category (p. 35); here only, the USB is not changed */
 function tagPlaylist(M){const L=TAGLIST.filter(x=>x.m===M),P=M.lib.playlists;if(!L.length)return;
@@ -211,11 +217,18 @@ function gridMenu(d){const close=()=>{d.ui.pop=null;};
     /* SHIFT GRID: what was moved by hand against the master goes into the grid */
     {l:'SHIFT GRID',fn:()=>{const M=BUS.master;close();if(!M||M===d||!M.loaded()){toast(say('SHIFT GRID : il faut un MASTER sur une autre platine','SHIFT GRID: needs a MASTER on another player'));return;}
       const df=((BUS.masterPhase()-d.beatPhase(d.pos()))%1+1.5)%1-.5;gridSet(d,(d.cur.gridOff||0)-df*d.spb());}}]);}
+/* INFO in a track list: the list with its artwork or the white panel, and the choice stays (firmware); on any other list it does nothing */
 function infoBtn(d){
   if(!needMedia())return;const u=d.ui;
-  if(u.scr==='browse'||u.scr==='taglist'){u.sort=null;u.info=!u.info;return;}
-  toggleScr(d,'iplay',()=>{u.iplay.sel=0;u.iplay.top=0;u.iplay.pn=0;u.iplay.rate=false;});
+  if(u.scr==='browse'||u.scr==='taglist'){if(curNav(d).k==='search'&&u.scr==='browse')return;if(listItems(d,u.scr).some(x=>x.kind==='track')){u.sort=null;u.info=!u.info;d.dirty=true;}return;}
+  toggleScr(d,'iplay',()=>infoOpen(d));
 }
+function infoOpen(d){const s=d.ui.iplay;s.sel=0;s.top=0;s.pn=0;s.rate=false;}
+/* MY SETTINGS: MENU on the supports and on the first level (firmware). Nothing is written on the USB */
+function mySettings(d){const M=navMedium(d)||RM;
+  popOpen(d,'MY SETTINGS',[{l:'LOAD',fn:()=>{d.ui.pop=null;reloadMySettings(d);if(M)M.bg=M.bg0;}},{l:'SAVE',fn:()=>{d.ui.pop=null;toast(say('SAVE : cette page ne peut pas écrire sur la clé','SAVE: this page cannot write to the USB'));}},
+    {l:'BACKGROUND COLOR',sub:true,fn:()=>popOpen(d,'BACKGROUND COLOR',BGCOL.map((c,i)=>({l:c[0],on:()=>M.bg===i,fn:()=>{M.bg=i;}})),{plain:true,bg:true})},
+    {l:'WAVEFORM COLOR',sub:true,fn:()=>popOpen(d,'WAVEFORM COLOR',['BLUE','RGB'].map((l,i)=>({l,on:()=>SET.wfColor===i,fn:()=>setS('wfColor',i)})),{plain:true})}]);}
 function menuBtn(d){
   if(!needMedia())return;const u=d.ui;
   if(u.pop){u.pop=null;d.dirty=true;return;}
@@ -223,12 +236,12 @@ function menuBtn(d){
   if(u.scr==='taglist'){tagMenu(d);return;}
   if(u.scr==='browse'&&histMenu(d))return;
   if(u.scr==='browse'){
-    const items=u.items;
+    const nv=curNav(d);
     if(u.sort){u.sort=null;return;}
-    if(items.some(x=>x.kind==='track')){u.info=false;const cur=curNav(d).sortCol||25;u.sort={sel:Math.max(0,(navMedium(d)||RM).sortMenu.indexOf(cur))};}
-    else toast(say('SORT : disponible dans une liste de morceaux','SORT: available in a track list'));
+    if(nv.k==='media'||nv.k==='root'){mySettings(d);return;}
+    if(levelItems(d,nv).some(x=>x.kind==='track')){const cur=nv.sortCol||25;u.sort={sel:Math.max(0,(navMedium(d)||RM).sortMenu.indexOf(cur))};}
     return;}
-  toggleScr(d,'menu',()=>{u.menu.sel=d.hist.some(t=>t.m.mounted)?1:0;});
+  toggleScr(d,'menu',()=>{u.menu.sel=0;});
 }
 function filterBtn(d,long){
   if(!needMedia())return;const u=d.ui;
@@ -240,15 +253,15 @@ function filterBtn(d,long){
 /* ---------- rotary selector ---------- */
 function rotaryTurn(d,dir){
   const u=d.ui;d.selTarget=(d.selTarget||0)+dir*15;d.dirty=true;
-  if(u.pop){u.pop.sel=clamp(u.pop.sel+dir,0,u.pop.rows.length-1);return;}
+  if(u.pop){const p=u.pop;p.sel=clamp(p.sel+dir,0,p.rows.length-1);if(p.sel<p.top)p.top=p.sel;if(p.sel>=p.top+LROWS)p.top=p.sel-LROWS+1;return;}
   if(u.sort){u.sort.sel=clamp(u.sort.sel+dir,0,(navMedium(d)||RM).sortMenu.length-1);return;}
   switch(u.scr){
     case 'play':case 'menu':if(u.scr==='menu'){u.menu.sel=Math.max(0,u.menu.sel+dir);return;}
-      if(d.grid){const o=(d.cur.gridOff||0)+dir*.004;gridSet(d,o);toast('GRID '+(o>=0?'+':'')+Math.round(o*1000)+' ms');}else d.zi=clamp(d.zi-dir,0,ZOOMS.length-1);return;
+      if(d.grid&&d.loaded()){const o=(d.cur.gridOff||0)+dir*.004;gridSet(d,o);toast('GRID '+(o>=0?'+':'')+Math.round(o*1000)+' ms');}else d.zi=clamp(d.zi-dir,0,ZOOMS.length-1);return;
     case 'browse':{const nv=curNav(d);if(nv.k==='search'){u.search.sel=Math.max(0,u.search.sel+dir);return;}
       if(d.selHeld){letterJump(d,dir);return;}nv.sel=clamp(nv.sel+dir,0,Math.max(0,u.items.length-1));return;}
     case 'taglist':u.tl.sel=Math.max(0,u.tl.sel+dir);return;
-    case 'iplay':if(u.iplay.rate){const t=d.cur.tr;t.rating=clamp((t.rating||0)+dir,0,5);return;}u.iplay.sel=Math.max(0,u.iplay.sel+dir);return;
+    case 'iplay':if(u.iplay.rate){const t=d.cur.tr;t.rating=clamp((t.rating||0)+dir,0,5);t.m.ver++;return;}u.iplay.sel=Math.max(0,u.iplay.sel+dir);return;
     case 'utility':utilStep(d,dir);return;
     case 'filter':{const f=u.filt;
       /* MY TAG: before the first tag come RESET and the BPM / KEY tab */
@@ -294,6 +307,8 @@ function rotaryHold(d){
   if(u.scr==='browse'){d.selHeld=true;return true;}
   return false;
 }
+/* the USB key opens the USB itself (firmware); with several, the list of supports */
+function openUsb(d){const L=mounted();d.ui.nav=L.length===1?[{k:'media',sel:0,top:0},rootNav(L[0])]:[{k:'media',sel:0,top:0}];}
 /* ---------- the key table: name of the face key -> behaviour ---------- */
 function keyActions(d){return {
   play:{down:()=>playBtn(d)},
@@ -311,18 +326,18 @@ function keyActions(d){return {
   delete:{down:()=>deleteMem(d)},memory:{down:()=>addMemory(d)},
   quantize:{down:()=>{d.quant=!d.quant;d.dirty=true;}},
   time_mode:{press:()=>{d.remain=!d.remain;d.dirty=true;},long:()=>{d.autoCueOn=!d.autoCueOn;toast(d.autoCueOn?'AUTO CUE ON ('+sv('autoCueLevel')+')':'AUTO CUE OFF');d.dirty=true;}},
-  browse:{press:()=>{if(!needMedia())return;if(d.ui.scr==='browse')goScr(d,'play');else goScr(d,'browse');},
-    long:()=>{if(!needMedia())return;const M=navMedium(d)||RM;d.ui.nav=[{k:'media',sel:0,top:0},{k:'root',m:M,label:M.name,sel:0,top:0},{k:'search',label:'SEARCH',sel:0,top:0}];d.ui.search.q='';goScr(d,'browse');}},
+  browse:{press:()=>{if(!needMedia())return;const u=d.ui;if(u.scr==='browse'){goScr(d,'play');return;}if(!u.browsed&&u.nav.length===1)openUsb(d);u.browsed=true;goScr(d,'browse');},
+    long:()=>{if(!needMedia())return;const M=navMedium(d)||RM;d.ui.browsed=true;d.ui.nav=[{k:'media',sel:0,top:0},rootNav(M),{k:'search',label:'SEARCH',sel:0,top:0}];d.ui.search.q='';goScr(d,'browse');}},
   tag_list:{press:()=>{if(!needMedia())return;toggleScr(d,'taglist');}},
   /* INFO > 1 s while browsing or in the TAG LIST: the details of the loaded track (manual p. 35) */
-  info:{press:()=>infoBtn(d),long:()=>{const u=d.ui;if((u.scr==='browse'||u.scr==='taglist')&&d.cur){u.iplay.sel=0;u.iplay.top=0;u.iplay.pn=0;goScr(d,'iplay');}else toast(say('LINK INFO : aucune autre platine reliée en PRO DJ LINK','LINK INFO: no other player linked over PRO DJ LINK'));}},
+  info:{press:()=>infoBtn(d),long:()=>{if(!needMedia())return;if(!d.cur){toast(say('INFO : charge d’abord un morceau','INFO: load a track first'));return;}if(d.ui.scr!=='iplay'){infoOpen(d);goScr(d,'iplay');}}},
   /* MENU/UTILITY > 1 s: the UTILITY screen; pressed again, the screen shown before comes back (manual p. 38) */
   menu:{press:()=>menuBtn(d),long:()=>{const u=d.ui;u.util.edit=false;if(u.scr==='utility')goScr(d,u.utilFrom||'play');else{u.utilFrom=u.scr;goScr(d,'utility');}}},
   back:{press:()=>backBtn(d,false),long:()=>backBtn(d,true)},
   tag_track:{press:()=>tagTrack(d),long:()=>tagRemove(d)},
   track_filter:{press:()=>filterBtn(d,false),long:()=>filterBtn(d,true)},
   short_cut:{press:()=>{if(!needMedia())return;toggleScr(d,'shortcut');}},
-  usb:{press:()=>{if(!needMedia())return;d.ui.nav=[{k:'media',sel:0,top:0}];goScr(d,'browse');}},
+  usb:{press:()=>{if(!needMedia())return;d.ui.browsed=true;openUsb(d);goScr(d,'browse');}},
   pc:{press:()=>toast(say('PC : rekordbox sur ordinateur (LINK EXPORT) n’est pas simulé','PC: rekordbox on a computer (LINK EXPORT) is not simulated'))},
   link:{press:()=>toast(say('LINK : aucune autre platine sur le réseau PRO DJ LINK','LINK: no other player on the PRO DJ LINK network'))},
   sd:{press:()=>toast(say('SD : aucune carte insérée','SD: no card inserted'))},disc:{press:()=>toast(say('DISC : aucun disque','DISC: no disc'))},
@@ -367,7 +382,7 @@ function keyLight(d,name){
     case 'call_rev':case 'call_fwd':return ld&&(d.cur.mem.length>0||!!d.loop);
     case 'browse':return u.scr==='browse';
     case 'tag_list':return u.scr==='taglist';
-    case 'info':return u.info||u.scr==='iplay';
+    case 'info':return u.scr==='iplay'||(u.info&&(u.scr==='browse'||u.scr==='taglist'));
     case 'menu':return !!u.sort||u.scr==='menu'||u.scr==='utility';
     /* source key (manual p. 31): lit = this device is being browsed, blinking = a track from it is loaded */
     case 'usb':if(!anyMedia())return false;if(u.scr==='browse')return true;return !!(d.cur&&d.cur.tr.m.mounted)&&blink(1);

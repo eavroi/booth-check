@@ -9,7 +9,8 @@ let NDECK=1;
 function addFace(ch){const d=DK[ch-1];new Face($('face'+ch),d);new ResizeObserver(()=>faceResize(d.face)).observe($('face'+ch));}
 function setBooth(b,save){
   let p=[...new Set((b.p||[]).map(x=>x|0).filter(x=>x>=1&&x<=4))];if(!p.length)p=[2];
-  if(PHONE.matches&&p.length>2)p=CH_OF.filter(c=>p.includes(c)).slice(0,2);
+  /* the limit of 2 players is for a phone, on opening the site: a window made smaller later keeps its players, and nothing saved is lost */
+  if(save===false&&PHONE.matches&&p.length>2)p=CH_OF.filter(c=>p.includes(c)).slice(0,2);
   p.sort((a,c)=>a-c);BOOTH.p=p;BOOTH.m=!!b.m;NDECK=p.length;
   for(let ch=1;ch<=4;ch++){const on=p.includes(ch);$('wrap'+ch).hidden=!on;let d=DK[ch-1];
     if(on){if(!d){d=DK[ch-1]=new Deck(ch);addFace(ch);d.applySettings();}
@@ -106,7 +107,6 @@ function page(){
   wireChrome();wireReport();
   addFace(2);ZOOM.cv=$('lcdZoom');MXF.cv=$('faceM');wireMixer();wireGear();wireMidi();wirePlan();
   $('tabRep').onclick=()=>{gearOpen(false);tab('report');};
-  PHONE.addEventListener&&PHONE.addEventListener('change',()=>{if(NDECK>2)setBooth(BOOTH);});
   $('bLoad').onclick=()=>$('pick').click();
   $('bZoom').onclick=()=>{tab('deck');zoom(!ZOOM.on);};
   $('pick').onchange=e=>{const l=[...e.target.files].map(f=>({file:f,path:f.webkitRelativePath||f.name}));e.target.value='';setInfo({busy:true});useEntries(l,false);};
@@ -126,7 +126,7 @@ function page(){
   setBooth(loadBooth(),false);
   /* the printed texts use the embedded fonts: redraw the faces once they are ready */
   if(document.fonts)Promise.all([document.fonts.load('400 10px "Fira Sans Condensed"'),document.fonts.load('400 10px Arimo'),document.fonts.load('700 10px Arimo')]).then(()=>{for(const F of FACES){F.ready=false;faceResize(F);}MXF.ready=false;mixResize();}).catch(()=>{});
-  useEntries(demoEntries(),true).then(()=>requestAnimationFrame(tick));
+  useEntries(demoEntries(),true).finally(()=>requestAnimationFrame(tick));
 }
 /* the enlarged screen: same pages, same touch handling */
 function wireZoom(){
@@ -193,23 +193,27 @@ function wireKeys(){
 }
 /* ---------- main loop ---------- */
 let lastTick=now();
-function tick(){
-  const tn=now(),dt=Math.min(.1,tn-lastTick);lastTick=tn;
-  for(const d of DECKS){
-    spinTick(d,dt);
-    d.advance();
-    if(d.braking&&d.touch<=0){d.braking=false;d.touchTarget=1;d.touch=1;d.pauseNow();}
-    if(d.adjust&&now()-d.adjT>10){d.adjust=null;}
-    if(d.lcdMsg&&now()>d.lcdMsg.until){d.lcdMsg=null;d.dirty=true;}
-    if(d.ghost&&!d.slipHold&&d.slipRevHeld===false&&d.dir>0&&!d.loop&&!d.touching&&!d.hotHeld&&!d.scratchOn)d.slipEnd();
-  }
-  BUS.tick();
-  for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}
-  try{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();bfxTick();mixRender();}}catch(e){console.error(e);}
-  renderStatus();midiTick();
-  requestAnimationFrame(tick);
+/* one error must not freeze everything: each part has its own net, and the next frame is asked for first */
+const guard=f=>{try{f();}catch(e){console.error(e);}};
+function deckTick(d,dt){
+  spinTick(d,dt);
+  d.advance();
+  if(d.braking&&d.touch<=0){d.braking=false;d.touchTarget=1;d.touch=1;d.pauseNow();}
+  if(d.adjust&&now()-d.adjT>10){d.adjust=null;}
+  if(d.lcdMsg&&now()>d.lcdMsg.until){d.lcdMsg=null;d.dirty=true;}
+  if(d.ghost&&!d.slipHold&&d.slipRevHeld===false&&d.dir>0&&!d.loop&&!d.touching&&!d.hotHeld&&!d.scratchOn)d.slipEnd();
 }
-setInterval(()=>{if(document.hidden)for(const d of DECKS)d.advance();},400);
+function tick(){
+  requestAnimationFrame(tick);
+  const tn=now(),dt=Math.min(.1,tn-lastTick);lastTick=tn;
+  for(const d of DECKS)guard(()=>deckTick(d,dt));
+  guard(()=>BUS.tick());
+  guard(()=>{for(const M of MEDIA)if(M.filter.useMaster){const m=BUS.master&&BUS.master.loaded()?BUS.master:DECKS.find(x=>x.loaded());if(m){M.filter.bpmVal=Math.round(m.bpmNow()*10)/10;if(m.cur.tr.key)M.filter.keyVal=m.cur.tr.key;}}});
+  guard(()=>{for(const F of FACES)if(DECKS.includes(F.deck))renderFace(F);renderZoom();if(MS.on){mixMeters();fxBpmTick();bfxTick();mixRender();}});
+  guard(renderStatus);guard(midiTick);
+}
+/* a hidden window gets no frames: SYNC, the MASTER and the controller's lights go on from here */
+setInterval(()=>{if(!document.hidden)return;for(const d of DECKS)guard(()=>d.advance());guard(()=>BUS.tick());guard(midiTick);},400);
 function renderStatus(){
   const on=Date.now()<STATUS.until;
   const mx=on&&STATUS.src==='mix';
