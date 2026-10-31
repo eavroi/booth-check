@@ -75,7 +75,8 @@ function navTracks(M,e){
 function navMedium(d){const n=d.ui.nav;for(let i=n.length-1;i>=0;i--)if(n[i].m)return n[i].m;return null;}
 function levelItems(d,e){
   if(e.k==='media')return mounted().map(m=>({kind:'dir',label:m.name,icon:'usb',media:m,next:{k:'root',m,label:m.name}}));
-  if(e.k==='taglist')return TAGLIST.filter(x=>x.m.mounted).map(tr=>({kind:'track',tr}));
+  /* several USB keys: first the device, then its own TAG LIST (manual p. 34-35) */
+  if(e.k==='taglist'){const T=tagMedium(d);return T?TAGLIST.filter(x=>x.m===T).map(tr=>({kind:'track',tr})):mounted().map(m=>({kind:'dir',label:m.name,icon:'usb',media:m}));}
   const M=e.m||navMedium(d);if(!M||!M.lib)return [];
   const sortCol=e.sortCol||25;const U=M;
   switch(e.k){
@@ -99,8 +100,9 @@ function levelItems(d,e){
         case 22:return grpItems(all,t=>t.dateAdded,k=>k||'(unknown)',(k,l)=>({k:'trk',by:'date',id:k,label:l}),(a,b)=>cmpS(b._k,a._k),'date');
         case 23:return grpItems(all,t=>t.playCount||0,k=>String(k),(k,l)=>({k:'trk',by:'dj',id:k,label:l}),(a,b)=>b._k-a._k,'dj');
         case 24:return levelItems(d,{k:'folder',path:'/'});
-        case 19:{const L=M.hist.map(h=>({kind:'dir',label:h.name,icon:'history',next:{k:'trk',by:'hist',id:h.id,label:h.name}}));
-          if(M.session.length){const nm=(SET.historyName===0?'HISTORY':'HISTORY')+' '+String(M.hist.length+1).padStart(3,'0');L.push({kind:'dir',label:nm,icon:'history',next:{k:'trk',by:'session',label:nm}});}return L;}
+        case 19:{const L=M.hist.map(h=>({kind:'dir',label:h.name,icon:'history',hist:h.id,next:{k:'trk',by:'hist',id:h.id,label:h.name}}));
+          /* a new HISTORY NAME starts again at 001 (manual p. 39) */
+          if(M.session.length){const nm=HISTNAME+' '+String(HISTNAME==='HISTORY'?M.hist.length+1:1).padStart(3,'0');L.push({kind:'dir',label:nm,icon:'history',next:{k:'trk',by:'session',label:nm}});}return L;}
         case 20:return [];
         case 27:return [];
       }return [];}
@@ -120,3 +122,5 @@ function levelItems(d,e){
   return [];
 }
 const curNav=d=>d.ui.nav[d.ui.nav.length-1];
+/* the USB whose TAG LIST is shown; none yet when several are plugged in */
+function tagMedium(d){const m=d.ui.tl.m,L=mounted();return m&&m.mounted?m:L.length===1?L[0]:null;}

@@ -72,6 +72,8 @@ function parseSettings(files){
 }
 /* ---------- the USB keys plugged in (shared by every deck) ---------- */
 const MEDIA=[];let RM=null;const TAGLIST=[];
+/* HISTORY NAME (UTILITY, manual p. 39): the name of the history lists, 32 characters at most */
+let HISTNAME='HISTORY';
 const mounted=()=>MEDIA.filter(m=>m.mounted);
 const anyMedia=()=>MEDIA.some(m=>m.mounted);
 function newFilter(){return {on:false,bpm:false,bpmVal:0,bpmPct:6,key:false,keyVal:'',related:false,rating:false,ratingVal:3,color:false,colors:new Set(),tags:new Set(),catOn:new Set(),and:true};}

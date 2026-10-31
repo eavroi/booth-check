@@ -6,6 +6,12 @@ const COLS={1:'GENRE',2:'ARTIST',3:'ALBUM',4:'TRACK',5:'BPM',6:'RATING',7:'YEAR'
 const DEF_MENU=[17,2,3,4,1,11,5,13,6,24,19,20];
 const DEF_SORT=[25,26,2,3,5,6,11];
 function b64ToFile(name,b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new File([u],name.split('/').pop());}
+/* Squared by Comité d'accueil (Victor's own track): the real audio, fetched when the track is loaded, with its rekordbox analysis (no cue points in it) */
+const DEMO_EXTRA=[{title:'Squared',artist:'Comité d’accueil',key:'F#m',bpm:128,duration:346,bitrate:192,sampleRate:44100,depth:16,trimMs:24.5,fileName:'squared.mp3',filePath:'/Contents/squared.mp3',url:'data/squared.mp3',analyzePath:'/PIONEER/USBANLZ/P999/0000SQRD/ANLZ0000.DAT',dateAdded:'2026-10-14'}];
+function demoExtra(lib){const nid=o=>Math.max(0,...Object.keys(o).map(Number))+1;
+  for(const x of DEMO_EXTRA){const a=nid(lib.artists);lib.artists[a]=x.artist;let k=Object.keys(lib.keys).find(i=>lib.keys[i]===x.key);if(k==null){k=nid(lib.keys);lib.keys[k]=x.key;}
+    const id=Math.max(0,...lib.tracks.map(t=>t.id))+1;lib.tracks.push({id,artistId:a,keyId:+k,fileSize:0,artworkId:0,trackNo:0,genreId:0,albumId:0,labelId:0,remixerId:0,playCount:0,year:2026,colorId:0,rating:0,comment:'',mixName:'',autoload:'',...x});
+    for(const pl of lib.playlists.filter(p=>!p.isFolder)){const n=lib.entries.filter(e=>e.playlist===pl.id).length;lib.entries.push({index:n+1,track:id,playlist:pl.id});}}}
 function demoEntries(){return Object.keys(DEMO.files).map(p=>({file:b64ToFile(p,DEMO.files[p]),path:p}));}
 function readMenus(buf){
   const out={menu:[],sort:[],column:0,names:{}};
@@ -40,6 +46,7 @@ async function loadUsb(list,isDemo,onInfo){
   const lib=m.lib,ext=m.ext;
   m.demo=!!isDemo;
   const folder=isDemo?'DEMO':(prefix.replace(/\/$/,'').split('/').pop()||'USB');m.folder=folder;
+  if(isDemo)demoExtra(lib);
   m.tracks=lib.tracks.map(t=>{
     t.m=m;t.artist=lib.artists[t.artistId]||'';const al=lib.albums[t.albumId];t.album=al?al.name:'';
     t.genre=lib.genres[t.genreId]||'';t.key=lib.keys[t.keyId]||'';t.label=lib.labels[t.labelId]||'';t.remixer=lib.artists[t.remixerId]||'';
@@ -94,7 +101,7 @@ function normCues(list){
     if(c.time===0xFFFFFFFF||c.time>86400000)continue;
     const isLoop=c.type===2&&c.loopEnd>c.time&&c.loopEnd!==0xFFFFFFFF;
     const rgb=c.rgb&&(c.rgb[0]|c.rgb[1]|c.rgb[2])?c.rgb.slice():null;
-    out.push({hot:c.hot,time:c.time/1000,end:isLoop?c.loopEnd/1000:null,name:c.comment||'',rgb,color:c.hot>0?(rgb?rgbCss(...rgb):null):(MEMC[c.colorId]||null),colorId:c.colorId||0});
+    out.push({hot:c.hot,time:c.time/1000,end:isLoop?c.loopEnd/1000:null,active:!!c.active,name:c.comment||'',rgb,color:c.hot>0?(rgb?rgbCss(...rgb):null):(MEMC[c.colorId]||null),colorId:c.colorId||0});
   }
   return out.sort((a,b)=>a.time-b.time);
 }
@@ -133,7 +140,9 @@ function getAnalysis(tr){
     try{const a=await readAnlz(tr.analyzePath,U);if(a){out.hasDat=true;out.beats=a.beats;cues=a.cues;pv=a.preview;}}catch(e){}
     try{const b=await readAnlz(tr.analyzePath.replace(/\.DAT$/i,'.EXT'),U);if(b){out.hasExt=true;out.colorDetail=b.colorDetail;out.detail=b.detail;cues2=b.cues2;}}catch(e){}
     let list=cues2.length?cues2:cues;
-    if(U.demo&&!list.length)list=demoCues(out);
+    /* active loop (set in rekordbox): the entry of the first cue list has status 4 */
+    const act=new Set(cues.filter(c=>c.status===4).map(c=>c.time));for(const c of list)c.active=c.status===4||act.has(c.time);
+    if(U.demo&&!list.length&&!tr.url)list=demoCues(out);
     out.cueList=normCues(list);
     out.ovRgb=makeOverview({colorDetail:out.colorDetail});out.ovBlue=makeOverview({detail:out.detail})||makeOverview({pv});if(!out.ovRgb)out.ovRgb=out.ovBlue;if(!out.ovBlue)out.ovBlue=out.ovRgb;
     return out;})();

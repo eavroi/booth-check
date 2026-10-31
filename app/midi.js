@@ -35,7 +35,7 @@ const MACT={};
   A('jump_fwd','deck','btn','BEAT JUMP ▶ (pendant une boucle : LOOP 2X)','BEAT JUMP ▶ (during a loop: LOOP 2X)',J(1));
   for(let n=1;n<=8;n++)A('hot'+n,'deck','btn','HOT CUE '+HL[n-1],'HOT CUE '+HL[n-1],(d,on)=>{ensureCtx();if(on)hotDownN(d,n);else hotUpN(d,n);d.dirty=true;});
   /* pitch bend buttons: the rim of the jog, held */
-  const B=dir=>(d,on)=>{if(!d.loaded())return;if(!d.playing){if(on)d.seek(d.pos()+dir*.02);return;}d.nudge=on?dir*.04:0;d.syncSrc();};
+  const B=dir=>(d,on)=>{if(!d.loaded())return;if(!d.playing){if(on)d.seek(d.pos()+dir*.02);return;}if(on)d.bendBreak();d.nudge=on?dir*.04:0;d.syncSrc();};
   A('nudge_rev','deck','btn','Pitch bend − (bord du jog)','Pitch bend − (jog rim)',B(-1));A('nudge_fwd','deck','btn','Pitch bend + (bord du jog)','Pitch bend + (jog rim)',B(1));
   /* LOAD: the first press opens BROWSE on that player, the next one loads the picked track */
   A('load','deck','btn','LOAD (BROWSE, puis charger)','LOAD (BROWSE, then load)',(d,on)=>{if(!on)return;ACTIVE=d;for(const x of DECKS)x.dirty=true;
@@ -60,7 +60,7 @@ const MACT={};
   A('bfx_depth','mix','rel','BEAT FX : LEVEL/DEPTH','BEAT FX: LEVEL/DEPTH',null);A('bfx_time','mix','rel','BEAT FX : TIME','BEAT FX: TIME',null);A('bfx_beat','mix','rel','BEAT FX : BEAT ◀ ▶','BEAT FX: BEAT ◀ ▶',null);
   A('beatfx','mix','rel','BEAT FX : LEVEL/DEPTH (ancienne affectation)','BEAT FX: LEVEL/DEPTH (old mapping)',null);
   const BX=(id,fr,en,f)=>A(id,'mix','btn',fr,en,f);
-  BX('bfx_on','BEAT FX : ON/OFF','BEAT FX: ON/OFF',on=>{if(on)fxOnOff();});BX('bfx_tap','BEAT FX : TAP','BEAT FX: TAP',on=>{if(on)tapDown();else tapUp();});
+  BX('bfx_on','BEAT FX : ON/OFF','BEAT FX: ON/OFF',on=>{if(on){fxOnOff();mixToast('BEAT FX '+MS.fxType+' : '+(bfxActive()?'ON':'OFF'),1400);}});BX('bfx_tap','BEAT FX : TAP','BEAT FX: TAP',on=>{if(on)tapDown();else tapUp();});
   BX('bfx_beat_rev','BEAT FX : BEAT ◀','BEAT FX: BEAT ◀',on=>{if(on)beatKey(-1);});BX('bfx_beat_fwd','BEAT FX : BEAT ▶','BEAT FX: BEAT ▶',on=>{if(on)beatKey(1);});
   BX('bfx_xpad','BEAT FX : X-PAD (l’effet tant qu’on appuie, à la fraction choisie)','BEAT FX: X-PAD (the effect while held, at the chosen fraction)',on=>bfxHold(on));
   BX('bfx_autotap','BEAT FX : AUTO/TAP','BEAT FX: AUTO/TAP',on=>{if(on)autoTapDown();else autoTapUp();});
@@ -83,9 +83,9 @@ function steelMap(){
     cc(o.color,'selector',s,'tc');cc(o.param,'bfx_beat',0,'tc');
     cc(o.tempo,'tempo',s);cc(o.jog,'jog',s,'tc');
     /* pads, two columns: 1 2 3 on the left, 4 5 6 on the right; SHIFT turns them into 7..12 */
-    /* with Stop held, the pads are the BEAT FX keys: ON/OFF | TAP, BEAT ◀ | BEAT ▶, X-PAD | AUTO/TAP (Victor's layout, V2.9.1) */
+    /* with either Stop held, the pads are the BEAT FX keys: ON/OFF | TAP, BEAT ◀ | BEAT ▶, X-PAD | AUTO/TAP (Victor's layout, V2.9.1) */
     const bf=['bfx_on','bfx_beat_rev','bfx_xpad','bfx_tap','bfx_beat_fwd','bfx_autotap'];
-    ['loop_in','four_beat','jump_rev','loop_out','reloop','jump_fwd'].forEach((a,i)=>cc(o.pad+i,a,s,0,bf[i]));
+    ['loop_in','four_beat','jump_rev','loop_out','reloop','jump_fwd'].forEach((a,i)=>cc(o.pad+i,a,s,0,bf[i],1));
     ['hb1','hb3','bank','hb2','hb4','call'].forEach((a,i)=>cc(o.pad2+i,a,s));
     cc(o.trim,'trim',s,0,'color');cc(o.hi,'hi',s);cc(o.mid,'mid',s);cc(o.low,'low',s);cc(o.fader,'fader',s);
     /* with Stop held, the middle row headphone CUE, LOAD, LOAD, headphone CUE = BROWSE TAG LIST INFO MENU, for the player of the Stop held (Victor's layout) */
@@ -222,7 +222,7 @@ function midiButton(A,b,on){
   switch(A.g){
     case 'deck':{
       /* the function key works even without a player on that side (Stop + Kill picks an effect) */
-      if(A.id==='fn'){if(on){MIDI.fn[b.s]={used:false};return;}const f=MIDI.fn[b.s];delete MIDI.fn[b.s];if(f&&!f.used){const d=midiDeck(b);if(d){midiActive(b.s);keyPress(d,'master_tempo',true);keyPress(d,'master_tempo',false);}}return;}
+      if(A.id==='fn'){if(on){MIDI.fn[b.s]={used:false};planFn();return;}const f=MIDI.fn[b.s];delete MIDI.fn[b.s];planFn();if(f&&!f.used){const d=midiDeck(b);if(d){midiActive(b.s);keyPress(d,'master_tempo',true);keyPress(d,'master_tempo',false);}}return;}
       const d=midiDeck(b);if(!d)return;if(on&&b.s)midiActive(b.s);
       A.f(d,on);return;}
     case 'chan':{const d=midiDeck(b);if(!d||!needMixer())return;const ch=MS.ch[d.ch-1];
@@ -310,8 +310,8 @@ function midiKeyText(k){const t=k[0],ch=parseInt(k.slice(1))+1,n=k.includes(':')
 /* ---------- lights on the controller: they follow the CDJ lights; 0 off, 1 on, 2 blinking ---------- */
 function midiLedState(b,k){
   const d=b.s?sideDeck(b.s):ACTIVE,ld=!!d&&d.loaded(),L=v=>v?1:0;
-  /* Stop held: the pads show their BEAT FX function (ON/OFF blinks while the effect is on, as on the mixer; TAP lit in TAP mode) */
-  if(b.f&&b.f.startsWith('bfx_')&&b.s&&MIDI.fn[b.s]){switch(b.f){case 'bfx_on':return MS.on&&bfxActive()?2:0;case 'bfx_tap':return L(MS.on&&MS.tap);case 'bfx_xpad':return L(MS.pad==='steel');default:return L(MIDI.btn.get(k));}}
+  /* a Stop held: the pads show their BEAT FX function (ON/OFF lit so it can be found, blinking while the effect is on, as on the mixer; TAP lit in TAP mode) */
+  if(b.f&&b.f.startsWith('bfx_')&&(MIDI.fn.L||MIDI.fn.R)){switch(b.f){case 'bfx_on':return !MS.on?0:bfxActive()?2:1;case 'bfx_tap':return L(MS.on&&MS.tap);case 'bfx_xpad':return L(MS.pad==='steel');default:return L(MIDI.btn.get(k));}}
   switch(b.a){
     case 'play':return !ld?0:d.playing&&d.touchTarget>0?1:2;
     case 'cue':return !ld?0:d.playing||Math.abs(d._pos-d.cue)<.02?1:2;

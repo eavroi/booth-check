@@ -6,7 +6,10 @@ const slipBlink=d=>{const p=d.beatPhase(d.ghost.pos);return p-Math.floor(p)<.5;}
 function needMedia(){if(!anyMedia()){toast(say('Pas de média : charge le dossier de ta clé (bouton en haut) ou clique sur le port USB','No media: load your USB folder (top bar) or click the USB port'));return false;}return true;}
 /* paused on the CUE point; after a fine adjust by half frames, exactly on it */
 const atCue=d=>Math.abs(d._pos-d.cue)<(d.cueAdj?1e-4:.02);
-function goScr(d,s){const u=d.ui;u.scr=s;u.info=false;u.sort=null;d.dirty=true;}
+function goScr(d,s){const u=d.ui;u.scr=s;u.info=false;u.sort=null;u.pop=null;d.dirty=true;}
+/* a small menu over the screen (MENU in the TAG LIST, the HISTORY, GRID ADJUST): rows of {l,fn}; BACK or MENU closes it */
+function popOpen(d,title,rows){d.ui.pop={title,rows,sel:0};d.dirty=true;}
+function popOk(d,title,fn){popOpen(d,title,[{l:'OK',fn:()=>{d.ui.pop=null;fn();}}]);}
 function toggleScr(d,s,init){if(d.ui.scr===s){goScr(d,'play');return;}if(init)init();goScr(d,s);}
 /* ---------- transport ---------- */
 function cueDown(d){
@@ -44,6 +47,8 @@ function hotDownN(d,n){
     d.hotHeld={n};const pl=d.playing;if(pl)d.slipBegin();
     const go=late=>{if(c.end)d.setLoop(c.time,c.end,true);else{if(d.loop){d.lastLoop=d.loop;d.loop=null;}d.adjust=null;d.seek(c.time+late);}d.dirty=true;};
     if(pl)d.quantDo(go);else{go(0);d.play();}
+    /* slip hot cue: 4 beats after it starts the track goes back to the background position, key held or not (manual p. 29) */
+    clearTimeout(d._hotT);if(pl&&d.ghost)d._hotT=setTimeout(()=>{if(d.hotHeld&&d.hotHeld.n===n){d.hotHeld=null;d.slipCheck();}},4*d.spb()/Math.max(.1,d.rate)*1000);
   }else{
     const lp=d.loop;
     d.cur.hot[n]=lp?{hot:n,time:lp.a,end:lp.b,name:'',color:null,tmp:true}:{hot:n,time:d.snap(d.pos()),end:null,name:'',color:null,tmp:true};
@@ -52,7 +57,7 @@ function hotDownN(d,n){
   d.dirty=true;
 }
 function hotUp(d,i){hotUpN(d,padN(d,i));}
-function hotUpN(d,n){const h=d.hotHeld;if(!h||h.n!==n)return;d.hotHeld=null;if(d.ghost){clearTimeout(d._qT);d._qT=null;}d.slipCheck();}
+function hotUpN(d,n){const h=d.hotHeld;if(!h||h.n!==n)return;d.hotHeld=null;clearTimeout(d._hotT);if(d.ghost){clearTimeout(d._qT);d._qT=null;}d.slipCheck();}
 function callDown(d){d.callHeld=true;d.callUsed=false;}
 function callUp(d){d.callHeld=false;if(d.callUsed||!d.loaded())return;
   const pending=Object.keys(d.cur.store).filter(k=>!d.cur.hot[k]);
@@ -72,7 +77,7 @@ function addMemory(d){
 function deleteMem(d){
   if(!d.loaded())return;
   if(!d.called||d.playing||Math.abs(d.pos()-d.called.time)>.02){toast(say('DELETE : rappelle d’abord un memory cue avec CUE/LOOP CALL, à l’arrêt','DELETE: first recall a memory cue with CUE/LOOP CALL, while paused'));return;}
-  const i=d.cur.mem.indexOf(d.called);if(i>=0)d.cur.mem.splice(i,1);lcdMsg(d,'DELETE',d.called.end?'loop':'cue');d.called=null;toast(say('Memory cue effacé (ici seulement)','Memory cue deleted (here only)'));d.dirty=true;
+  const i=d.cur.mem.indexOf(d.called);if(i>=0)d.cur.mem.splice(i,1);if(d.called===d.cur.activeLoop)d.cur.activeLoop=null;lcdMsg(d,'DELETE',d.called.end?'loop':'cue');d.called=null;toast(say('Memory cue effacé (ici seulement)','Memory cue deleted (here only)'));d.dirty=true;
 }
 function cueCall(d,dir){
   if(!d.loaded())return;
@@ -117,8 +122,10 @@ function outDown(d){
   if(d.loop){startAdjust(d,'out');return;}
   if(!d.playing)return;const b=d.snap(d.pos());
   /* no IN point set: the current CUE point is the loop in (manual p. 24) */
-  const a=d.loopIn!=null?d.loopIn:(d.cue<b-.05?d.cue:null);if(a!=null&&!d.setLoop(a,b,true))d.loopIn=null;
+  const a=d.loopIn!=null?d.loopIn:(d.cue<b-.05?d.cue:null);if(a!=null&&(slipTooLong(d,a,b)||!d.setLoop(a,b,true)))d.loopIn=null;
 }
+/* with SLIP, no loop of more than 8 seconds (manual p. 29) */
+function slipTooLong(d,a,b){if(!d.slip||b-a<=8)return false;toast(say('SLIP : pas de boucle de plus de 8 secondes','SLIP: no loop over 8 seconds'));return true;}
 function startAdjust(d,w){if(d.adjust===w){d.adjust=null;d.dirty=true;return;}d.adjust=w;d.adjOrig={a:d.loop.a,b:d.loop.b};d.adjT=now();toast(say((w==='in'?'IN':'OUT')+' ADJUST : jog ou SEARCH ◀◀ ▶▶',(w==='in'?'IN':'OUT')+' ADJUST: jog or SEARCH ◀◀ ▶▶'));d.dirty=true;}
 function reloopBtn(d){
   if(!d.loaded())return;
@@ -130,59 +137,98 @@ function reloopBtn(d){
 function fourDown(d){if(!d.loaded())return;if(d.loop){d.loopScale(.5);toast('LOOP CUTTER : '+fmtBeat(d.loopLenBeats())+' BEAT');return;}d._4T=setTimeout(()=>{d._4T=null;d.beatLoop(8);},1000);}
 function fourUp(d){if(d._4T){clearTimeout(d._4T);d._4T=null;d.beatLoop(4);}}
 /* ---------- direction lever: up = SLIP REVERSE (spring), middle = FWD, down = REV ---------- */
-function applyDir(d){d.advance();const dir=(d.rev||d.slipRevHeld)?-1:1;if(dir!==d.dir){d.dir=dir;d.startSrc();}d.dirty=true;}
+function applyDir(d){d.advance();const dir=(d.rev&&!d.revDone)||d.slipRevHeld?-1:1;if(dir!==d.dir){d.dir=dir;d.startSrc();}d.dirty=true;}
 function setLever(d,p){
   if(p===d.lever)return;
+  clearTimeout(d._rvT);d.revDone=false;
   if(d.lever===-1&&p!==-1){d.slipRevHeld=false;clearTimeout(d._srT);}
   d.lever=p;d.rev=p===1;
   if(p===-1){d.slipRevHeld=true;if(d.playing&&!d.ghost)d.ghost={pos:d._pos};const sp=d.spb()/d.rate;clearTimeout(d._srT);
     d._srT=setTimeout(()=>{if(d.slipRevHeld){d.slipRevHeld=false;applyDir(d);if(d.dir>0)d.slipEnd();}},8*sp*1000);}
   /* REV: with QUANTIZE the reverse play starts on the next beat */
-  if(p===1&&d.dir>0&&d.playing){d.quantDo(()=>{if(d.lever!==1)return;d.slipBegin();applyDir(d);});d.dirty=true;return;}
+  if(p===1&&d.dir>0&&d.playing){d.quantDo(()=>{if(d.lever!==1)return;d.slipBegin();applyDir(d);revSlip(d);});d.dirty=true;return;}
   if(p===1)d.slipBegin();
-  applyDir(d);if(d.dir>0)d.slipCheck();
+  applyDir(d);revSlip(d);if(d.dir>0)d.slipCheck();
 }
+/* REV with SLIP stops by itself 8 beats further back: the background track comes back and REV blinks (manual p. 29) */
+function revSlip(d){if(d.lever!==1||!d.ghost)return;d._rvT=setTimeout(()=>{if(d.lever===1&&d.ghost){d.revDone=true;applyDir(d);d.slipCheck();}},8*d.spb()/Math.max(.1,d.rate)*1000);}
 /* ---------- browse side ---------- */
 function backBtn(d,long){
   const u=d.ui;
   if(long){if(anyMedia()){u.nav=[{k:'media',sel:0,top:0}];goScr(d,'browse');}return;}
-  if(u.sort){u.sort=null;return;}if(u.info){u.info=false;return;}
+  if(u.pop){u.pop=null;d.dirty=true;return;}if(u.sort){u.sort=null;return;}if(u.info){u.info=false;return;}
   switch(u.scr){
     case 'browse':if(u.nav.length>1)u.nav.pop();else goScr(d,'play');break;
     case 'utility':if(u.util.edit)u.util.edit=false;else goScr(d,'play');break;
     case 'filter':if(u.filt.pad!=null)u.filt.pad=null;else goScr(d,u.filt.from||'play');break;
-    case 'taglist':case 'menu':case 'iplay':case 'shortcut':goScr(d,'play');break;
+    case 'taglist':if(u.tl.m&&mounted().length>1){u.tl.m=null;u.tl.sel=0;u.tl.top=0;}else goScr(d,'play');break;
+    case 'hname':goScr(d,'utility');break;
+    case 'menu':case 'iplay':case 'shortcut':goScr(d,'play');break;
   }
   d.dirty=true;
 }
 function selTrack(d){
   const u=d.ui;
   if(u.scr==='browse'){const nv=curNav(d);if(nv.k==='search'){const it=levelItems(d,{k:'search'})[u.search.sel];return it?it.tr:null;}const it=u.items[nv.sel];return it&&it.kind==='track'?it.tr:null;}
-  if(u.scr==='taglist'){const it=levelItems(d,{k:'taglist'})[u.tl.sel];return it?it.tr:null;}
+  if(u.scr==='taglist'){const it=levelItems(d,{k:'taglist'})[u.tl.sel];return it&&it.kind==='track'?it.tr:null;}
   return d.cur?d.cur.tr:null;
 }
+/* one TAG LIST per USB, 100 tracks at most, no track twice (manual p. 34); 1 added, 0 already there, -1 full */
+function tagAdd(tr){if(TAGLIST.includes(tr))return 0;if(TAGLIST.filter(x=>x.m===tr.m).length>=100){toast(say('TAG LIST pleine (100 morceaux par clé)','TAG LIST full (100 tracks per USB)'));return -1;}TAGLIST.push(tr);return 1;}
+/* TAG TRACK/REMOVE: on a track, adds it; on a folder, category or playlist whose tracks show on the right, adds them all and its name blinks (p. 34) */
 function tagTrack(d){
+  const u=d.ui;if(u.scr==='taglist')return;
+  if(u.scr==='browse'&&curNav(d).k!=='search'){const nv=curNav(d),it=u.items[nv.sel];
+    if(it&&it.kind==='dir'&&it.next){let L=[];try{L=levelItems(d,it.next).filter(x=>x.kind==='track').map(x=>x.tr);}catch(e){}if(!L.length)return;
+      let n=0;for(const t of L){const r=tagAdd(t);if(r<0)break;n+=r;}u.tagBlink={i:nv.sel,until:now()+1.2};if(n)toast(say(n+' morceaux ajoutés à la TAG LIST',n+' tracks added to TAG LIST'));d.dirty=true;return;}}
   const tr=selTrack(d);if(!tr)return;
-  const i=TAGLIST.indexOf(tr);
-  if(d.ui.scr==='taglist'){if(i>=0)TAGLIST.splice(i,1);toast(say('Retiré de la TAG LIST','Removed from TAG LIST'));d.dirty=true;return;}
-  if(i>=0){TAGLIST.splice(i,1);toast(say('« '+tr.title+' » retiré de la TAG LIST','“'+tr.title+'” removed from TAG LIST'));}
-  else{if(TAGLIST.length>=100){toast(say('TAG LIST pleine (100 morceaux)','TAG LIST full (100 tracks)'));return;}TAGLIST.push(tr);toast(say('« '+tr.title+' » ajouté à la TAG LIST ('+TAGLIST.length+')','“'+tr.title+'” added to TAG LIST ('+TAGLIST.length+')'));}
+  if(tagAdd(tr)>0)toast(say('« '+tr.title+' » ajouté à la TAG LIST','“'+tr.title+'” added to TAG LIST'));
   d.dirty=true;
 }
+/* TAG TRACK/REMOVE held > 1 s: taken out. A track playing from the TAG LIST plays to its end, the next one does not start (p. 35) */
+function tagRemove(d){const tr=selTrack(d),i=TAGLIST.indexOf(tr);if(i<0)return;TAGLIST.splice(i,1);
+  for(const x of DECKS)if(x.cur&&x.cur.tr===tr&&x.cur.tag)x.cur.list=[tr];
+  toast(say('« '+tr.title+' » retiré de la TAG LIST','“'+tr.title+'” removed from TAG LIST'));d.dirty=true;}
+function tagMenu(d){const M=tagMedium(d);if(!M)return;
+  popOpen(d,'LIST MENU',[{l:'TAGLIST MENU',fn:()=>popOpen(d,'TAGLIST MENU',[
+    {l:'REMOVE ALL TRACKS',fn:()=>popOk(d,'REMOVE ALL TRACKS',()=>{for(let i=TAGLIST.length-1;i>=0;i--)if(TAGLIST[i].m===M)TAGLIST.splice(i,1);d.dirty=true;})},
+    {l:'CREATE PLAYLIST',fn:()=>popOk(d,'CREATE PLAYLIST',()=>tagPlaylist(M))}])}]);}
+/* the TAG LIST becomes a playlist TAG LIST XXX of the PLAYLIST category (p. 35); here only, the USB is not changed */
+function tagPlaylist(M){const L=TAGLIST.filter(x=>x.m===M),P=M.lib.playlists;if(!L.length)return;
+  const id=Math.max(0,...P.map(p=>p.id))+1,n=P.filter(p=>/^TAG LIST \d{3}$/.test(p.name)).length+1,name='TAG LIST '+String(n).padStart(3,'0');
+  P.push({parent:0,sort:Math.max(0,...P.map(p=>p.sort))+1,id,isFolder:false,name});L.forEach((t,i)=>M.lib.entries.push({index:i+1,track:t.id,playlist:id}));
+  toast(say(name+' créée (ici seulement, la clé n’est pas modifiée)',name+' created (here only, the USB is not changed)'),3000);}
+/* MENU on the list of history lists: DELETE, ALL DELETE, then OK (manual p. 33); here only, the USB is not changed */
+function histMenu(d){const nv=curNav(d);if(nv.k!=='cat'||nv.cat!==19)return false;const M=navMedium(d),it=d.ui.items[nv.sel];if(!it)return true;
+  const del=one=>{if(!one||it.hist!=null)M.hist=one?M.hist.filter(h=>h.id!==it.hist):[];if(!one||it.hist==null){for(const t of M.session){t.played=false;t.playT=0;}M.session.length=0;}nv.sel=0;nv.top=0;d.dirty=true;};
+  popOpen(d,'HISTORY',[{l:'DELETE',fn:()=>popOk(d,'DELETE',()=>del(true))},{l:'ALL DELETE',fn:()=>popOk(d,'ALL DELETE',()=>del(false))}]);return true;}
+/* GRID ADJUST (manual p. 30): the moved grid is the one QUANTIZE, the phase and SYNC use */
+function gridSet(d,off){const c=d.cur,B=c.an.beats;c.gridOff=off;c.beats=off?B.map(b=>({...b,t:b.t+off*1000})):B;d.dirty=true;}
+function gridMenu(d){const close=()=>{d.ui.pop=null;};
+  popOpen(d,'GRID ADJUST',[{l:'RESET',fn:()=>{gridSet(d,0);close();}},
+    /* SNAP GRID (CUE): the first beat of the nearest bar goes to the CUE point */
+    {l:'SNAP GRID (CUE)',fn:()=>{const B=d.cur.an.beats.filter(b=>b.n===1),ms=d.cue*1000;if(B.length){const b=B.reduce((x,y)=>Math.abs(y.t-ms)<Math.abs(x.t-ms)?y:x);gridSet(d,(ms-b.t)/1000);}close();}},
+    /* SHIFT GRID: what was moved by hand against the master goes into the grid */
+    {l:'SHIFT GRID',fn:()=>{const M=BUS.master;close();if(!M||M===d||!M.loaded()){toast(say('SHIFT GRID : il faut un MASTER sur une autre platine','SHIFT GRID: needs a MASTER on another player'));return;}
+      const df=((BUS.masterPhase()-d.beatPhase(d.pos()))%1+1.5)%1-.5;gridSet(d,(d.cur.gridOff||0)-df*d.spb());}}]);}
 function infoBtn(d){
   if(!needMedia())return;const u=d.ui;
   if(u.scr==='browse'||u.scr==='taglist'){u.sort=null;u.info=!u.info;return;}
-  toggleScr(d,'iplay',()=>{u.iplay.sel=0;u.iplay.top=0;});
+  toggleScr(d,'iplay',()=>{u.iplay.sel=0;u.iplay.top=0;u.iplay.pn=0;u.iplay.rate=false;});
 }
 function menuBtn(d){
   if(!needMedia())return;const u=d.ui;
-  if(u.scr==='browse'||u.scr==='taglist'){
-    const items=u.scr==='taglist'?[]:u.items;
+  if(u.pop){u.pop=null;d.dirty=true;return;}
+  if(u.scr==='play'&&d.grid&&d.loaded()){gridMenu(d);return;}
+  if(u.scr==='taglist'){tagMenu(d);return;}
+  if(u.scr==='browse'&&histMenu(d))return;
+  if(u.scr==='browse'){
+    const items=u.items;
     if(u.sort){u.sort=null;return;}
-    if(u.scr==='browse'&&items.some(x=>x.kind==='track')){u.info=false;const cur=curNav(d).sortCol||25;u.sort={sel:Math.max(0,(navMedium(d)||RM).sortMenu.indexOf(cur))};}
+    if(items.some(x=>x.kind==='track')){u.info=false;const cur=curNav(d).sortCol||25;u.sort={sel:Math.max(0,(navMedium(d)||RM).sortMenu.indexOf(cur))};}
     else toast(say('SORT : disponible dans une liste de morceaux','SORT: available in a track list'));
     return;}
-  toggleScr(d,'menu',()=>{u.menu.sel=0;});
+  toggleScr(d,'menu',()=>{u.menu.sel=d.hist.some(t=>t.m.mounted)?1:0;});
 }
 function filterBtn(d,long){
   if(!needMedia())return;const u=d.ui;
@@ -194,14 +240,15 @@ function filterBtn(d,long){
 /* ---------- rotary selector ---------- */
 function rotaryTurn(d,dir){
   const u=d.ui;d.selTarget=(d.selTarget||0)+dir*15;d.dirty=true;
+  if(u.pop){u.pop.sel=clamp(u.pop.sel+dir,0,u.pop.rows.length-1);return;}
   if(u.sort){u.sort.sel=clamp(u.sort.sel+dir,0,(navMedium(d)||RM).sortMenu.length-1);return;}
   switch(u.scr){
     case 'play':case 'menu':if(u.scr==='menu'){u.menu.sel=Math.max(0,u.menu.sel+dir);return;}
-      if(d.grid){d.gridOff=(d.gridOff||0)+dir*.004;toast('SHIFT GRID '+(d.gridOff>=0?'+':'')+Math.round(d.gridOff*1000)+' ms');}else d.zi=clamp(d.zi-dir,0,ZOOMS.length-1);return;
+      if(d.grid){const o=(d.cur.gridOff||0)+dir*.004;gridSet(d,o);toast('GRID '+(o>=0?'+':'')+Math.round(o*1000)+' ms');}else d.zi=clamp(d.zi-dir,0,ZOOMS.length-1);return;
     case 'browse':{const nv=curNav(d);if(nv.k==='search'){u.search.sel=Math.max(0,u.search.sel+dir);return;}
       if(d.selHeld){letterJump(d,dir);return;}nv.sel=clamp(nv.sel+dir,0,Math.max(0,u.items.length-1));return;}
     case 'taglist':u.tl.sel=Math.max(0,u.tl.sel+dir);return;
-    case 'iplay':u.iplay.sel=Math.max(0,u.iplay.sel+dir);return;
+    case 'iplay':if(u.iplay.rate){const t=d.cur.tr;t.rating=clamp((t.rating||0)+dir,0,5);return;}u.iplay.sel=Math.max(0,u.iplay.sel+dir);return;
     case 'utility':utilStep(d,dir);return;
     case 'filter':{const f=u.filt;
       /* MY TAG: before the first tag come RESET and the BPM / KEY tab */
@@ -223,24 +270,27 @@ function letterJump(d,dir){
 }
 function rotaryPush(d){
   const u=d.ui;
+  if(u.pop){const r=u.pop.rows[u.pop.sel];if(r)r.fn();d.dirty=true;return;}
   if(u.sort){sortApply(d);return;}
   switch(u.scr){
     case 'browse':{const nv=curNav(d);if(nv.k==='search'){const L=levelItems(d,{k:'search'});const it=L[u.search.sel];if(it)d.loadTrack(it.tr,{list:L.map(x=>x.tr)});return;}listEnter(d,'browse');return;}
     case 'taglist':listEnter(d,'taglist');return;
     case 'menu':menuLoad(d);return;
-    case 'iplay':infoJump(d);return;
+    case 'iplay':if(u.iplay.rate){u.iplay.rate=false;return;}infoJump(d);return;
+    case 'hname':HISTNAME=(u.hname.q.trim()||'HISTORY').slice(0,32);goScr(d,'utility');return;
     case 'utility':utilEnter(d);return;
     case 'filter':{const f=u.filt,F=fm(d).filter;
       if(f.tab===1&&f.side){if(f.side==='tab'){f.tab=0;f.sel=0;}else filterReset(d);f.side=null;return;}
       if(f.tab===0&&f.sel>=4){if(f.sel===4)filterMaster(d);else if(f.sel===5){f.tab=1;f.side=null;}else filterReset(d);return;}
       if(f.tab===1){const E=fm(d).ext;if(!E)return;const cats=E.cats.length?E.cats:[{id:null}];const M=fm(d),c=cats[f.tcol];const tags=catTags(M,c);const t=tags[f.tsel];if(t)toggleTag(M,c,t);}
       else{const k=['bpm','key','rating','color'][f.sel];F[k]=!F[k];if(k==='color'&&F.color&&!F.colors.size)toast(say('COLOR : touche les couleurs à garder','COLOR: touch the colours to keep'));}return;}
-    case 'play':if(d.grid){d.gridOff=0;toast('GRID RESET');}return;
   }
 }
 function rotaryHold(d){
   const u=d.ui;
-  if(u.scr==='play'&&d.loaded()){d.grid=!d.grid;toast(d.grid?say('GRID ADJUST : tourne le sélecteur pour décaler la grille, appuie pour RESET','GRID ADJUST: turn the selector to shift the grid, push to RESET'):'GRID ADJUST OFF');d.dirty=true;return true;}
+  if(u.scr==='play'&&d.loaded()){d.grid=!d.grid;toast(d.grid?say('GRID ADJUST : tourne le sélecteur pour décaler la grille, MENU pour RESET, SNAP GRID, SHIFT GRID','GRID ADJUST: turn the selector to shift the grid, MENU for RESET, SNAP GRID, SHIFT GRID'):'GRID ADJUST OFF');d.dirty=true;return true;}
+  /* the rating of the loaded track: the selector held 1 s on the stars, turned, then pushed (manual p. 36); here only, the USB is not changed */
+  if(u.scr==='iplay'&&d.cur&&infoDeck(d)===d){const it=infoPlayRows(d)[u.iplay.sel];if(it&&it[0]==='RATING'){u.iplay.rate=true;d.dirty=true;return true;}}
   if(u.scr==='browse'){d.selHeld=true;return true;}
   return false;
 }
@@ -264,11 +314,12 @@ function keyActions(d){return {
   browse:{press:()=>{if(!needMedia())return;if(d.ui.scr==='browse')goScr(d,'play');else goScr(d,'browse');},
     long:()=>{if(!needMedia())return;const M=navMedium(d)||RM;d.ui.nav=[{k:'media',sel:0,top:0},{k:'root',m:M,label:M.name,sel:0,top:0},{k:'search',label:'SEARCH',sel:0,top:0}];d.ui.search.q='';goScr(d,'browse');}},
   tag_list:{press:()=>{if(!needMedia())return;toggleScr(d,'taglist');}},
-  info:{press:()=>infoBtn(d),long:()=>toast(say('LINK INFO : aucune autre platine reliée en PRO DJ LINK','LINK INFO: no other player linked over PRO DJ LINK'))},
+  /* INFO > 1 s while browsing or in the TAG LIST: the details of the loaded track (manual p. 35) */
+  info:{press:()=>infoBtn(d),long:()=>{const u=d.ui;if((u.scr==='browse'||u.scr==='taglist')&&d.cur){u.iplay.sel=0;u.iplay.top=0;u.iplay.pn=0;goScr(d,'iplay');}else toast(say('LINK INFO : aucune autre platine reliée en PRO DJ LINK','LINK INFO: no other player linked over PRO DJ LINK'));}},
   /* MENU/UTILITY > 1 s: the UTILITY screen; pressed again, the screen shown before comes back (manual p. 38) */
   menu:{press:()=>menuBtn(d),long:()=>{const u=d.ui;u.util.edit=false;if(u.scr==='utility')goScr(d,u.utilFrom||'play');else{u.utilFrom=u.scr;goScr(d,'utility');}}},
   back:{press:()=>backBtn(d,false),long:()=>backBtn(d,true)},
-  tag_track:{press:()=>tagTrack(d)},
+  tag_track:{press:()=>tagTrack(d),long:()=>tagRemove(d)},
   track_filter:{press:()=>filterBtn(d,false),long:()=>filterBtn(d,true)},
   short_cut:{press:()=>{if(!needMedia())return;toggleScr(d,'shortcut');}},
   usb:{press:()=>{if(!needMedia())return;d.ui.nav=[{k:'media',sel:0,top:0}];goScr(d,'browse');}},
@@ -280,8 +331,8 @@ function keyActions(d){return {
     unmount(M);LASTOFF=M;toast(say('Clé « '+M.name+' » démontée. Clique sur le port USB pour la remettre.','USB “'+M.name+'” unmounted. Click the USB port to plug it back.'),4000);}},
   usb_indicator:{press:()=>{const M=LASTOFF||MEDIA.find(m=>!m.mounted);if(!M){if(!MEDIA.length)toast(say('Charge d’abord le dossier de la clé','Load the USB folder first'));return;}M.mounted=true;LASTOFF=null;RM=M;applyMediumSettings(M);toast(say('Clé « '+M.name+' » connectée','USB “'+M.name+'” connected'));}},
   jog_mode:{down:()=>{d.vinyl=!d.vinyl;d.dirty=true;}},
-  sync:{press:()=>{d.setSync(!d.sync);if(d.sync&&BUS.master===d&&DECKS.length===1)toast(say('SYNC : pas d’autre platine, ce lecteur devient MASTER','SYNC: no other player, this one becomes MASTER'));},long:()=>toast(say('INSTANT DOUBLES : il faut une autre platine','INSTANT DOUBLES: needs another player'))},
-  master:{down:()=>{if(!d.loaded()){toast(say('MASTER : charge un morceau','MASTER: load a track'));return;}BUS.setMaster(BUS.master===d?null:d);}},
+  sync:{press:()=>{d.setSync(!d.sync);if(d.sync&&BUS.master===d&&DECKS.length===1)toast(say('SYNC : pas d’autre platine, ce lecteur devient MASTER','SYNC: no other player, this one becomes MASTER'));},long:()=>d.instantDouble()},
+  master:{down:()=>{if(!d.loaded()){toast(say('MASTER : charge un morceau','MASTER: load a track'));return;}BUS.setMaster(BUS.master===d?BUS.next():d);}},
   tempo_range:{down:()=>{d.rangeIdx=(d.rangeIdx+1)%4;d.applyTempo();}},
   master_tempo:{down:()=>{d.setMt(!d.mt);if(d.mt&&!AU.engOk)toast(say('MASTER TEMPO : ce navigateur ne peut pas garder la hauteur','MASTER TEMPO: this browser cannot keep the pitch'));}},
   tempo_reset:{down:()=>{d.tReset=!d.tReset;d.applyTempo();}},
@@ -310,7 +361,7 @@ function keyLight(d,name){
     case 'slip':return d.slip&&(!SET.slipFlash||!d.ghost||slipBlink(d));
     case 'quantize':return d.quant;
     case 'master_tempo':return d.mt;
-    case 'sync':return d.sync;
+    case 'sync':return d.sync||d.syncLost&&blink(1);
     case 'master':return BUS.master===d;
     case 'tempo_reset':return d.tReset;
     case 'call_rev':case 'call_fwd':return ld&&(d.cur.mem.length>0||!!d.loop);

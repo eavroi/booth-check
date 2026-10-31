@@ -114,13 +114,15 @@ registerProcessor('bc-fx',BcFx);`;
 function loadFxWorklet(){const c=AU.ctx;if(!c.audioWorklet)return Promise.resolve();if(!c._bcFx)c._bcFx=(async()=>{try{const u=URL.createObjectURL(new Blob([FX_SRC,BFX_SRC],{type:'text/javascript'}));await c.audioWorklet.addModule(u);MIX.fxReady=true;if(MS.color)colorBuild();bfxBuild();}catch(e){MIX.fxReady=false;}})();return c._bcFx;}
 function noiseBuf(){if(MIX.noise&&MIX.noise.sampleRate===AU.ctx.sampleRate)return MIX.noise;const c=AU.ctx,b=c.createBuffer(2,c.sampleRate*2,c.sampleRate);for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}return MIX.noise=b;}
 /* SPACE: a stereo reverb tail; PARAMETER ("feedback") makes it last longer, the high end dies out faster than the rest */
-function reverbIR(p){const c=AU.ctx,sr=c.sampleRate,rt=.6+p*4.4,len=Math.round(sr*Math.min(6,rt*1.1)),b=c.createBuffer(2,len,sr);
+function reverbIR(p){const c=AU.ctx,sr=c.sampleRate,rt=1.5+p*10.5,len=Math.round(sr*rt*1.1),b=c.createBuffer(2,len,sr);
   for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);let lp=0;for(let i=0;i<len;i++){const t=i/sr,a=.2+.75*Math.exp(-t*3/rt);
     lp+=a*((Math.random()*2-1)-lp);d[i]=lp*Math.exp(-6.9*t/rt)*(i<sr*.008?i/(sr*.008):1);}}return b;}
 function chBpm(i){const d=DECKS.find(x=>x.ch===i+1);return d&&d.loaded()?d.bpmNow()||120:120;}
 const bqDb=(c,t,f,q)=>{const b=c.createBiquadFilter();b.type=t;b.frequency.value=f;b.Q.value=q==null?-3.0103:q;return b;};
-function fxDrop(fx){if(fx.wet)setP(fx.wet.gain,0);if(fx.send)setP(fx.send.gain,0);
-  setTimeout(()=>{for(const n of fx.nodes){try{n.disconnect();}catch(e){}if(n.stop)try{n.stop();}catch(e){}}},120);}
+/* SPACE and DUB ECHO: another effect picked, the tail already sounding dies out; only what comes in stops */
+function fxDrop(fx){const tail=(fx.t==='SPACE'||fx.t==='DUB ECHO')&&fx.wet;if(fx.send)setP(fx.send.gain,0);
+  if(tail)fx.wet.gain.setTargetAtTime(0,fx.wet.context.currentTime+11,1);else if(fx.wet)setP(fx.wet.gain,0);
+  setTimeout(()=>{for(const n of fx.nodes){try{n.disconnect();}catch(e){}if(n.stop)try{n.stop();}catch(e){}}},tail?16000:120);}
 function colorBuild(){
   const N=MIX.N;if(!N)return;const c=AU.ctx;
   for(let i=0;i<4;i++){const C=N.ch[i];
@@ -172,7 +174,7 @@ function colorParams(i){
     case 'SPACE':setP(C.dry.gain,1);setP(fx.send.gain,on?a*(d<0?2.1:4.2):0);if(d<0){f.type='lowpass';f.frequency.value=2200;}else{f.type='highpass';f.frequency.value=700;}
       if(Math.abs(MIX.irP-p)>.05){clearTimeout(MIX.irT);MIX.irT=setTimeout(()=>{MIX.ir=reverbIR(MS.param);MIX.irP=MS.param;for(const X of N.ch)if(X.fx&&X.fx.cv)X.fx.cv.buffer=MIX.ir;},150);}break;
     /* DUB ECHO: left = echo of the mids only, right = of the highs only; PARAMETER = feedback. The echo time is not in the manual (3/4 beat here) */
-    case 'DUB ECHO':setP(C.dry.gain,1);setP(fx.send.gain,on?a*2:0);setP(fx.dl.delayTime,60/chBpm(i)*.75);setP(fx.fb.gain,.3+p*.62);
+    case 'DUB ECHO':setP(C.dry.gain,1);setP(fx.send.gain,on?a*2:0);setP(fx.dl.delayTime,60/chBpm(i)*.75);setP(fx.fb.gain,.55+p*.4);
       if(d<0){f.type='bandpass';f.frequency.value=1000;f.Q.value=1;}else{f.type='highpass';f.frequency.value=2500;f.Q.value=-3;}break;
     /* NOISE: the filter the noise (and the channel) goes through closes from the top to the left, opens from the bottom to the right; PARAMETER = noise level */
     case 'NOISE':setP(C.dry.gain,on?0:1);setP(fx.wet.gain,on?1:0);setP(fx.ng.gain,on?a*(.03+.42*p):0);

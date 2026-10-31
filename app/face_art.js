@@ -370,14 +370,14 @@ function jogInner(P){
 }
 /* centre display of the jog (after the real one): a mesh of position segments, the touch rings and the VINYL lamp */
 const CENTRE_R=[29,56],CENTRE_GAP=22;
-function centreBase(P,live,touch,vinyl){
+function centreBase(P,live,touch,vinyl,mem){
   const [cx,cy]=F_JOG;P.circle(cx,cy,F_JOG_DISPLAY-1,[0,0,0]);
   const [ri,ro]=CENTRE_R,tick=live?[236,238,242]:[58,60,64];
   for(let i=0;i<120;i++){const a=(i*3-90)*Math.PI/180;P.line([[cx+ri*Math.cos(a),cy+ri*Math.sin(a)],[cx+ro*Math.cos(a),cy+ro*Math.sin(a)]],tick,1.15);}
   for(let rr=ri+2.6;rr<ro;rr+=2.6)P.circle(cx,cy,rr,null,[0,0,0],.75);
-  /* jog touch detection display: two rings of eight segments, lit while the top is touched in VINYL */
-  const on=touch&&vinyl,rc=on?[245,247,250]:(live?[70,72,76]:[40,42,45]);
-  for(let k=0;k<8;k++){P.arc(cx,cy,23.4,k*45+3,k*45+42,rc,2.8);P.arc(cx,cy,19.6,k*45+25.5,k*45+64.5,rc,2.6);}
+  /* two rings of eight segments (manual p. 18): outer = audio memory, lit once the track is in memory; inner = jog touch detection, lit while the top is touched in VINYL */
+  const on=touch&&vinyl,off=live?[70,72,76]:[40,42,45],hi=[245,247,250];
+  for(let k=0;k<8;k++){P.arc(cx,cy,23.4,k*45+3,k*45+42,mem?hi:off,2.8);P.arc(cx,cy,19.6,k*45+25.5,k*45+64.5,on?hi:off,2.6);}
   /* VINYL indicator: lit only in VINYL mode */
   if(vinyl){P.circle(cx,cy,14.2,[150,192,240]);const g=P.g;g.save();g.beginPath();g.arc(cx,cy,14.2,0,7);g.clip();
     for(let y=cy-14;y<cy+14;y+=1.5)P.line([[cx-15,y],[cx+15,y]],[92,140,205],.55);g.restore();

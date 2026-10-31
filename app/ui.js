@@ -10,7 +10,7 @@ const I18N={
   zoom:['Agrandir l’écran de la platine','Enlarge the deck screen'],
   solo:['Booth seul, plein écran','Booth only, full screen'],
   keys:['Raccourcis clavier','Keyboard shortcuts'],
-  planTitle:['Plan du contrôleur','Controller map'],planNote:['Survole une commande pour le détail. La commande que tu touches s’allume sur le plan. Ce que tu changes avec « Apprendre » s’affiche ici.','Hover a control for details. The control you touch lights up on the map. What you change with “Learn” shows here.'],
+  planTitle:['Plan du contrôleur','Controller map'],planNote:['Survole une commande pour le détail. La commande que tu touches s’allume sur le plan, et il passe sur l’onglet Stop tant que tu tiens Stop. Ce que tu changes avec « Apprendre » s’affiche ici.','Hover a control for details. The control you touch lights up on the map, and it shows the Stop tab while you hold Stop. What you change with “Learn” shows here.'],
   ctlAria:['Contrôleur MIDI : modèle, correspondances, apprentissage','MIDI controller: template, mapping, learn'],
   face1:['Platine 1 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 1: click the buttons, turn the jog and the selector, touch the screen'],
   face2:['Platine 2 : clique sur les boutons, tourne le jog et le sélecteur, touche l’écran','Player 2: click the buttons, turn the jog and the selector, touch the screen'],

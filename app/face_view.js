@@ -29,7 +29,9 @@ function renderFace(F){
   g.save();g.translate(cx*s,cy*s);g.rotate((((d.rimAngle%per)+per)%per)*Math.PI/180);g.translate(-cx*s,-cy*s);blit(F.rim);g.restore();
   blit(F.inner);
   const live=d.loaded(),touch=!!d.touching;
-  blit(sprite(F,'cb|'+live+touch+d.vinyl,[cx-F_JOG_DISPLAY,cy-F_JOG_DISPLAY,cx+F_JOG_DISPLAY,cy+F_JOG_DISPLAY],P=>centreBase(P,live,touch,d.vinyl)));
+  /* audio memory display (manual p. 18): blinks while the track is written to memory, then stays lit */
+  const mem=!!d.cur&&(live&&now()-d.cur.cacheT>3||blink(3));
+  blit(sprite(F,'cb|'+live+touch+d.vinyl+mem,[cx-F_JOG_DISPLAY,cy-F_JOG_DISPLAY,cx+F_JOG_DISPLAY,cy+F_JOG_DISPLAY],P=>centreBase(P,live,touch,d.vinyl,mem)));
   if(live){g.setTransform(s,0,0,s,0,0);const P={g,line:Painter.prototype.line,scale:s};centrePointer(P,d._pos/1.8,d.playing?null:d.cue/1.8,d.ghost?d.ghost.pos/1.8:null);g.setTransform(1,0,0,1,0,0);}
   const white=anyMedia()&&!(SET.jogInd===1&&endBlink(d))?[0,1,2][SET.jogRing]:0;   /* JOG INDICATOR: the ring blinks at the end of the track */
   if(white)blit(sprite(F,'ring|'+white,[cx-r-24,cy-r-24,cx+r+24,cy+r+24],P=>ringLight(P,white,0)));
@@ -167,7 +169,7 @@ function jogTurn(d,st,raw){
     /* frame search: paused, 1.8 s per turn in every jog mode (manual p. 22) */
     case 'search':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();d.dirty=true;break;
     case 'touch':d.advance();d.scratchOn=true;d.scratchV=clamp(w/200,-8,8);d.scratchT=t;d.syncSrc();break;
-    case 'bend':{const K=1.1-.8*d.jogWeight;d.bend=clamp(1+d.dir*w/200*K*.35,.4,1.7);  /* in reverse the jog's direction is reversed too (manual p. 22) */clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
+    case 'bend':{d.bendBreak();const K=1.1-.8*d.jogWeight;d.bend=clamp(1+d.dir*w/200*K*.35,.4,1.7);  /* in reverse the jog's direction is reversed too (manual p. 22) */clearTimeout(d._bendT);d._bendT=setTimeout(()=>{d.bend=1;d.syncSrc();},90);d.syncSrc();break;}
   }
 }
 /* end of a slip scratch: when the background track takes over again, RELEASE/START does not act (manual p. 23) */
@@ -245,9 +247,14 @@ function needle(d,q){if(!d.loaded())return;const t=clamp((q.x-100)/600,0,1)*d.du
   else d.touchPrev=t;d.dirty=true;}
 function lcdDown(d,st,p){const q=lcdXY(p);const h=lcdFind(d,q);st.h=h;st.q0=q;st.moved=false;
   if(h&&h.needle){ensureCtx();needle(d,q);return;}
+  if(h&&h.wave)st.p0=d.pos();
   if(h&&h.hold)st.holdT=setTimeout(()=>{st.held=true;h.hold();},700);}
 function lcdMove(d,st,p){const q=lcdXY(p),h=st.h;
   if(h&&h.needle){needle(d,q);return;}
+  /* the zoomed waveform follows the finger: paused, or with the jog held in VINYL (manual p. 29) */
+  if(h&&h.wave&&(!d.playing||d.vinyl&&d.touching)){const t=clamp(st.p0-(q.x-st.q0.x)/ZOOMS[d.zi],0,d.dur);if(d.loop){d.lastLoop=d.loop;d.loop=null;}d.adjust=null;d.seek(t);if(!d.playing)d.cue=t;d.dirty=true;return;}
+  /* slip beat loop: the finger slides to another length */
+  if(st.held&&h&&h.loopN&&d.slipLoopHeld){const k=lcdFind(d,q);if(k&&k.loopN&&k.loopN!==st.ln){st.ln=k.loopN;d.beatLoop(k.loopN);}return;}
   if(h&&h.list&&Math.abs(q.y-st.q0.y)>LROWH*.6){const s=listState(d,h.list);const n=Math.round((st.q0.y-q.y)/LROWH);s.top=Math.max(0,s.top+n);s.sel=Math.max(0,s.sel+n);st.q0=q;st.moved=true;}}
 function lcdUp(d,st){const h=st.h;clearTimeout(st.holdT);d.touchPrev=null;if(!h)return;if(h.needle)return;
   if(st.held){if(h.up)h.up();return;}if(!st.moved&&h.fn){ensureCtx();h.fn(st.q0.x,st.q0.y);}}

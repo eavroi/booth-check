@@ -76,13 +76,16 @@ async function loadDeckWorklet(c){try{if(!c.audioWorklet)return false;const u=UR
 class SyncBus{
   constructor(){this.decks=[];this.master=null;}
   add(d){this.decks.push(d);}
+  /* who takes over: a player that is playing, one in SYNC first (manual p. 30) */
+  next(){const o=this.decks.filter(d=>d!==this.master&&d.loaded()&&d.playing);return o.find(d=>d.sync)||o[0]||null;}
   setMaster(d){if(this.master===d)return;const old=this.master;this.master=d;if(old)old.dirty=true;if(d)d.dirty=true;}
   masterBpm(){const m=this.master;return m&&m.loaded()?m.bpmNow():null;}
   /* beat phase of the master: fractional beat index at "now" */
   masterPhase(){const m=this.master;return m&&m.loaded()?m.beatPhase(m.pos()):null;}
   /* called every frame */
   tick(){
-    if(this.master&&!this.master.loaded())this.master=null;
+    /* the master pauses or changes track: another player that is playing becomes master (manual p. 30) */
+    const M=this.master;if(M&&(!M.loaded()||!M.playing)){const n=this.next();if(n)this.setMaster(n);else if(!M.loaded())this.master=null;}
     for(const d of this.decks){if(!d.sync||d===this.master||!d.loaded())continue;
       const mb=this.masterBpm();if(!mb){continue;}
       const base=d.cur.tr.bpm||0;if(!base)continue;
@@ -107,7 +110,7 @@ class Deck{
       scratchOn:false,scratchV:0,scratchT:0,touching:false,ghost:null,srcDir:1,srcRate:0,nudge:0,ended:false,loadTok:0,eng:null,engHas:false,engSeq:0,engLast:null});
     /* controls */
     Object.assign(this,{quant:true,qBeat:1,remain:true,autoCueOn:true,vinyl:true,mt:false,sync:false,rangeIdx:1,tempoV:0,tReset:false,slip:false,
-      rev:false,lever:0,slipRevHeld:false,hotHeld:null,bank:0,callMode:false,callHeld:false,callUsed:false,loopIn:null,lastLoop:null,adjust:null,adjOrig:null,
+      rev:false,revDone:false,syncHold:null,holdSide:0,syncLost:false,lever:0,slipRevHeld:false,hotHeld:null,bank:0,callMode:false,callHeld:false,callUsed:false,loopIn:null,lastLoop:null,adjust:null,adjOrig:null,
       autoLen:4,loopMode:false,jumpMode:false,zi:2,grid:false,gridHold:false,brakeT:.05,startT:.05,jogWeight:.5,touchPrev:null,called:null,hist:[],
       cueHold:false,kTouch:0,kRel:0,rimAngle:0,spin:0,spinning:false,face:null});
     this.ui={scr:'play',nav:[{k:'media',sel:0,top:0}],tl:{sel:0,top:0},menu:{sel:0},util:{sel:0,top:0,edit:false},info:false,sort:null,
@@ -169,11 +172,13 @@ class Deck{
     const t=now(),dt=Math.min(.25,t-this.last);this.last=t;
     if(this.scratchOn&&t-this.scratchT>.06)this.scratchV=0;
     if(this.touch!==this.touchTarget){const d=Math.max(.04,this.touchTarget<this.touch?this.brakeT:this.startT),st=dt/d;this.touch=this.touch<this.touchTarget?Math.min(this.touchTarget,this.touch+st):Math.max(this.touchTarget,this.touch-st);}
-    if(this.playing&&this.cur&&!this.cur.loading&&!this.cur.tr.played){const tr=this.cur.tr;tr.playT=(tr.playT||0)+dt;if(tr.playT>=60){tr.played=true;tr.m.session.push(tr);}}
+    if(this.playing&&this.cur&&!this.cur.loading&&!this.cur.tr.played){const tr=this.cur.tr;tr.playT=(tr.playT||0)+dt;if(tr.playT>=60){tr.played=true;const S=tr.m.session;S.push(tr);if(S.length>999)S.shift();}}
     if(this.ghost&&(this.playing||this.slipHold))this.ghost.pos=Math.min(this.dur,this.ghost.pos+this.rate*dt);
     if(!this.moving())return;
-    const v=this.vel();
+    const v=this.vel(),pp=this._pos;
     this._pos+=v*dt;
+    /* active loop: reached, it is set and plays (manual p. 25) */
+    const al=this.cur&&this.cur.activeLoop;if(al&&!this.loop&&v>0&&pp<al.time&&this._pos>=al.time)this.setLoop(al.time,al.end,false);
     const lp=this.loop;
     if(lp&&!this.scratchOn){const L=lp.b-lp.a;if(v>0&&this._pos>=lp.b)this._pos=lp.a+(this._pos-lp.b)%L;else if(v<0&&this._pos<=lp.a){this._pos=lp.b-(lp.a-this._pos)%L;if(!this.engHas)this.stopSrc();}}
     if(this._pos>=this.dur){this._pos=this.dur;if(this.scratchOn)this.scratchV=Math.min(0,this.scratchV);else{this.pauseNow();this.ended=true;this.onEnd();}}
@@ -212,7 +217,7 @@ class Deck{
   setLoop(a,b,jump){a=Math.max(0,a);b=Math.min(this.dur,b);if(b-a<0.01)return false;this.advance();this.slipBegin();
     this.loop={a,b};this.lastLoop=this.loop;this.loopIn=null;this.adjust=null;if(jump||this._pos>=b||this._pos<a)this._pos=a;this.startSrc();this.dirty=true;return true;}
   exitLoop(){if(!this.loop)return;this.advance();this.lastLoop=this.loop;this.loop=null;this.adjust=null;this.startSrc();this.slipCheck();this.dirty=true;}
-  beatLoop(n){if(!this.loaded())return;/* during a loop the real deck keeps the loop in point and only changes the length */const a=this.loop?this.loop.a:this.snap(this.pos());const end=n>=1?this.beatShift(a,Math.round(n)):a+n*this.spb();if(this.setLoop(a,end,false)){this.autoLen=n;toast('BEAT LOOP '+fmtBeat(n));}}
+  beatLoop(n){if(!this.loaded())return;/* during a loop the real deck keeps the loop in point and only changes the length */const a=this.loop?this.loop.a:this.snap(this.pos());const end=n>=1?this.beatShift(a,Math.round(n)):a+n*this.spb();if(slipTooLong(this,a,end))return;if(this.setLoop(a,end,false)){this.autoLen=n;toast('BEAT LOOP '+fmtBeat(n));}}
   loopLenBeats(){const l=this.loop||this.lastLoop;return l?Math.round((l.b-l.a)/this.spb()*32)/32:this.autoLen;}
   loopScale(f){const l=this.loop;if(!l)return;this.advance();const sp=this.spb(),len=clamp((l.b-l.a)*f,sp/32,sp*512);l.b=Math.min(this.dur,l.a+len);
     if(this._pos>=l.b)this._pos=l.a+((this._pos-l.a)%(l.b-l.a));this.startSrc();this.autoLen=this.loopLenBeats();this.dirty=true;}
@@ -223,14 +228,24 @@ class Deck{
   /* ---------- tempo ---------- */
   tempoPct(){const r=RANGES[this.rangeIdx],st=STEPS[this.rangeIdx];return Math.round(this.tempoV*r/st)*st;}
   sliderRate(){return 1+(this.tReset?0:this.tempoPct())/100;}
-  applyTempo(){if(this.sync&&BUS.master&&BUS.master!==this&&BUS.masterBpm())return;this.setRate(this.sliderRate());this.dirty=true;}
-  setSync(on){this.sync=on;if(on){if(!BUS.master||!BUS.master.loaded())BUS.setMaster(this);}else{this.nudge=0;this.applyTempo();}this.dirty=true;}
+  applyTempo(){if(this.sync&&BUS.master&&BUS.master!==this&&BUS.masterBpm())return;
+    /* SYNC off with the slider elsewhere: the synced tempo stays, the slider works again once brought back to it (manual p. 30) */
+    if(this.syncHold!=null){const r=this.sliderRate(),h=this.syncHold,s=Math.sign(r-h);if(Math.abs(r-h)<.0015||(this.holdSide&&s&&s!==this.holdSide))this.syncHold=null;else{this.holdSide=s;this.dirty=true;return;}}
+    this.setRate(this.sliderRate());this.dirty=true;}
+  setSync(on){const was=this.sync;this.sync=on;if(on){this.syncLost=false;this.syncHold=null;if(!BUS.master||!BUS.master.loaded())BUS.setMaster(this);}
+    else{this.nudge=0;if(was&&Math.abs(this.sliderRate()-this.rate)>.0015){this.syncHold=this.rate;this.holdSide=0;}this.applyTempo();}this.dirty=true;}
+  /* a pitch bend on a player that follows the master cancels the sync and SYNC blinks (manual p. 30) */
+  bendBreak(){if(this.sync&&BUS.master&&BUS.master!==this){this.setSync(false);this.syncLost=true;}}
+  /* same track and same point as the master: INST.DOUBLE > 1 s, or the master's track loaded here (manual p. 30) */
+  instantDouble(){const m=BUS.master;if(!m||m===this||!m.loaded()){toast(say('INSTANT DOUBLES : il faut un MASTER sur une autre platine','INSTANT DOUBLES: needs a MASTER on another player'));return;}this.loadTrack(m.cur.tr,{list:m.cur.list});}
   /* ---------- loading ---------- */
   eject(silent){this.loadTok++;this.pause();this.cur=null;this.buf=null;if(this.engHas){this.eng.port.postMessage({unload:true});this.engHas=false;}this._pos=0;this.loop=null;this.ghost=null;this.slipHold=false;this.dur=1;this.cue=0;this.lastLoop=null;this.loopIn=null;
     if(BUS.master===this)BUS.setMaster(null);this.ui.scr='play';this.dirty=true;}
   async getAudio(tr,an){
     const M=tr.m,f=M.idx.get(tr.fileKey);
     if(f){try{ensureCtx();return {buf:await AU.ctx.decodeAudioData(await f.arrayBuffer()),note:''};}catch(e){return {buf:null,note:say('Format non décodable par ce navigateur ('+tr.ext.toUpperCase()+') : lecture simulée','Format not decodable by this browser ('+tr.ext.toUpperCase()+'): simulated playback')};}}
+    /* no network, or the page opened alone: the built-in sound stands in */
+    if(tr.url)try{const r=await fetch(tr.url);if(r.ok){ensureCtx();return {buf:demoTrim(await AU.ctx.decodeAudioData(await r.arrayBuffer()),tr.trimMs),note:''};}}catch(e){}
     if(M.demo)return {buf:synthDemo(tr,an.beats),note:''};
     return {buf:null,note:M.hasContents?say('Fichier audio introuvable sur la clé : lecture simulée','Audio file not found on the USB: simulated playback'):say('Dossier Contents non choisi : lecture simulée (pas de son)','Contents folder not selected: simulated playback (no sound)')};
   }
@@ -239,11 +254,11 @@ class Deck{
     if(SET.ejectLock===1&&this.playing&&this.cur){toast(say('EJECT/LOAD LOCK : chargement impossible pendant la lecture','EJECT/LOAD LOCK: cannot load while playing'));return false;}
     const was=this.playing||!!opt.play;
     this.pause();Object.assign(this,{loop:null,ghost:null,buf:null,_pos:0,dur:tr.duration||1,adjust:null,loopIn:null,lastLoop:null,loopMode:false,jumpMode:false,
-      slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
+      slipRevHeld:this.lever===-1,hotHeld:null,slip:false,slipHold:false,revDone:false,syncLost:false,syncHold:null,lcdMsg:null,touch:1,touchTarget:1,scratchOn:false,ended:false,called:null,grid:false,touchPrev:null,callMode:false,autoLen:4});
     this.dir=(this.rev||this.slipRevHeld)?-1:1;
     this.hist=[tr].concat(this.hist.filter(x=>x!==tr)).slice(0,8);
     const tok=++this.loadTok;this.usbComm=now()+1;clearTimeout(this._qT);this._qT=null;this.cueAdj=false;
-    this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,list:opt.list||(this.cur&&this.cur.list)||null};
+    this.cur={tr,an:null,hot:{},store:{},mem:[],note:'',loading:true,tag:!!opt.tag,list:opt.list||(this.cur&&this.cur.list)||null};
     this.ui.scr='play';this.ui.info=false;this.ui.sort=null;this.dirty=true;
     const an=await getAnalysis(tr);if(tok!==this.loadTok)return false;
     const au=await this.getAudio(tr,an);if(AU.engReady)await AU.engReady;if(tok!==this.loadTok)return false;
@@ -252,6 +267,7 @@ class Deck{
     for(const q of an.cueList){if(q.hot>0&&q.hot<=8)c.store[q.hot]=q;else if(q.hot===0)c.mem.push(q);}
     c.autoHot=SET.hcAuto===1||(SET.hcAuto===2&&String(tr.autoload).toUpperCase()==='ON');
     if(c.autoHot)for(const k in c.store)c.hot[k]=c.store[k];
+    c.activeLoop=c.mem.find(m=>m.active&&m.end)||null;c.cacheT=now();
     this.buf=au.buf;
     const lastBeat=an.beats.length?an.beats[an.beats.length-1].t/1000:0;
     this.dur=au.buf?au.buf.duration:Math.max(tr.duration,lastBeat,1);
@@ -264,10 +280,13 @@ class Deck{
       this.buf={duration:b.duration,sampleRate:b.sampleRate,numberOfChannels:b.numberOfChannels,length:b.length};}
     this._pos=this.cue;this.applyTempo();this.dirty=true;
     if(c.note)toast(c.note,4000);
-    if(was)this.play();
+    const M=BUS.master,dbl=M&&M!==this&&M.loaded()&&M.cur.tr===tr;if(dbl)this.seek(M.pos());
+    if(was||dbl&&M.playing)this.play();
     return true;
   }
 }
+/* the MP3 starts later than the WAV rekordbox analysed (encoder delay, measured): cut that much so the beat grid stays right */
+function demoTrim(b,ms){const o=Math.round((ms||0)/1000*b.sampleRate);if(!o)return b;const n=AU.ctx.createBuffer(b.numberOfChannels,b.length-o,b.sampleRate);for(let c=0;c<b.numberOfChannels;c++)n.copyToChannel(b.getChannelData(c).subarray(o),c);return n;}
 function mtStored(n){try{return !!JSON.parse(localStorage.getItem('bc.mt')||'{}')[n];}catch(e){return false;}}
 function findAutoCue(buf,db){
   const thr=Math.pow(10,db/20),ch=[];for(let c=0;c<buf.numberOfChannels;c++)ch.push(buf.getChannelData(c));

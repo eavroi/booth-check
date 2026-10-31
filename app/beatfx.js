@@ -114,6 +114,8 @@ class Bq{constructor(){this.b0=1;this.b1=this.b2=this.a1=this.a2=0;this.z1=[0,0]
     this.b0=b0/a0;this.b1=b1/a0;this.b2=b2/a0;this.a1=-2*cs/a0;this.a2=(1-al)/a0;return this;}
   run(x,c){const y=this.b0*x+this.z1[c];this.z1[c]=this.b1*x-this.a1*y+this.z2[c];this.z2[c]=this.b2*x-this.a2*y;return y;}}
 const Q=Math.SQRT1_2;
+/* ECHO and PING PONG: how much of each repeat comes back, about -2 dB a repeat (the tail of the real mixer is long: Victor; à caler) */
+const ECHO_FB=.8,ECHO_IN=.6;      /* less goes in, so the repeats do not pile up louder than the music */
 class BcBeat extends AudioWorkletProcessor{
   constructor(o){super();const sr=sampleRate;this.N=1<<Math.ceil(Math.log2(sr*9));this.M=this.N-1;
     this.R=[new Float32Array(this.N),new Float32Array(this.N)];this.D=[new Float32Array(this.N),new Float32Array(this.N)];
@@ -144,13 +146,15 @@ class BcBeat extends AudioWorkletProcessor{
   process(inp,out){const I=inp[0],O=out[0];if(!O||!O.length)return true;const L=O[0].length,sr=sampleRate,p=this.p;this.n0=this.n;
     const has=I&&I.length,i0=has?I[0]:null,i1=has?(I[1]||I[0]):null;
     if(p.on&&p.start!==this.seen){this.seen=p.start;this.begin();}
-    /* ON/OFF turned off: DELAY, ECHO, PING PONG, SPIRAL and REVERB let their echoes die out (10 s at most), the others stop */
-    if(this.wasOn&&!p.on&&p.mode<=4){this.tail=10*sr;this.tailMode=p.mode;}
+    /* ON/OFF turned off: DELAY, ECHO, PING PONG, SPIRAL and REVERB let their echoes die out on their own (2 min at most), the others stop */
+    if(this.wasOn&&!p.on&&p.mode<=4){this.tail=120*sr;this.tailMode=p.mode;}
     if(p.on||p.mode!==this.tailMode)this.tail=p.on?this.tail:0;
     this.wasOn=p.on;
     if(!p.on)this.seen=-1;
     const mode=p.mode,ka=1-Math.exp(-1/(.02*sr)),km=1-Math.exp(-1/(.008*sr)),band=p.band,allB=band[0]&&band[1]&&band[2];
     const T=Math.max(.001,p.T),Ls=Math.round(T*sr),x=this.xo,dl=(a,b)=>Math.min(1,2*(1-a)),wt=a=>Math.min(1,2*a);
+    /* REVERB: the tail (seconds to -60 dB) grows with BEAT (spread) and TIME (degree); the level stays the same whatever its length (à caler) */
+    const rt60=1+14*Math.pow(p.rev/100,1.3)*(.3+.7*p.revT/100),rvF=Math.pow(10,-.084/rt60),rvG=.1*Math.sqrt(1-rvF*rvF)*p.revT/100;
     for(let i=0;i<L;i++){const n=this.n;let xl=has?i0[i]:0,xr=has?i1[i]:0;
       this.mix+=((p.on?1:0)-this.mix)*km;this.dep+=(p.depth-this.dep)*ka;const d=this.dep,m=this.mix;
       /* the selected bands go into the effect, the others pass by */
@@ -165,17 +169,17 @@ class BcBeat extends AudioWorkletProcessor{
       if(m>1e-4||tl){
         switch(mode){
           case 0:case 1:{/* DELAY: one repeat; ECHO: repeats that fade (feedback à caler) */
-            this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),fb=mode===1?.6:0;
-            this.D[0][w]=sl+fb*a;this.D[1][w]=sr2+fb*b;yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
+            this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),fb=mode===1?ECHO_FB:0;
+            const fi=mode===1?ECHO_IN:1;this.D[0][w]=sl*fi+fb*a;this.D[1][w]=sr2*fi+fb*b;yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
           case 2:{/* PING PONG: left, then right, then left..., fading */
-            this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),g=Math.sqrt(.6);
-            this.D[0][w]=(sl+sr2)*.5+g*b;this.D[1][w]=g*a;yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
+            this.Ts+=(T-this.Ts)*.0004;const ds=this.Ts*sr,a=this.rd(this.D,0,ds),b=this.rd(this.D,1,ds),g=Math.sqrt(ECHO_FB);
+            this.D[0][w]=(sl+sr2)*.5*ECHO_IN+g*b;this.D[1][w]=g*a;yl=sl*dl(d)+a*wt(d);yr=sr2*dl(d)+b*wt(d);break;}
           case 3:{/* SPIRAL: an echo that goes through a diffuser; the delay glides, so the pitch moves when it changes; LEVEL/DEPTH = feedback and balance */
-            this.Tsp+=(T-this.Tsp)*.00004;const ds=this.Tsp*sr,fb=.25+.55*d,o=[0,0];
+            this.Tsp+=(T-this.Tsp)*.00004;const ds=this.Tsp*sr,fb=.5+.42*d,o=[0,0];
             for(let c=0;c<2;c++){let v=this.rd(this.D,c,ds);for(const A of this.sp[c]){const z=A.b[A.i];const y=-.6*v+z;A.b[A.i]=v+.6*y;A.i=(A.i+1)%A.b.length;v=y;}o[c]=v;}
-            this.D[0][w]=sl+fb*o[0];this.D[1][w]=sr2+fb*o[1];yl=sl*dl(d)+o[0]*wt(d);yr=sr2*dl(d)+o[1]*wt(d);break;}
+            this.D[0][w]=sl*ECHO_IN+fb*o[0];this.D[1][w]=sr2*ECHO_IN+fb*o[1];yl=sl*dl(d)+o[0]*wt(d);yr=sr2*dl(d)+o[1]*wt(d);break;}
           case 4:{/* REVERB: BEAT = how far it spreads (tail length), TIME = how much reverb, X-PAD = a high-pass on the reverb (à caler) */
-            const fbk=.7+.28*p.rev/100,damp=.25,g=p.revT/100*.06,inp=(sl+sr2)*g,o=[0,0];
+            const fbk=rvF,damp=.25,inp=(sl+sr2)*rvG,o=[0,0];
             for(let c=0;c<2;c++){let s=0;for(const K of this.cb[c]){const z=K.b[K.i];K.f=z*(1-damp)+K.f*damp;K.b[K.i]=inp+K.f*fbk;K.i=(K.i+1)%K.b.length;s+=z;}
               for(const A of this.ab[c]){const z=A.b[A.i];const y=-s+z;A.b[A.i]=s+z*.5;A.i=(A.i+1)%A.b.length;s=y;}o[c]=s;}
             if(p.x>=0){if((n&31)===0)this.hpR.set('hp',20*Math.pow(200,p.x),Q);o[0]=this.hpR.run(o[0],0);o[1]=this.hpR.run(o[1],1);}

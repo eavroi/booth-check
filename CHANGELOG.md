@@ -1,5 +1,37 @@
 # Booth Check — versions
 
+## V3.0 — 31 octobre 2026
+La V3 commence par stabiliser ce qui existe, les nouvelles machines viendront après. Cette version réunit ce qui était prévu en V3.0 et V3.2.
+
+**Démo**
+- Nouveau morceau : Squared de Comité d'accueil (musique de Victor), avec le vrai son et l'analyse de rekordbox. Le son est dans `data/squared.mp3` et se charge seulement quand on charge le morceau ; sans réseau, le son synthétique prend le relais. Le retard de l'encodage MP3 est retiré (24,5 ms, mesuré) : la grille tombe à moins d'1 ms.
+
+**Effets : queues beaucoup plus longues (à l'oreille de Victor, à caler sur l'enregistrement)**
+- ECHO et PING PONG : environ -2 dB par répétition (-4 dB avant), en gardant le même niveau général. SPIRAL : retour plus fort. DELAY reste à une seule répétition (mode d'emploi p. 16).
+- REVERB : de 1 à 15 s environ, la longueur suit BEAT et TIME, le niveau ne bouge pas.
+- Après ON/OFF, la queue se termine toute seule (2 min au plus, 10 s avant).
+- SPACE : jusqu'à 13 s avec PARAMETER (6 s avant). DUB ECHO : retour plus fort. Quand on change d'effet, la queue de SPACE et de DUB ECHO continue au lieu d'être coupée.
+
+**Hercules Steel**
+- BEAT FX ON/OFF : les deux Stop marchent, sur les pads du haut à gauche des deux côtés. Stop tenu, le pad s'allume pour qu'on le trouve, clignote quand l'effet marche, et l'état s'affiche.
+- Plan du contrôleur refait : 3 onglets (Normal, SHIFT, Stop maintenu), une seule fonction par touche, en gros ; ce qui ne fait rien dans l'onglet est grisé ; l'onglet Stop s'affiche tout seul tant qu'on tient Stop. SHIFT n'envoie aucun message au site : son onglet se choisit à la main.
+
+**CDJ : fonctions manquantes (mode d'emploi p. 17-18, 25, 29-30, 33-36, 39)**
+- TAG LIST : une liste par clé (100 morceaux au plus, pas de doublon) ; avec deux clés on choisit d'abord la clé ; TAG TRACK ajoute aussi un dossier, une catégorie ou une playlist entière (le nom clignote) ; appui court = ajoute, plus d'1 s = retire ; un morceau retiré pendant sa lecture finit sans enchaîner ; chargé depuis la liste, il démarre ; MENU : LIST MENU, TAGLIST MENU, REMOVE ALL TRACKS, CREATE PLAYLIST (TAG LIST 001) ; coche à gauche du morceau, jaquettes, colonne artiste, Total Track en haut.
+- HISTORY : DELETE et ALL DELETE par MENU, HISTORY NAME au clavier de l'écran (32 caractères, repart à 001), 999 morceaux au plus. Rien n'est écrit sur la clé.
+- Boucles actives de rekordbox : lues dans le fichier ANLZ, trait rouge sur la vue d'ensemble, la boucle se pose au passage, DELETE la retire.
+- GRID ADJUST : la grille déplacée sert maintenant à QUANTIZE, à la phase et à SYNC ; MENU : RESET, SNAP GRID (CUE), SHIFT GRID.
+- SYNC : coupé, le tempo reste jusqu'à ce que le curseur revienne dessus ; un pitch bend sur une platine qui suit annule la synchro et SYNC clignote ; INSTANT DOUBLES (appui > 1 s, ou charger le morceau du MASTER) ; le MASTER passe à une autre platine quand il s'arrête ou change de morceau.
+- SLIP : pas de boucle de plus de 8 s ; hot cue tenu : retour au fond après 4 temps ; REV : retour après 8 temps, REVERSE clignote à l'écran ; glisser le doigt entre les longueurs de boucle, RELOOP rappelle la première ; en slip, trait jaune = position entendue, blanc = fond.
+- Écran INFO refait d'après le schéma p. 35 : USB@PLAYER, TRACK 006/010, sélection du lecteur, indicateur de source pour une autre platine. INFO > 1 s en exploration ou TAG LIST : détails du morceau chargé. Classement changé au sélecteur (tenu 1 s, tourné, validé), ici seulement.
+- Cachemètre : partie rouge de la barre de position à partir de la lecture (quantité et vitesse choisies par nous). Mémoire audio : anneau extérieur du centre de la jog, clignote au chargement puis reste allumé (p. 18) ; seul l'anneau intérieur réagit au toucher.
+- MENU de lecture : WAVEFORM COLOR (place choisie par nous). Forme d'onde agrandie : en pause, le doigt déplace le morceau.
+- Appuyer sur le sélecteur en GRID ADJUST ne fait plus RESET (non prévu par le manuel, c'est dans MENU).
+
+**Non faits, faute de référence** : HOT CUE BANK (il faut une clé exportée avec une banque pour savoir où elle est rangée) ; boucle de secours (ici la lecture ne peut pas être coupée par surprise) ; marquer un morceau lu dans PLAYLIST par MENU (le manuel ne donne pas le nom de l'entrée).
+Tests : 37 nouveaux scénarios, 133 au total. Le son des queues n'a pas été écouté par Claude.
+Méthode : les schémas des modes d'emploi se lisent maintenant en image (pdf.js dans Edge), ce qui n'était pas possible pendant l'audit.
+
 ## V2.8.3 — 28 octobre 2026
 Écran, voyants et réglages de la CDJ d'après le mode d'emploi (audit du 27 octobre, points E1, E3-E6, E9-E10, J7-J10) :
 - Barre de position du morceau (p. 18) : en ELAPSED, la partie jouée est allumée ; en REMAIN, elle s'éteint. En fin de morceau, c'est toute la barre qui clignote (lentement sous 30 s, vite sous 15 s) ; les chiffres du temps ne clignotent plus (le manuel ne parle que de la barre). Pas de graduations pour un morceau de plus de 15 min (p. 44). Les graduations restent toutes les minutes (le manuel parle aussi de 16 mesures sans dire quand : à vérifier sur la vraie platine).
