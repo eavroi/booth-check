@@ -25,7 +25,7 @@ Le Pioneer DJ DDJ-400 rejoint le Steel comme modèle de contrôleur, « en test 
 
 **Non fait** : DDJ-FLX4 (liste officielle dans `references/manuels/ddj-flx4/`, Victor a demandé le DDJ-400 d'abord). KEYBOARD, PAD FX 2, KEY SHIFT, SMART, RELEASE FX, Fader Start non reliés : rien d'équivalent sur la CDJ ni sur la table.
 Pas vérifié (rien n'a tourné sur un vrai contrôleur) : nom exact du port, 720 pas par tour de jog (valeur de Mixxx, absente de la liste), ordre des deux messages 14 bits, voyants des pads selon le mode, échelle du vumètre, BEAT SYNC au relâché, casque branché sur le contrôleur, position des potards au branchement (pas de moyen officiel de la demander : il faut les bouger pour en prendre la main).
-Tests : 24 nouveaux scénarios, 195 au total, avec des messages MIDI simulés.
+Tests : 24 nouveaux scénarios, 195 au total, avec des messages MIDI simulés. TAP du Steel, qui échouait parfois, rendu sûr ; sur GitHub, les échecs se lisent désormais sans connexion.
 
 ## V3.1 — 31 octobre 2026
 L'écran de la CDJ est refait au plus près du vrai firmware 1.87 (émulateur cdj-nxs2-qemu, observation seulement, rien n'est copié), et la solidité passe avant les nouveautés. Comparaison écran par écran avec la clé de Victor : couleurs relevées au pixel.

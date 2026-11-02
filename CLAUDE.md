@@ -22,7 +22,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - `app/` : modules de l'application, assemblés dans l'ordre de `build.py` (core, face_layout, cap_img, face_art, djm_art, lcd_kit, library, mixer, beatfx, deck, browse, lcd, controls, face_view, mixer_view, midi, midi_plan, report, ui, main).
 - `lib/` : lecture d'export.pdb et des fichiers ANLZ. `data/demo.json` : l'exemple intégré. `data/squared.mp3` : le son de Squared (Comité d'accueil, musique de Victor), chargé à la demande ; ajouté à la démo par `demoExtra` dans library.js (pas dans export.pdb), son analyse rekordbox est dans demo.json. À copier à côté d'index.html dans chaque livraison.
 - `index.html` (racine) est GÉNÉRÉ par `build.py` : ne pas l'éditer à la main.
-- `tests/scenarios.py` : scénarios de comportement ; `tests/smoke.py` : test rapide avec captures (Playwright) ; `tests/out/` ne doit pas être commité. `.github/workflows/test.yml` les relance sur GitHub à chaque envoi et vérifie qu'`index.html` est à jour.
+- `tests/scenarios.py` : scénarios de comportement ; `tests/smoke.py` : test rapide avec captures (Playwright) ; `tests/out/` ne doit pas être commité. `.github/workflows/test.yml` les relance sur GitHub à chaque envoi et vérifie qu'`index.html` est à jour. Sur GitHub le navigateur est en anglais : dans un scénario, comparer les textes avec `say()`. Un échec y apparaît en annotation, lisible sans connexion (`check-runs/<job>/annotations`, API publique limitée à 60 lectures par heure) ; `gh` n'est pas installé sur ce PC.
 - `og.png`, `icon.png`, `icon-192.png`, `icon-512.png`, `manifest.webmanifest` : partage et application installée.
 
 ## Points clés du fonctionnement
