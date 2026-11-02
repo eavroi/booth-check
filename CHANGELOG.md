@@ -1,5 +1,32 @@
 # Booth Check — versions
 
+## V3.2 — 2 novembre 2026
+Le Pioneer DJ DDJ-400 rejoint le Steel comme modèle de contrôleur, « en test » : écrit d'après sa liste MIDI officielle (`references/manuels/ddj-400/`), pas encore essayé sur le vrai contrôleur. Un ami de Victor en a un, l'essai viendra plus tard.
+
+**DDJ-400**
+- Dans le panneau Contrôleur, juste sous le Steel, avec la mention « en test » ; reconnu au nom du port MIDI. Sans rien de branché, le panneau annonce les modèles prêts.
+- Platine : PLAY, CUE, LOOP IN / OUT, RELOOP/EXIT, CUE/LOOP CALL, BEAT SYNC, TEMPO. SHIFT + CUE = début du morceau, SHIFT + PLAY = REVERSE, SHIFT + CUE/LOOP CALL = DELETE et MEMORY, SHIFT + SYNC = TEMPO RANGE, SYNC long = MASTER, IN long = 4 BEAT, SHIFT + jog = recherche rapide.
+- Table : tout est relié, MASTER CUE compris. CFX = COLOR (FILTER choisi au premier tour si aucun effet n'est actif), SHIFT + CFX = PARAMETER.
+- BEAT FX : FX SELECT (SHIFT : à l'envers), CH SELECT, BEAT ◀ ▶, SHIFT = AUTO et TAP, LEVEL/DEPTH, SHIFT + LEVEL/DEPTH = TIME, ON/OFF.
+- Navigation : bouton central = sélecteur (SHIFT : rapide), appui = valider, SHIFT + appui = BACK ; LOAD, SHIFT + LOAD = TAG LIST à gauche, INFO à droite.
+- Pads : HOT CUE = A à H (SHIFT : effacer), BEAT LOOP = 1/4 à 32, BEAT JUMP = ◀ ▶ d'1 temps sur 2 pads, SAMPLER = BROWSE, TAG LIST, INFO, MENU, QUANTIZE, SLIP, JOG MODE, MASTER TEMPO (SHIFT : TAG TRACK, TRACK FILTER, SHORT CUT, TIME MODE, TEMPO RESET, SLIP REVERSE), PAD FX 1 = les 6 SOUND COLOR FX.
+- Plan dessiné d'après la vue du dessus de la liste MIDI, sans logo : Normal, SHIFT, un onglet par mode de pads. Il suit SHIFT et le mode choisi sur le contrôleur.
+
+**Moteur MIDI**
+- Faders et potards sur 14 bits (deux messages), dans n'importe quel ordre : TEMPO fin, sans crans.
+- Capteur du jog : main posée, relevée, dessus et bord distincts, nombre de pas par tour propre à chaque modèle.
+- TEMPO dans l'autre sens que le Steel, comme le dit la liste.
+- Voyants envoyés en notes, clignotement fait par Booth Check (BEAT FX ON/OFF clignote seul). Vumètres de tranche et voyant de chargement sur le contrôleur.
+- Touches qui ne parlent qu'une fois (BEAT SYNC au relâché, appuis longs). Apprentissage : un fader 14 bits est reconnu.
+
+**Corrigé au passage**
+- Importer un fichier de correspondances faisait perdre les 2es fonctions, Steel compris.
+- Les voyants ne relisent plus le réglage des côtés pour chaque touche à chaque image.
+
+**Non fait** : DDJ-FLX4 (liste officielle dans `references/manuels/ddj-flx4/`, Victor a demandé le DDJ-400 d'abord). KEYBOARD, PAD FX 2, KEY SHIFT, SMART, RELEASE FX, Fader Start non reliés : rien d'équivalent sur la CDJ ni sur la table.
+Pas vérifié (rien n'a tourné sur un vrai contrôleur) : nom exact du port, 720 pas par tour de jog (valeur de Mixxx, absente de la liste), ordre des deux messages 14 bits, voyants des pads selon le mode, échelle du vumètre, BEAT SYNC au relâché, casque branché sur le contrôleur, position des potards au branchement (pas de moyen officiel de la demander : il faut les bouger pour en prendre la main).
+Tests : 24 nouveaux scénarios, 195 au total, avec des messages MIDI simulés.
+
 ## V3.1 — 31 octobre 2026
 L'écran de la CDJ est refait au plus près du vrai firmware 1.87 (émulateur cdj-nxs2-qemu, observation seulement, rien n'est copié), et la solidité passe avant les nouveautés. Comparaison écran par écran avec la clé de Victor : couleurs relevées au pixel.
 

@@ -1,5 +1,5 @@
-/* ---------------- the controller map: the Hercules DJ Control Steel drawn after the top view of its manual (p. 6),
-   each control labelled with what it does now (template or learned); tabs show it alone, with SHIFT, or with Stop held.
+/* ---------------- the controller map: the Hercules DJ Control Steel drawn after the top view of its manual (p. 6), the DDJ-400 after the top
+   view of its MIDI list (p. 1), each control labelled with what it does now (template or learned); tabs show it alone, with SHIFT, or with Stop held.
    It floats over the booth like the keyboard map, and the control being touched lights up. Units: the manual drawing's. ---------------- */
 const PSH={play:'PLAY',cue:'CUE',loop_in:'LOOP\nIN',loop_out:'LOOP\nOUT',reloop:'RELOOP',four_beat:'4/8\nBEAT',jump_rev:'JUMP ◀\n1/2X',jump_fwd:'JUMP ▶\n2X',
   hb1:'A / E',hb2:'B / F',hb3:'C / G',hb4:'D / H',bank:'BANK',call:'CALL/DEL',search_rev:'SEARCH ◀◀',search_fwd:'SEARCH ▶▶',track_rev:'TRACK ◀◀',track_fwd:'TRACK ▶▶',
@@ -7,13 +7,16 @@ const PSH={play:'PLAY',cue:'CUE',loop_in:'LOOP\nIN',loop_out:'LOOP\nOUT',reloop:
   nudge_rev:'BEND −',nudge_fwd:'BEND +',load:'LOAD',tempo:'TEMPO',jog:'JOG',trim:'TRIM',hi:'HI',mid:'MID',low:'LOW',fader:'FADER',color:'COLOR',ph_cue:'CUE\nCASQUE',
   kill_hi:'KILL HI',kill_mid:'KILL MID',kill_low:'KILL LOW',xfader:'CROSSFADER',master:'MASTER',balance:'BALANCE',mixing:'MIXING',ph_level:'LEVEL',param:'PARAMETER',fx_color:'COLOR',
   beatfx:'DEPTH',bfx_type:'FX TYPE',bfx_ch:'FX CH',bfx_depth:'DEPTH',bfx_time:'TIME',bfx_beat:'BEAT ◀▶',bfx_on:'BEAT FX\nON/OFF',bfx_tap:'TAP',bfx_beat_rev:'BEAT ◀',bfx_beat_fwd:'BEAT ▶',bfx_xpad:'X-PAD',bfx_autotap:'AUTO\nTAP',selector:'SÉLECTEUR',fx_side:'COLOR ↔',nav_up:'▲',nav_down:'▼',nav_back:'BACK',nav_push:'OK',jog_mode_all:'VINYL/CDJ',
-  browse:'BROWSE',tag_list:'TAG LIST',info:'INFO',menu:'MENU',tag_track:'TAG',track_filter:'FILTER',short_cut:'SHORT\nCUT'};
-const pshort=a=>a?(PSH[a]||(a.startsWith('fx:')?a.slice(3).replace(' ','\n'):MACT[a]?tl(MACT[a].l):a)):'';
+  browse:'BROWSE',tag_list:'TAG LIST',info:'INFO',menu:'MENU',tag_track:'TAG',track_filter:'FILTER',short_cut:'SHORT\nCUT',
+  call_rev:'CALL ◀\n1/2X',call_fwd:'CALL ▶\n2X',mem_delete:'DELETE',memory:'MEMORY',time_mode:'TIME\nMODE',shift:'SHIFT',jog_search:'SEARCH',cfx:'CFX',master_cue:'CUE',
+  bfx_level:'LEVEL/DEPTH',bfx_next:'FX ▶',bfx_prev:'FX ◀',nav_turn:'SÉLECTEUR',nav_fast:'RAPIDE'};
+const pshort=a=>{if(!a)return '';if(PSH[a])return PSH[a];let r=/^hot(del)?(\d)$/.exec(a);if(r)return (r[1]?'DEL ':'')+HL[+r[2]-1];r=/^bloop(\d)$/.exec(a);if(r)return fmtBeat(BLOOPS[+r[1]-1]);
+  return a.startsWith('fx:')?a.slice(3).replace(' ','\n'):MACT[a]?tl(MACT[a].l):a;};
 /* colour of a function: CDJ transport, loops, hot cues, the function key, the mixer, browsing, SOUND COLOR FX */
 function pcat(a){
-  if(!a)return 'off';if(a.startsWith('fx:')||a==='color'||a==='param'||a==='fx_color'||a==='beatfx'||a.startsWith('bfx_'))return 'fx';
-  if(/^(loop_in|loop_out|reloop|four_beat|jump_rev|jump_fwd)$/.test(a))return 'loop';
-  if(/^(hb\d|hot\d|bank|call)$/.test(a))return 'hot';if(a==='fn')return 'fn';
+  if(!a)return 'off';if(a.startsWith('fx:')||a==='color'||a==='cfx'||a==='param'||a==='fx_color'||a==='beatfx'||a.startsWith('bfx_'))return 'fx';
+  if(/^(loop_in|loop_out|reloop|four_beat|jump_rev|jump_fwd|call_rev|call_fwd|mem_delete|memory|bloop\d)$/.test(a))return 'loop';
+  if(/^(hb\d|hot\d|hotdel\d|bank|call)$/.test(a))return 'hot';if(a==='fn'||a==='shift')return 'fn';
   if(MACT[a]&&(MACT[a].g==='chan'||MACT[a].g==='mix'))return 'mix';if(MACT[a]&&MACT[a].g==='nav'||/^(browse|tag_list|info|menu|tag_track|track_filter|load)$/.test(a))return 'nav';
   return 'play';
 }
@@ -51,6 +54,37 @@ const STEEL_GEO=(function(){
   G.push({t:'f',x:211.5,y0:192,y1:231,ty:336,w:9,c:0x39,h:1});
   return G;
 })();
+/* the DDJ-400: b = key [centre x, y, w, h], r = round key, k = knob, f = fader, j = jog; k = its code(s), s = its code with SHIFT,
+   pad = number of a pad (its code follows the pad mode). In the pixels of the list's picture, divided by DU; the right side is 797 px further */
+const DU=4.4,DDJ_VIEW='11 45 281 150';
+const DDJ_GEO=(function(){
+  const G=[],q=v=>+(v/DU).toFixed(1),
+    b=(x,y,w,h,o)=>G.push({t:'b',x:q(x-w/2),y:q(y-h/2),w:q(w),h:q(h),...o}),r=(x,y,R,o)=>G.push({t:'r',cx:q(x),cy:q(y),r:q(R),...o}),k=(x,y,R,o)=>G.push({t:'k',cx:q(x),cy:q(y),r:q(R),...o}),
+    f=(x,y0,y1,ty,o)=>G.push({t:'f',x:q(x),y0:q(y0),y1:q(y1),ty:q(ty),w:17,...o});
+  SIDES.forEach((s,ch)=>{
+    const dx=ch*797,mx=ch*100,n=c=>'n'+ch+':'+hex2(c),c=c=>'c'+ch+':'+hex2(c),K=(a,e)=>({k:n(a),...(e?{s:n(e)}:{})});
+    [[111,0x10,0x4C],[177,0x11,0x4E],[241,0x4D,0x50],[304,0x51,0x3E],[358,0x53,0x3D],[420,0x58,0x60]].forEach(([x,a,e])=>b(x+dx,272,52,38,K(a,e)));
+    G.push({t:'j',cx:q(265+dx),cy:q(473),r:q(170),k:c(0x22),s:c(0x29),more:[c(0x23),c(0x21),n(0x36),n(0x67)]});
+    b(113+dx,640,52,26,{k:n(0x3F),lab:'SHIFT'});
+    r(113+dx,706,31,K(0x0C,0x48));r(113+dx,776,31,K(0x0B,0x47));
+    /* the pad mode keys: the second line with SHIFT */
+    [['hot','HOT CUE','KEYBOARD','kbd',0x1B,0x69],['loop','BEAT LOOP','PAD FX 1','fx',0x6D,0x1E],['jump','BEAT JUMP','PAD FX 2','fx2',0x20,0x6B],['samp','SAMPLER','KEY SHIFT','key',0x22,0x6F]].forEach(([m,l,ls,ms,a,e],i)=>
+      b([183,239,295,351][i]+dx,677,50,20,{mode:m,lab:l,labs:ls,ms,side:s,k:n(a),more:[n(e)]}));
+    for(let p=0;p<8;p++)b([182,238,295,351][p%4]+dx,p<4?731:785,50,46,{pad:p,side:s});
+    f(421+dx,625,810,717,{k:c(0x00)});
+    [[296,0x04],[355,0x07],[412,0x0B],[470,0x0F]].forEach(([y,a])=>k(617+mx,y,15,{k:c(a)}));
+    k(617+mx,532,18,{k:'c6:'+hex2(0x17+ch)});
+    b(617+mx,591,44,17,K(0x54,0x68));
+    f(617+mx,632,748,690,{k:c(0x13)});
+  });
+  /* the middle */
+  b(584,243,52,24,{k:'n6:46',s:'n6:68'});b(748,243,52,24,{k:'n6:47',s:'n6:7a'});k(666,240,17,{k:'c6:40',s:'c6:64',press:'n6:41',presss:'n6:42'});
+  k(524,498,15,{k:'c6:0c'});k(524,590,15,{k:'c6:0d'});k(802,295,15,{k:'c6:08'});b(806,356,48,17,{k:'n6:63'});
+  b(782,412,40,19,{k:'n4:4a',s:'n4:66'});b(830,412,40,19,{k:'n4:4b',s:'n4:6b'});b(806,473,56,19,{k:'n4:63',s:'n4:64'});
+  b(806,532,70,19,{lab:'CH 1 · 2 · MASTER',k:'n4:10',more:['n4:11','n4:14']});k(803,596,15,{k:'c4:02'});r(806,688,24,{k:'n4:47'});
+  G.push({t:'f',x:q(666),y0:q(610),y1:q(722),ty:q(800),w:9,k:'c6:1f',h:1});
+  return G;
+})();
 const pkey=c=>'c0:'+c.toString(16).padStart(2,'0');
 /* the light check: a click on the map answers which control is lit */
 let PLAN_PICK=null;
@@ -58,14 +92,44 @@ const PVIEW='70 166 283 190';
 /* the map shows one layer at a time, each control with one big label: what it does alone, with SHIFT, or with a Stop held */
 let PLAN_LAYER='n',PLAN_TMP=null;
 const planL=()=>PLAN_TMP||PLAN_LAYER;
+const pT=(x,y,t,cl,sz,anc)=>'<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" class="'+cl+'"'+(sz?' font-size="'+sz.toFixed(2)+'"':'')+(anc?' text-anchor="'+anc+'"':'')+'>'+esc(t)+'</text>';
+/* a label always fits its key, on one or two lines: the font shrinks for the long ones */
+const pFit=(t,w,sz)=>Math.min(sz,w*1.72/Math.max(1,String(t).length));
+const pInKey=(cx,cy,w,h,t,cl,sz)=>{const ls=String(t).split('\n'),s=Math.min(sz,...ls.map(x=>pFit(x,w-1,sz)),(h-1)/ls.length/1.05),lh=s*1.12;
+  return ls.map((x,i)=>pT(cx,cy+s*.36+(i-(ls.length-1)/2)*lh,x,cl,s,'middle')).join('');};
+const pTip=(b,bs,fn)=>{if(!b&&!bs)return say('Non relié','Not mapped');let t=b?midiBindLabel(b):'';if(b&&b.f)t+=' — '+(fn?'SHIFT : ':say('avec Stop : ','with Stop: '))+tl(MACT[b.f].l);if(bs)t+=' — SHIFT : '+midiBindLabel(bs);return t;};
+/* the DDJ-400: Normal or SHIFT; the pads show the mode chosen on the controller (each side has its own) */
+function ddjSvg(){
+  const map=MIDI.cfg?MIDI.cfg.map:ddj400Map(),E=[],sh=planL()==='s',q=v=>+(v/DU).toFixed(1),T=pT,inKey=pInKey,tip=pTip;
+  [[57,415],[475,383],[860,416]].forEach(([x,w],i)=>E.push('<rect class="'+(i===1?'p-mix':'p-body')+'" x="'+q(x)+'" y="'+q(208)+'" width="'+q(w)+'" height="'+q(637)+'" rx="2"/>'));
+  E.push(T(q(535),q(330),'DDJ-400','p-brand',3.4,'middle'));
+  for(const x of [652,676])E.push('<line x1="'+q(x)+'" x2="'+q(x)+'" y1="'+q(345)+'" y2="'+q(480)+'" class="p-slot"/>');
+  for(const g of DDJ_GEO){
+    const pad=g.pad!=null,m=pad?MIDI.padMode[g.side]:null,k=pad?ddjPad(g.side,m,g.pad,0):g.k,ks=pad?ddjPad(g.side,m,g.pad,1):g.s,b=map[k],bs=ks&&map[ks];
+    /* with SHIFT: its own code, or for a knob its second function */
+    let act=g.lab?null:sh?(bs?bs.a:ks||pad?null:b&&b.f||null):b&&b.a;if(act&&!MACT[act])act=null;
+    const dk=pad?Object.keys(PAD_BASE).flatMap(x=>[ddjPad(g.side,x,g.pad,0),ddjPad(g.side,x,g.pad,1)]):[k,ks,g.press,g.presss,...(g.more||[])].filter(Boolean);
+    const onMode=g.mode&&MIDI.padMode[g.side]===(sh?g.ms:g.mode),hwOn=g.lab&&(g.lab==='SHIFT'?sh:true);
+    const cat=act?pcat(act):hwOn?'hw':'off',tc='p-t c-'+pcat(act),lab=pshort(act);
+    const title=g.mode?say('Mode des pads : ','Pad mode: ')+g.lab+' — SHIFT : '+g.labs:g.lab==='SHIFT'?say('SHIFT : 2e fonction des boutons','SHIFT: second function of the keys'):tip(b,bs,1)+(g.press?' — '+say('appui : valider, SHIFT + appui : BACK','press: enter, SHIFT + press: BACK'):'');
+    let h='<g class="p-c c-'+cat+(!act&&!hwOn?' p-dim':'')+(onMode?' p-star':'')+'" data-k="'+dk.join(' ')+'" data-id="'+esc(k||g.lab||'')+'" data-n="'+esc(b?midiBindLabel(b):g.lab||'')+'"><title>'+esc(title)+'</title>';
+    if(g.t==='b'){const cx=g.x+g.w/2,cy=g.y+g.h/2;h+='<rect x="'+g.x+'" y="'+g.y+'" width="'+g.w+'" height="'+g.h+'" rx="1.2" class="p-key"/>';
+      if(g.lab)h+=inKey(cx,cy,g.w,g.h,sh&&g.labs?g.labs:g.lab,'p-t',2.4);else if(lab)h+=inKey(cx,cy,g.w,g.h,lab,tc,2.9);}
+    else if(g.t==='r'){h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-key"/>';if(lab)h+=inKey(g.cx,g.cy,g.r*1.8,g.r*1.5,lab,tc,3);}
+    else if(g.t==='k'){h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-knob"/><line x1="'+g.cx+'" y1="'+(g.cy-g.r+.8).toFixed(1)+'" x2="'+g.cx+'" y2="'+(g.cy-1).toFixed(1)+'" class="p-tick"/>';
+      if(lab)h+=T(g.cx,g.cy+g.r+3,lab,tc==='p-t c-play'?'p-t':tc,2.6,'middle');}
+    else if(g.t==='f'){
+      if(g.h)h+='<line x1="'+g.y0+'" x2="'+g.y1+'" y1="'+g.ty+'" y2="'+g.ty+'" class="p-slot"/><rect x="'+(g.x-2.4).toFixed(1)+'" y="'+(g.ty-4.5).toFixed(1)+'" width="4.8" height="9" rx=".8" class="p-key"/>'+(lab?T(g.x,g.ty-6.2,lab,'p-t p-lab',2.6,'middle'):'');
+      else h+='<line x1="'+g.x+'" x2="'+g.x+'" y1="'+g.y0+'" y2="'+g.y1+'" class="p-slot"/><rect x="'+(g.x-g.w/2).toFixed(1)+'" y="'+(g.ty-3.6).toFixed(1)+'" width="'+g.w+'" height="7.2" rx="1" class="p-key"/>'+(lab?inKey(g.x,g.ty,g.w,7.2,lab,'p-t',2.8):'');}
+    else if(g.t==='j'){h+='<circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+g.r+'" class="p-jog"/><circle cx="'+g.cx+'" cy="'+g.cy+'" r="'+(g.r-5)+'" class="p-jogin"/>';
+      if(lab)h+=T(g.cx,g.cy-3,lab,'p-t',5,'middle');
+      if(!sh)h+=T(g.cx,g.cy+3,say('Dessus, VINYL : scratch','Top, VINYL: scratch'),'p-t p-sub',2.8,'middle')+T(g.cx,g.cy+7,say('Bord : pitch bend','Rim: pitch bend'),'p-t p-sub',2.8,'middle');}
+    E.push(h+'</g>');
+  }
+  return '<svg viewBox="'+DDJ_VIEW+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="'+esc(say('Plan du DDJ-400','DDJ-400 map'))+'">'+E.join('')+'</svg>';
+}
 function planSvg(){
-  const map=MIDI.cfg?MIDI.cfg.map:steelMap(),E=[],L=planL();
-  const T=(x,y,t,cl,sz,anc)=>'<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" class="'+cl+'"'+(sz?' font-size="'+sz.toFixed(2)+'"':'')+(anc?' text-anchor="'+anc+'"':'')+'>'+esc(t)+'</text>';
-  /* a label always fits its key, on one or two lines: the font shrinks for the long ones */
-  const fit=(t,w,sz)=>Math.min(sz,w*1.72/Math.max(1,String(t).length));
-  const inKey=(cx,cy,w,h,t,cl,sz)=>{const ls=String(t).split('\n'),s=Math.min(sz,...ls.map(x=>fit(x,w-1,sz)),(h-1)/ls.length/1.05),lh=s*1.12;
-    return ls.map((x,i)=>T(cx,cy+s*.36+(i-(ls.length-1)/2)*lh,x,cl,s,'middle')).join('');};
-  const tip=(b,bs)=>{if(!b&&!bs)return say('Non relié','Not mapped');let t=b?midiBindLabel(b):'';if(b&&b.f)t+=' — '+say('avec Stop : ','with Stop: ')+tl(MACT[b.f].l);if(bs)t+=' — SHIFT : '+midiBindLabel(bs);return t;};
+  const map=MIDI.cfg?MIDI.cfg.map:steelMap(),E=[],L=planL(),T=pT,inKey=pInKey,tip=pTip;
   /* the body: two dark wings and the lighter mixer panel in the middle */
   E.push('<path class="p-body" d="M76.3,175 Q76.3,169 82,169 L114,169 C119,169 119,173 124,173 L299,173 C304,173 304,169 309,169 L341,169 Q346.7,169 346.7,175 L346.7,343 Q346.7,350 340,350 L83,350 Q76.3,350 76.3,343 Z"/>');
   E.push('<rect class="p-mix" x="160" y="175.2" width="103" height="172" rx="2"/>');
@@ -112,17 +176,25 @@ function planSvg(){
 }
 const PLAN_TABS=[['n','Normal','Normal','Sans rien maintenir.','With nothing held.'],['s','SHIFT','SHIFT','Avec SHIFT : les pads deviennent les hot cues.','With SHIFT: the pads become the hot cues.'],
   ['f','Stop maintenu','Stop held','Stop maintenu, n’importe lequel des deux : 2e fonction de chaque commande. BEAT FX ON/OFF = pad en haut à gauche, il clignote quand l’effet marche.','Stop held, either one: the second function of each control. BEAT FX ON/OFF = top left pad, it blinks while the effect is on.']];
+const DDJ_TABS=[['n','Normal','Normal','En test, pas encore essayé sur le vrai contrôleur. Les pads suivent le mode choisi sur le contrôleur.','In test, not tried on the real controller yet. The pads follow the mode chosen on the controller.'],
+  ['s','SHIFT','SHIFT','Avec SHIFT : les fonctions imprimées sous les boutons, quand la CDJ ou la table les ont.','With SHIFT: the functions printed under the keys, when the CDJ or the mixer has them.']];
+const DDJ_MODES=[['hot','HOT CUE'],['loop','BEAT LOOP'],['jump','BEAT JUMP'],['samp','SAMPLER'],['fx','PAD FX 1']];
 function buildPlan(){
-  const tp=MIDI.cfg?MIDI.cfg.tpl:'steel',steel=tp==='steel',L=planL();
-  $('planName').textContent=MIDI.port||tplName('steel');
-  $('planTabs').hidden=!steel;$('planHint').hidden=!steel;
-  if(steel){$('planTabs').innerHTML=PLAN_TABS.map(t=>'<button type="button" data-l="'+t[0]+'" aria-pressed="'+(t[0]===L)+'">'+esc(say(t[1],t[2]))+'</button>').join('');const t=PLAN_TABS.find(x=>x[0]===L);$('planHint').textContent=say(t[3],t[4]);}
-  $('planBody').innerHTML=steel?planSvg():'<p class="note">'+esc(say('Le plan dessiné existe pour le Hercules DJ Control Steel. Pour ce contrôleur, les correspondances sont dans le panneau Contrôleur.','The drawn map exists for the Hercules DJ Control Steel. For this controller, the mapping is in the Controller panel.'))+'</p>';
+  const tp=MIDI.cfg?MIDI.cfg.tpl:'steel',steel=tp==='steel',ddj=!!MTPL[tp].plan,tabs=ddj?DDJ_TABS:PLAN_TABS,L=planL();
+  $('planName').textContent=MIDI.port||tplName(ddj?tp:'steel');
+  $('planTabs').hidden=!steel&&!ddj;$('planHint').hidden=!steel&&!ddj;
+  if(steel||ddj){const t=tabs.find(x=>x[0]===L)||tabs[0];
+    $('planTabs').innerHTML=tabs.map(x=>'<button type="button" data-l="'+x[0]+'" aria-pressed="'+(x===t)+'">'+esc(say(x[1],x[2]))+'</button>').join('')
+      +(ddj?'<i></i>'+DDJ_MODES.map(x=>'<button type="button" data-m="'+x[0]+'" aria-pressed="'+(MIDI.padMode.L===x[0]&&MIDI.padMode.R===x[0])+'">'+esc(x[1])+'</button>').join(''):'');
+    $('planHint').textContent=say(t[3],t[4]);}
+  $('planBody').innerHTML=steel?planSvg():ddj?ddjSvg():'<p class="note">'+esc(say('Le plan dessiné existe pour le Hercules DJ Control Steel et le DDJ-400. Pour ce contrôleur, les correspondances sont dans le panneau Contrôleur.','The drawn map exists for the Hercules DJ Control Steel and the DDJ-400. For this controller, the mapping is in the Controller panel.'))+'</p>';
   const LEG=[['play',say('Platine','Player')],['loop',say('Boucles et sauts','Loops and jumps')],['hot','Hot cues'],['mix',say('Table','Mixer')],['fx',say('Effets','Effects')],['nav',say('Écran et navigation','Screen and browsing')]];
   $('planLeg').innerHTML=LEG.map(l=>'<span class="c-'+l[0]+'"><i></i>'+esc(l[1])+'</span>').join('');
 }
-/* a Stop held on the controller shows the Stop layer until it is let go */
-function planFn(){const t=MIDI.fn.L||MIDI.fn.R?'f':null;if(t===PLAN_TMP)return;PLAN_TMP=t;if(!$('planPanel').hidden&&(!MIDI.cfg||MIDI.cfg.tpl==='steel'))buildPlan();}
+/* a Stop or a SHIFT held on the controller shows its layer until it is let go */
+function planFn(){const tp=MIDI.cfg&&MIDI.cfg.tpl,ddj=tp&&MTPL[tp].plan,t=MIDI.fn.L||MIDI.fn.R?(ddj?'s':'f'):null;if(t===PLAN_TMP)return;PLAN_TMP=t;if(!$('planPanel').hidden&&(!tp||tp==='steel'||ddj))buildPlan();}
+/* the pad mode chosen on the controller */
+function planMode(s,m){if(MIDI.padMode[s]===m)return;MIDI.padMode[s]=m;if(!$('planPanel').hidden&&MIDI.cfg&&MTPL[MIDI.cfg.tpl].plan)buildPlan();}
 /* the control being touched lights up on the map */
 function planHit(k,on){
   const p=$('planPanel');if(!p||p.hidden)return;
@@ -136,7 +208,7 @@ function wirePlan(){
   const h=$('planHead');let st=null;
   sizeWin('planPanel','bc.planW',1040,480,1500);
   $('pClose').onclick=()=>showPlan(false);
-  $('planTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){PLAN_LAYER=b.dataset.l;PLAN_TMP=null;buildPlan();}});
+  $('planTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.m){MIDI.padMode.L=MIDI.padMode.R=b.dataset.m;buildPlan();return;}PLAN_LAYER=b.dataset.l;PLAN_TMP=null;buildPlan();});
   $('planBody').addEventListener('click',e=>{const g=e.target.closest('.p-c');if(PLAN_PICK&&g){PLAN_PICK(g.dataset.id||'?',g.dataset.n||'?');planHit(g.dataset.k.split(' ')[0]||'');}});
   h.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const p=$('planPanel'),r=p.getBoundingClientRect();st={dx:e.clientX-r.left,dy:e.clientY-r.top};h.setPointerCapture(e.pointerId);e.preventDefault();});
   h.addEventListener('pointermove',e=>{if(st)placePlan(e.clientX-st.dx,e.clientY-st.dy);});

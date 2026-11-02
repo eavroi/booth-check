@@ -6,7 +6,7 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 ## Façon de travailler
 - Répondre en français, de façon concise. Victor dicte souvent à la voix : lire le contexte attentivement.
 - Avant chaque version : faire un « point » (liste de ce qui va changer, questions s'il y en a) et attendre son « GO ».
-- À la livraison, toujours dire le numéro de version (V3.1 est la dernière livrée ; la suivante est la V3.2).
+- À la livraison, toujours dire le numéro de version (V3.2 est la dernière livrée ; la suivante est la V3.3).
 - Ne jamais inventer de fonction ni d'élément d'interface : tout vient de la vraie machine (mode d'emploi, photos, vidéos, captures). En cas de doute, le dire.
 - Vérifier chaque version : `python build.py`, `python tests/scenarios.py` (comportements du mode d'emploi), `python tests/smoke.py` (captures), comparer avec les photos de la vraie machine.
 - Références hors dépôt, dans `BOOTH CHECK/references/` : modes d'emploi FR de la CDJ-2000NXS2 et de la DJM-900NXS2 (PDF + texte extrait), photos de Victor, captures de l'émulateur (`emulateur/`, `emulateur/info/`), relevés (`audit/v3-emulateur.md`).
@@ -40,10 +40,11 @@ Projet personnel et gratuit de Victor, pour lui et quelques amis. Site : https:/
 - Browser (V3.1) : `u.info` = vue panneau d'une liste de morceaux, gardée partout ; `levelItems` garde les listes (`M.lv`) tant que leur signature ne change pas, passer par `M.ver++` si une donnée change ; niveaux `keyNear` et `bpmNear` entre la catégorie et les morceaux ; `masterKeys` pour l'icône verte (même tonalité, relative, voisines). Boucle : `loop.man` = posée à la main, `loopPanel()` ouvre le panneau seul.
 - Casque : clic sur la prise PHONES, sortie choisie avec setSinkId (Chrome / Edge).
 - Contrôleurs MIDI (`midi.js`, Web MIDI, Chrome / Edge) : actions `MACT`, modèles `MTPL` (Hercules DJ Control Steel d'après la table MIDI de son mode d'emploi, dans `references/manuels/`), reprise douce des potards, voyants, apprentissage. Plan dessiné du Steel dans `midi_plan.js`. BEAT FX sur le Steel (V2.9.1) : Apply Ctrl Select = Controls 1 effet (Stop : canal), Controls 2 LEVEL/DEPTH (Stop : TIME) ; Deck A/B = Controls 2 BEAT ◀ ▶ ; Stop (l'un ou l'autre) + pads = ON/OFF, TAP, BEAT ◀ ▶, X-PAD, AUTO/TAP. Plan à onglets (`planSvg`, `PLAN_LAYER`) ; SHIFT du Steel n'envoie rien, seuls les pads changent de code. Voyants du Steel vérifiés un par un (résultats dans `references/`) : codes « Mode » = SHIFT, « Folders » / « Files » = flèches ◀ ▶. Le navigateur intégré de l'app Claude refuse Web MIDI : tester dans Chrome ou Edge.
+- DDJ-400 (V3.2, « en test », jamais essayé sur le vrai contrôleur) : `ddj400Map` d'après `references/manuels/ddj-400/`, plan `ddjSvg`. Touches en notes, SHIFT change le code tout seul (action `shift` = seulement la 2e fonction des potards). Dans une liaison : `w` 14 bits (CC n + CC n+32, `midiWide`), `inv` TEMPO inversé, `i` touche qui ne parle qu'une fois, `ro` relâché seulement. Dans le modèle : `notes` voyants en notes (`midiNotes`), `touch` capteur du jog (`midiTouch`), `jogSteps`, `meter`, `noLed`, `hwBlink`, `padKeys`. Modèle sans `tested` = étiquette « en test ».
 
 ## Feuille de route (validée par Victor le 2 novembre 2026, susceptible de changer)
-Détail et constats : `references/audit/AUDIT-V3-global.md`. V3.1 faite (solidité et écran au plus près du firmware).
-1. V3.2 : contrôleurs DDJ-400 et DDJ-FLX4, décidé par Victor. Depuis leurs listes MIDI officielles (à relire avant de coder : faders sur 14 bits, toucher du jog, voyants), marqués « non testé sur le vrai contrôleur ».
+Détail et constats : `references/audit/AUDIT-V3-global.md`. V3.1 faite (solidité et écran au plus près du firmware). V3.2 faite : DDJ-400 « en test ».
+1. DDJ-FLX4 : pas encore ajouté, Victor a demandé le DDJ-400 d'abord. Liste officielle dans `references/manuels/ddj-flx4/`, carte presque identique au DDJ-400. Différences : SHIFT + PLAY = 0x0E, touche 4 BEAT/EXIT, FX ON/OFF et CH SELECT sur 2 canaux (0x94 / 0x95), touches de mode de pads (1B, 1E, 20, 22), moins de voyants, MIC LEVEL et SMART en plus.
 2. V3.3 : hors ligne, site installable.
 3. V3.4 : fidélité : écarts de `references/audit/v3-fidelite-visuelle.md` avec des photos de Victor, calage des SOUND COLOR FX et des BEAT FX sur un enregistrement de la vraie table (kit `tests/kit_djm.py` + fiche dans `BOOTH CHECK/V2.9/kit-test-DJM/`, un seul passage sur la vraie DJM pour les deux).
 4. V3.5 : enregistrement du mix en WAV.
@@ -54,6 +55,7 @@ Détail et constats : `references/audit/AUDIT-V3-global.md`. V3.1 faite (solidit
 - Pistes non classées : MIC 1 / MIC 2 avec le vrai micro (TALK OVER), BOOTH MONITOR en 2e sortie son, assistant d'apprentissage pas à pas pour les autres contrôleurs, deux contrôleurs en même temps, téléphone et Safari. SEND / RETURN : déconseillé.
 
 ## À faire plus tard
+- Essayer le DDJ-400 (V3.2) chez l'ami de Victor, Chrome ou Edge : nom du port, pas par tour du jog (720 = valeur de Mixxx, le panneau compte les pas), BEAT SYNC au relâché, voyants des pads selon le mode, « Tester les voyants », échelle du vumètre, casque du contrôleur. Quand c'est bon : `tested:true`. Si Victor le demande, généraliser le diagnostic des voyants du Steel.
 - Sur l'émulateur (V3.1) : couleurs de la vue d'ensemble (deux couches sur le firmware, section PWV4 des ANLZ à lire) ; [PLAYSTATE] du MENU d'une playlist, sans doute l'entrée pour marquer un morceau lu ; LIST DELETE sur la liste des playlists ; vue de la liste au démarrage ; INFO sans morceau chargé ; lignes LABEL et MY TAG de l'écran INFO sur un morceau qui en a ; règle exacte du commentaire de repère dans le titre (déduite, pas prouvée).
 - Essayer la V3.0 : longueur des queues de tous les effets à l'oreille, TIME sur la REVERB, ON/OFF et plan sur le vrai Steel.
 - Vérifier sur la vraie CDJ (V3.0) : TAG LIST avec une seule clé (ici directement la liste, le manuel passe par le choix du support), taille du cachemètre rouge, anneau de mémoire audio de la jog, place de WAVEFORM COLOR dans MENU, entrée du MENU pour marquer un morceau lu dans PLAYLIST.
